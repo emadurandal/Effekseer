@@ -125,6 +125,10 @@ protected:
 	Spline								spline_left;
 	Spline								spline_right;
 
+	// test
+	int32_t								countMax = 20;
+	int32_t								hasMax = false;
+
 	template<typename VERTEX>
 	void RenderSplines(const ::Effekseer::Matrix44& camera)
 	{
@@ -226,10 +230,115 @@ protected:
 			spline_right.Calculate();
 		}
 
+		// calc importance
+		std::vector<bool> isEnables;
+
+		if (hasMax)
+		{
+			std::vector<float> importances;
+			importances.resize(instances.size());
+			isEnables.resize(instances.size());
+
+			float sum = 0.0f;
+
+			for (int i = 0; i < importances.size(); i++)
+			{
+
+				if (i == 0 || i == instances.size() - 1)
+				{
+					importances[i] = 0.0f;
+					isEnables[i] = true;
+				}
+				else
+				{
+					Effekseer::Vector3D vs[3];
+					instances[i - 1].SRTMatrix43.GetTranslation(vs[0]);
+					instances[i - 0].SRTMatrix43.GetTranslation(vs[1]);
+					instances[i + 1].SRTMatrix43.GetTranslation(vs[2]);
+
+					Effekseer::Vector3D n0 = vs[1] - vs[0];
+					Effekseer::Vector3D n1 = vs[2] - vs[1];
+					auto n0_len = Effekseer::Vector3D::Length(n0);
+					auto n1_len = Effekseer::Vector3D::Length(n1);
+
+					if (n0_len > 0 && n1_len > 0)
+					{
+						n0.X /= n0_len;
+						n0.Y /= n0_len;
+						n0.Z /= n0_len;
+						n1.X /= n1_len;
+						n1.Y /= n1_len;
+						n1.Z /= n1_len;
+
+						importances[i] = (1.0 - Effekseer::Vector3D::Dot(n1, n0));
+						isEnables[i] = false;
+					}
+					else
+					{
+						importances[i] = 0;
+						isEnables[i] = false;
+					}
+				}
+			}
+
+			int32_t rectVertex = countMax - 2;
+
+			while (rectVertex > 0)
+			{
+				sum = 0;
+
+				for (int i = 0; i < importances.size(); i++)
+				{
+					sum += importances[i];
+				}
+
+				if (sum == 0)
+				{
+					for (int i = 1; i < importances.size() - 1; i++)
+					{
+						if (!isEnables[i])
+						{
+							isEnables[i] = true;
+							rectVertex--;
+
+							if (rectVertex == 0) break;
+						}
+					}
+				}
+
+				for (int i = 0; i < importances.size(); i++)
+				{
+					importances[i] /= sum;
+				}
+
+				float currentImportaance = 0.0;
+				for (int i = 1; i < importances.size() - 1; i++)
+				{
+					currentImportaance += importances[i];
+
+					if (!isEnables[i] && currentImportaance >= 1.0f / (rectVertex + 1))
+					{
+						isEnables[i] = true;
+						currentImportaance -= (1.0f / (rectVertex + 1));
+						importances[i] = 0;
+						rectVertex--;
+
+						if (rectVertex == 0) break;
+					}
+				}
+
+			}
+		}
+
 
 		for (auto loop = 0; loop < instances.size(); loop++)
 		{
 			auto& param = instances[loop];
+
+			if (hasMax)
+			{
+				if (!isEnables[loop]) continue;
+			}
 
 			for (auto sploop = 0; sploop < parameter.SplineDivision; sploop++)
 			{
@@ -449,44 +558,6 @@ public:
 
 protected:
 
-	void BeginRendering_(RENDERER* renderer, int32_t count, const efkRibbonNodeParam& param)
-	{
-		m_ribbonCount = 0;
-		int32_t vertexCount = ((count - 1) * param.SplineDivision) * 4;
-		if (vertexCount <= 0) return;
-
-		EffekseerRenderer::StandardRendererState state;
-		state.AlphaBlend = param.AlphaBlend;
-		state.CullingType = ::Effekseer::CullingType::Double;
-		state.DepthTest = param.ZTest;
-		state.DepthWrite = param.ZWrite;
-		state.TextureFilterType = param.TextureFilter;
-		state.TextureWrapType = param.TextureWrap;
-
-		state.Distortion = param.Distortion;
-		state.DistortionIntensity = param.DistortionIntensity;
-
-		if (param.ColorTextureIndex >= 0)
-		{
-			if (state.Distortion)
-			{
-				state.TexturePtr = param.EffectPointer->GetDistortionImage(param.ColorTextureIndex);
-			}
-			else
-			{
-				state.TexturePtr = param.EffectPointer->GetColorImage(param.ColorTextureIndex);
-			}
-		}
-		else
-		{
-			state.TexturePtr = nullptr;
-		}
-
-		renderer->GetStandardRenderer()->UpdateStateAndRenderingIfRequired(state);
-
-		renderer->GetStandardRenderer()->BeginRenderingAndRenderingIfRequired(vertexCount, m_ringBufferOffset, (void*&) m_ringBufferData);
-	}
-
 	void Rendering_(const efkRibbonNodeParam& parameter, const efkRibbonInstanceParam& instanceParameter, void* userData, const ::Effekseer::Matrix44& camera)
 	{
 		if (parameter.Distortion)
@@ -697,31 +768,55 @@ protected:
 		*/
 	}
 
-	void EndRendering_(RENDERER* renderer, const efkRibbonNodeParam& param)
-	{
-	}
-
 public:
 
-	void BeginRendering(const efkRibbonNodeParam& parameter, int32_t count, void* userData) override
+	void BeginRenderingGroup(const efkRibbonNodeParam& param, int32_t count, void* userData) override
 	{
-		BeginRendering_(m_renderer, count, parameter);
+		countMax = param.MaximumVertexCount;
+		auto origin = count;
+		count = Effekseer::Min(count, countMax);
+		hasMax = count < origin;
+
+		m_ribbonCount = 0;
+		int32_t vertexCount = ((count - 1) * param.SplineDivision) * 4;
+		if (vertexCount <= 0) return;
+
+		EffekseerRenderer::StandardRendererState state;
+		state.AlphaBlend = param.AlphaBlend;
+		state.CullingType = ::Effekseer::CullingType::Double;
+		state.DepthTest = param.ZTest;
+		state.DepthWrite = param.ZWrite;
+		state.TextureFilterType = param.TextureFilter;
+		state.TextureWrapType = param.TextureWrap;
+
+		state.Distortion = param.Distortion;
+		state.DistortionIntensity = param.DistortionIntensity;
+
+		if (param.ColorTextureIndex >= 0)
+		{
+			if (state.Distortion)
+			{
+				state.TexturePtr = param.EffectPointer->GetDistortionImage(param.ColorTextureIndex);
+			}
+			else
+			{
+				state.TexturePtr = param.EffectPointer->GetColorImage(param.ColorTextureIndex);
+			}
+		}
+		else
+		{
+			state.TexturePtr = nullptr;
+		}
+
+		m_renderer->GetStandardRenderer()->UpdateStateAndRenderingIfRequired(state);
+
+		m_renderer->GetStandardRenderer()->BeginRenderingAndRenderingIfRequired(vertexCount, m_ringBufferOffset, (void*&)m_ringBufferData);
 	}
 
 	void Rendering(const efkRibbonNodeParam& parameter, const efkRibbonInstanceParam& instanceParameter, void* userData) override
 	{
 		Rendering_(parameter, instanceParameter, userData, m_renderer->GetCameraMatrix());
 	}
-
-	void EndRendering(const efkRibbonNodeParam& parameter, void* userData) override
-	{
-		if (m_ringBufferData == NULL) return;
-
-		if (m_ribbonCount <= 1) return;
-
-		EndRendering_(m_renderer, parameter);
-	}
-
 };
 //----------------------------------------------------------------------------------
 //

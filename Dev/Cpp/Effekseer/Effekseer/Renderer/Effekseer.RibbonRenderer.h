@@ -39,6 +39,7 @@ public:
 		float				DistortionIntensity;
 
 		int32_t				SplineDivision;
+		int32_t				MaximumVertexCount;
 	};
 
 	struct InstanceParameter
@@ -66,6 +67,10 @@ public:
 	virtual void Rendering( const NodeParameter& parameter, const InstanceParameter& instanceParameter, void* userData ) {}
 
 	virtual void EndRendering( const NodeParameter& parameter, void* userData ) {}
+
+	virtual void BeginRenderingGroup(const NodeParameter& parameter, int32_t count, void* userData) {}
+
+	virtual void EndRenderingGroup(const NodeParameter& parameter, int32_t count, void* userData) {}
 };
 
 //----------------------------------------------------------------------------------

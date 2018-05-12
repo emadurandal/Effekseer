@@ -44,6 +44,8 @@ void EffectNodeTrack::LoadRendererParameter(unsigned char*& pos, Setting* settin
 	{
 		memcpy(&SplineDivision, pos, sizeof(int32_t));
 		pos += sizeof(int32_t);
+		memcpy(&MaximumVertexCount, pos, sizeof(int32_t));
+		pos += sizeof(int32_t);
 	}
 
 	TrackColorLeft.load( pos, m_effect->GetVersion() );
@@ -99,7 +101,8 @@ void EffectNodeTrack::BeginRendering(int32_t count, Manager* manager)
 		m_nodeParameter.DistortionIntensity = RendererCommon.DistortionIntensity;
 
 		m_nodeParameter.SplineDivision = SplineDivision;
-		
+		m_nodeParameter.MaximumVertexCount = MaximumVertexCount;
+
 		renderer->BeginRendering( m_nodeParameter, count, m_userData );
 	}
 }

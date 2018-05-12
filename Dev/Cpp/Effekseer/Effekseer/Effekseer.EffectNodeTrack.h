@@ -144,6 +144,7 @@ public:
 	int TrackTexture;
 
 	int32_t	SplineDivision = 1;
+	int32_t	MaximumVertexCount = INT_MAX;
 
 	EffectNodeTrack( Effect* effect, unsigned char*& pos )
 		: EffectNodeImplemented(effect, pos)

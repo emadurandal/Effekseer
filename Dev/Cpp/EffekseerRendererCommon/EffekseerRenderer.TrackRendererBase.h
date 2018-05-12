@@ -127,6 +127,7 @@ protected:
 	// test
 	int32_t								countMax = 10;
 	int32_t								hasMax = false;
+
 	template<typename VERTEX>
 	void RenderSplines(const ::Effekseer::Matrix44& camera)
 	{
@@ -862,6 +863,7 @@ public:
 
 	void BeginRenderingGroup(const efkTrackNodeParam& param, int32_t count, void* userData) override
 	{
+		countMax = param.MaximumVertexCount;
 		auto origin = count;
 		count = Effekseer::Min(count, countMax);
 		hasMax = count < origin;

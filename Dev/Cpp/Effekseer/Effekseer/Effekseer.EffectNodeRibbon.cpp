@@ -102,6 +102,8 @@ void EffectNodeRibbon::LoadRendererParameter(unsigned char*& pos, Setting* setti
 	{
 		memcpy(&SplineDivision, pos, sizeof(int32_t));
 		pos += sizeof(int32_t);
+		memcpy(&MaximumVertexCount, pos, sizeof(int32_t));
+		pos += sizeof(int32_t);
 	}
 
 	if( m_effect->GetVersion() >= 3)
@@ -154,14 +156,12 @@ void EffectNodeRibbon::BeginRendering(int32_t count, Manager* manager)
 		m_nodeParameter.DistortionIntensity = RendererCommon.DistortionIntensity;
 
 		m_nodeParameter.SplineDivision = SplineDivision;
+		m_nodeParameter.MaximumVertexCount = MaximumVertexCount;
 
 		renderer->BeginRendering( m_nodeParameter, count, m_userData );
 	}
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 void EffectNodeRibbon::BeginRenderingGroup(InstanceGroup* group, Manager* manager)
 {
 	RibbonRenderer* renderer = manager->GetRibbonRenderer();
@@ -174,6 +174,17 @@ void EffectNodeRibbon::BeginRenderingGroup(InstanceGroup* group, Manager* manage
 		{
 			m_instanceParameter.UV = group->GetFirst()->GetUV();
 		}
+
+		renderer->BeginRenderingGroup(m_nodeParameter, m_instanceParameter.InstanceCount, m_userData);
+	}
+}
+
+void EffectNodeRibbon::EndRenderingGroup(InstanceGroup* group, Manager* manager)
+{
+	RibbonRenderer* renderer = manager->GetRibbonRenderer();
+	if (renderer != NULL)
+	{
+		renderer->EndRenderingGroup(m_nodeParameter, m_instanceParameter.InstanceCount, m_userData);
 	}
 }
 

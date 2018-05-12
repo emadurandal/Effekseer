@@ -38,6 +38,7 @@ public:
 		float				DistortionIntensity;
 
 		int32_t				SplineDivision;
+		int32_t				MaximumVertexCount;
 	};
 
 	struct InstanceGroupParameter

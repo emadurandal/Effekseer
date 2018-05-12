@@ -199,6 +199,7 @@ namespace Effekseer.Binary
 				}
 
 				data.Add(BitConverter.GetBytes(ribbonParamater.SplineDivision.Value));
+				data.Add(BitConverter.GetBytes(ribbonParamater.MaximumVertexCount.Infinite ? int.MaxValue : ribbonParamater.MaximumVertexCount.Value));
 
 				// テクスチャ番号
 				/*
@@ -212,7 +213,7 @@ namespace Effekseer.Binary
 				}
 				*/
 			}
-            else if (value.Type.Value == Data.RendererValues.ParamaterType.Ring)
+			else if (value.Type.Value == Data.RendererValues.ParamaterType.Ring)
             {
                 var ringParamater = value.Ring;
 
@@ -457,6 +458,7 @@ namespace Effekseer.Binary
 				data.Add(BitConverter.GetBytes(param.TrackSizeBack_Fixed.Value));
 				
 				data.Add(BitConverter.GetBytes(param.SplineDivision.Value));
+				data.Add(BitConverter.GetBytes(param.MaximumVertexCount.Infinite ? int.MaxValue : param.MaximumVertexCount.Value));
 
 				OutputStandardColor(data, param.ColorLeft, param.ColorLeft_Fixed, param.ColorLeft_Random, param.ColorLeft_Easing, param.ColorLeft_FCurve);
 				OutputStandardColor(data, param.ColorLeftMiddle, param.ColorLeftMiddle_Fixed, param.ColorLeftMiddle_Random, param.ColorLeftMiddle_Easing, param.ColorLeftMiddle_FCurve);

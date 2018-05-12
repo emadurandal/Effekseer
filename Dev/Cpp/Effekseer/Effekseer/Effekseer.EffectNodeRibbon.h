@@ -158,6 +158,7 @@ public:
 	int RibbonTexture;
 
 	int32_t	SplineDivision = 1;
+	int32_t	MaximumVertexCount = INT_MAX;
 
 	EffectNodeRibbon( Effect* effect, unsigned char*& pos )
 		: EffectNodeImplemented(effect, pos)
@@ -172,7 +173,9 @@ public:
 
 	void BeginRendering(int32_t count, Manager* manager);
 
-	void BeginRenderingGroup(InstanceGroup* group, Manager* manager);
+	void BeginRenderingGroup(InstanceGroup* group, Manager* manager) override;
+
+	void EndRenderingGroup(InstanceGroup* group, Manager* manager) override;
 
 	void Rendering(const Instance& instance, Manager* manager);
 

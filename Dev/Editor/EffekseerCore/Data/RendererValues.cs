@@ -277,6 +277,10 @@ namespace Effekseer.Data
 				private set;
 			}
 
+			[Name(language = Language.Japanese, value = "最大頂点数")]
+			[Name(language = Language.English, value = "Maximum Vertex Count")]
+			public Value.IntWithInifinite MaximumVertexCount { get; private set; }
+
 			[Name(language = Language.Japanese, value = "色画像")]
 			[Description(language = Language.Japanese, value = "リボンの色を表す画像")]
 
@@ -308,6 +312,7 @@ namespace Effekseer.Data
 				Position_Fixed_R = new Value.Float(0.5f);
 
 				SplineDivision = new Value.Int(1, int.MaxValue, 1);
+				MaximumVertexCount = new Value.IntWithInifinite(100, true, int.MaxValue, 2);
 
 				ColorTexture = new Value.Path(Properties.Resources.ImageFilter, true, "");
 			}
@@ -754,6 +759,10 @@ namespace Effekseer.Data
 				private set;
 			}
 
+			[Name(language = Language.Japanese, value = "最大頂点数")]
+			[Name(language = Language.English, value = "Maximum Vertex Count")]
+			public Value.IntWithInifinite MaximumVertexCount { get; private set; }
+
 			[Selector(ID = 1)]
 			[Name(language = Language.Japanese, value = "色・左")]
 			[Name(language = Language.English, value = "Color, Left")]
@@ -917,6 +926,8 @@ namespace Effekseer.Data
 				ColorRightMiddle_FCurve = new ColorFCurveParameter();
 
 				SplineDivision = new Value.Int(1, int.MaxValue, 1);
+				MaximumVertexCount = new Value.IntWithInifinite(100, true, int.MaxValue, 2);
+
 			}
 		}
 
