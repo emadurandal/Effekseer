@@ -293,6 +293,8 @@ void InstanceContainer::Draw( bool recursive )
 						it++;
 					}
 				}
+
+				m_pEffectNode->EndRenderingGroup(group, m_pManager);
 			}
 
 			m_pEffectNode->EndRendering(m_pManager);

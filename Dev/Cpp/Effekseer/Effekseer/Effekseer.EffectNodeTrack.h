@@ -159,7 +159,9 @@ public:
 
 	void BeginRendering(int32_t count, Manager* manager);
 
-	void BeginRenderingGroup(InstanceGroup* group, Manager* manager);
+	void BeginRenderingGroup(InstanceGroup* group, Manager* manager) override;
+
+	void EndRenderingGroup(InstanceGroup* group, Manager* manager) override;
 
 	void Rendering(const Instance& instance, Manager* manager);
 

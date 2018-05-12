@@ -54,12 +54,12 @@ private:
 		}
 
 		void Calculate()
-		{	
+		{
 			b.resize(a.size());
 			c.resize(a.size());
 			d.resize(a.size());
 			w.resize(a.size());
-			
+
 			for (auto i = 1; i < a.size() - 1; i++)
 			{
 				c[i] = (a[i - 1] + a[i] * (-2.0) + a[i + 1]) * 3.0;
@@ -96,7 +96,7 @@ private:
 		efkVector3D GetValue(float t)
 		{
 			auto j = floorf(t);
-	
+
 			if (j < 0)
 			{
 				j = 0;
@@ -124,12 +124,15 @@ protected:
 	std::vector<efkTrackInstanceParam>	instances;
 	Spline								spline;
 
+	// test
+	int32_t								countMax = 10;
+	int32_t								hasMax = false;
 	template<typename VERTEX>
 	void RenderSplines(const ::Effekseer::Matrix44& camera)
 	{
 		auto& parameter = innstancesNodeParam;
 
-		VERTEX* verteies0 = (VERTEX*)m_ringBufferData;
+		VERTEX* v_origin = (VERTEX*)m_ringBufferData;
 
 		// Calculate spline
 		if (parameter.SplineDivision > 1)
@@ -151,9 +154,113 @@ protected:
 			spline.Calculate();
 		}
 
+		// calc importance
+		std::vector<bool> isEnables;
+		
+		if (hasMax)
+		{
+			std::vector<float> importances;
+			importances.resize(instances.size());
+			isEnables.resize(instances.size());
+
+			float sum = 0.0f;
+
+			for (int i = 0; i < importances.size(); i++)
+			{
+				
+				if (i == 0 || i == instances.size() - 1)
+				{
+					importances[i] = 0.0f;
+					isEnables[i] = true;
+				}
+				else
+				{
+					Effekseer::Vector3D vs[3];
+					instances[i - 1].SRTMatrix43.GetTranslation(vs[0]);
+					instances[i - 0].SRTMatrix43.GetTranslation(vs[1]);
+					instances[i + 1].SRTMatrix43.GetTranslation(vs[2]);
+					
+					Effekseer::Vector3D n0 = vs[1] - vs[0];
+					Effekseer::Vector3D n1 = vs[2] - vs[1];
+					auto n0_len = Effekseer::Vector3D::Length(n0);
+					auto n1_len = Effekseer::Vector3D::Length(n1);
+
+					if (n0_len > 0 && n1_len > 0)
+					{
+						n0.X /= n0_len;
+						n0.Y /= n0_len;
+						n0.Z /= n0_len;
+						n1.X /= n1_len;
+						n1.Y /= n1_len;
+						n1.Z /= n1_len;
+
+						importances[i] = (1.0 - Effekseer::Vector3D::Dot(n1, n0));
+						isEnables[i] = false;
+					}
+					else
+					{
+						importances[i] = 0;
+						isEnables[i] = false;
+					}
+				}
+			}
+			
+			int32_t rectVertex = countMax - 2;
+
+			while (rectVertex > 0)
+			{
+				sum = 0;
+
+				for (int i = 0; i < importances.size(); i++)
+				{
+					sum += importances[i];
+				}
+
+				if (sum == 0)
+				{
+					for (int i = 1; i < importances.size() - 1; i++)
+					{
+						if (!isEnables[i])
+						{
+							isEnables[i] = true;
+							rectVertex--;
+
+							if (rectVertex == 0) break;
+						}
+					}
+				}
+
+				for (int i = 0; i < importances.size(); i++)
+				{
+					importances[i] /= sum;
+				}
+
+				float currentImportaance = 0.0;
+				for (int i = 1; i < importances.size() - 1; i++)
+				{
+					currentImportaance += importances[i];
+
+					if (!isEnables[i] && currentImportaance >= 1.0f / (rectVertex + 1))
+					{
+						isEnables[i] = true;
+						currentImportaance -= (1.0f / (rectVertex + 1));
+						importances[i] = 0;
+						rectVertex--;
+
+						if (rectVertex == 0) break;
+					}
+				}
+
+			}			
+		}
 
 		for (auto loop = 0; loop < instances.size(); loop++)
 		{
+			if (hasMax)
+			{
+				if (!isEnables[loop]) continue;
+			}
+
 			auto& param = instances[loop];
 
 			for (auto sploop = 0; sploop < parameter.SplineDivision; sploop++)
@@ -294,14 +401,14 @@ protected:
 
 		// transform all vertecies
 		{
-			VERTEX* vs_ = verteies0;
+			VERTEX* vs_ = v_origin;
 
 			Effekseer::Vector3D axisBefore;
 
-			for (int32_t i = 0; i < (instances.size() - 1) * parameter.SplineDivision + 1; i++)
+			for (int32_t i = 0; i < (Effekseer::Min(countMax, instances.size()) - 1) * parameter.SplineDivision + 1; i++)
 			{
 				bool isFirst_ = (i == 0);
-				bool isLast_ = (i == ((instances.size() - 1) * parameter.SplineDivision));
+				bool isLast_ = (i == ((Effekseer::Min(countMax, instances.size()) - 1) * parameter.SplineDivision));
 				Effekseer::Vector3D axis;
 				Effekseer::Vector3D pos;
 
@@ -446,56 +553,6 @@ public:
 
 
 protected:
-
-	void BeginRendering_( RENDERER* renderer, const efkTrackNodeParam& param, int32_t count, void* userData )
-	{
-		/*
-		m_ribbonCount = 0;
-		
-		int32_t vertexCount = (count - 1) * 8;
-	
-		if( ! renderer->GetVertexBuffer()->RingBufferLock( sizeof(VERTEX) * vertexCount, m_ringBufferOffset, (void*&)m_ringBufferData ) )
-		{
-			m_ringBufferOffset = 0;
-			m_ringBufferData = NULL;
-		}
-		*/
-
-		m_ribbonCount = 0;
-		int32_t vertexCount = ((count - 1) * param.SplineDivision) * 8;
-		if (vertexCount <= 0) return;
-
-		EffekseerRenderer::StandardRendererState state;
-		state.AlphaBlend = param.AlphaBlend;
-		state.CullingType = ::Effekseer::CullingType::Double;
-		state.DepthTest = param.ZTest;
-		state.DepthWrite = param.ZWrite;
-		state.TextureFilterType = param.TextureFilter;
-		state.TextureWrapType = param.TextureWrap;
-
-		state.Distortion = param.Distortion;
-		state.DistortionIntensity = param.DistortionIntensity;
-
-		if (param.ColorTextureIndex >= 0)
-		{
-			if (state.Distortion)
-			{
-				state.TexturePtr = param.EffectPointer->GetDistortionImage(param.ColorTextureIndex);
-			}
-			else
-			{
-				state.TexturePtr = param.EffectPointer->GetColorImage(param.ColorTextureIndex);
-			}
-		}
-		else
-		{
-			state.TexturePtr = nullptr;
-		}
-
-		renderer->GetStandardRenderer()->UpdateStateAndRenderingIfRequired(state);
-
-		renderer->GetStandardRenderer()->BeginRenderingAndRenderingIfRequired(vertexCount, m_ringBufferOffset, (void*&) m_ringBufferData);
-	}
 
 	void Rendering_(const efkTrackNodeParam& parameter, const efkTrackInstanceParam& instanceParameter, void* userData, const ::Effekseer::Matrix44& camera)
 	{
@@ -796,29 +853,53 @@ protected:
 		*/
 	}
 
-	void EndRendering_(RENDERER* renderer, const efkTrackNodeParam& param)
-	{
-	}
-
 public:
-
-	void BeginRendering(const efkTrackNodeParam& parameter, int32_t count, void* userData) override
-	{
-		BeginRendering_(m_renderer, parameter, count, userData);
-	}
 
 	void Rendering(const efkTrackNodeParam& parameter, const efkTrackInstanceParam& instanceParameter, void* userData) override
 	{
 		Rendering_(parameter, instanceParameter, userData, m_renderer->GetCameraMatrix());
 	}
 
-	void EndRendering(const efkTrackNodeParam& parameter, void* userData) override
+	void BeginRenderingGroup(const efkTrackNodeParam& param, int32_t count, void* userData) override
 	{
-		if (m_ringBufferData == NULL) return;
+		auto origin = count;
+		count = Effekseer::Min(count, countMax);
+		hasMax = count < origin;
 
-		if (m_ribbonCount <= 1) return;
+		m_ribbonCount = 0;
+		int32_t vertexCount = ((count - 1) * param.SplineDivision) * 8;
+		if (vertexCount <= 0) return;
 
-		EndRendering_(m_renderer, parameter);
+		EffekseerRenderer::StandardRendererState state;
+		state.AlphaBlend = param.AlphaBlend;
+		state.CullingType = ::Effekseer::CullingType::Double;
+		state.DepthTest = param.ZTest;
+		state.DepthWrite = param.ZWrite;
+		state.TextureFilterType = param.TextureFilter;
+		state.TextureWrapType = param.TextureWrap;
+
+		state.Distortion = param.Distortion;
+		state.DistortionIntensity = param.DistortionIntensity;
+
+		if (param.ColorTextureIndex >= 0)
+		{
+			if (state.Distortion)
+			{
+				state.TexturePtr = param.EffectPointer->GetDistortionImage(param.ColorTextureIndex);
+			}
+			else
+			{
+				state.TexturePtr = param.EffectPointer->GetColorImage(param.ColorTextureIndex);
+			}
+		}
+		else
+		{
+			state.TexturePtr = nullptr;
+		}
+
+		m_renderer->GetStandardRenderer()->UpdateStateAndRenderingIfRequired(state);
+
+		m_renderer->GetStandardRenderer()->BeginRenderingAndRenderingIfRequired(vertexCount, m_ringBufferOffset, (void*&)m_ringBufferData);
 	}
 };
 

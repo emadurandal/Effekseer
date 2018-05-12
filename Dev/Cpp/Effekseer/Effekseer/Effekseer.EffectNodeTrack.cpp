@@ -110,7 +110,7 @@ void EffectNodeTrack::BeginRendering(int32_t count, Manager* manager)
 void EffectNodeTrack::BeginRenderingGroup(InstanceGroup* group, Manager* manager)
 {
 	TrackRenderer* renderer = manager->GetTrackRenderer();
-	if( renderer != NULL )
+	if( renderer != nullptr)
 	{
 		InstanceGroupValues& instValues = group->rendererValues.track;
 		m_currentGroupValues = group->rendererValues.track;
@@ -136,12 +136,19 @@ void EffectNodeTrack::BeginRenderingGroup(InstanceGroup* group, Manager* manager
 		SetValues( m_instanceParameter.SizeMiddle, instValues.SizeMiddle, TrackSizeMiddle, group->GetTime() );
 		SetValues( m_instanceParameter.SizeBack, instValues.SizeBack, TrackSizeBack, group->GetTime() );
 		*/
+		renderer->BeginRenderingGroup(m_nodeParameter, group->GetInstanceCount(), m_userData);
 	}
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
+void EffectNodeTrack::EndRenderingGroup(InstanceGroup* group, Manager* manager)
+{
+	TrackRenderer* renderer = manager->GetTrackRenderer();
+	if (renderer != NULL)
+	{
+		renderer->EndRenderingGroup(m_nodeParameter, group->GetInstanceCount(), m_userData);
+	}
+}
+
 void EffectNodeTrack::Rendering(const Instance& instance, Manager* manager)
 {
 	const InstanceValues& instValues = instance.rendererValues.track;

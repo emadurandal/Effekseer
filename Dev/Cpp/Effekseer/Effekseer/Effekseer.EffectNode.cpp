@@ -677,6 +677,10 @@ void EffectNodeImplemented::BeginRenderingGroup(InstanceGroup* group, Manager* m
 {
 }
 
+void EffectNodeImplemented::EndRenderingGroup(InstanceGroup* group, Manager* manager)
+{
+}
+
 //----------------------------------------------------------------------------------
 //
 //----------------------------------------------------------------------------------

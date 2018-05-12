@@ -897,6 +897,8 @@ public:
 	*/
 	virtual void BeginRenderingGroup(InstanceGroup* group, Manager* manager);
 
+	virtual void EndRenderingGroup(InstanceGroup* group, Manager* manager);
+
 	/**
 		@brief	描画
 	*/
