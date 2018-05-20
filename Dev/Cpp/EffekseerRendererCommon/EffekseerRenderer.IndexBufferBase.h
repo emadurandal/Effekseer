@@ -31,6 +31,9 @@ public:
 	virtual ~IndexBufferBase();
 
 	virtual void Lock() = 0;
+	virtual bool RingBufferLock(int32_t size, int32_t& offset, void*& data) { return false; }
+	virtual bool TryRingBufferLock(int32_t size, int32_t& offset, void*& data) { return false; }
+
 	virtual void Unlock() = 0;
 	void Push( const void* buffer, int count );
 	int GetCount() const;

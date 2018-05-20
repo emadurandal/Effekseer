@@ -1034,11 +1034,11 @@ void RendererImplemented::DrawSprites( int32_t spriteCount, int32_t vertexOffset
 
 	if( m_renderMode == ::Effekseer::RenderMode::Normal )
 	{
-		glDrawElements(GL_TRIANGLES, spriteCount * 6, GL_UNSIGNED_SHORT, (void*) (vertexOffset / 4 * 6 * sizeof(GLushort)));
+		glDrawElements(GL_TRIANGLES, spriteCount * 6, GL_UNSIGNED_SHORT, (void*)vertexOffset);
 	}
 	else if( m_renderMode == ::Effekseer::RenderMode::Wireframe )
 	{
-		glDrawElements(GL_LINES, spriteCount * 8, GL_UNSIGNED_SHORT, (void*) (vertexOffset / 4 * 8 * sizeof(GLushort)));
+		glDrawElements(GL_LINES, spriteCount * 8, GL_UNSIGNED_SHORT, (void*)vertexOffset);
 	}
 	
 	GLCheckError();

@@ -97,7 +97,11 @@ protected:
 		}
 
 		renderer->GetStandardRenderer()->UpdateStateAndRenderingIfRequired(state);
-		renderer->GetStandardRenderer()->BeginRenderingAndRenderingIfRequired(count * vertexCount, m_ringBufferOffset, (void*&) m_ringBufferData);
+
+		int32_t indOffset = 0;
+		void* indBuffer = nullptr;
+		m_renderer->GetStandardRenderer()->BeginRenderingAndRenderingIfRequired(vertexCount, m_ringBufferOffset, (void*&)m_ringBufferData, 0, indOffset, indBuffer);
+
 	}
 
 	void Rendering_(const efkRingNodeParam& parameter, const efkRingInstanceParam& instanceParameter, void* userData, const ::Effekseer::Matrix44& camera)

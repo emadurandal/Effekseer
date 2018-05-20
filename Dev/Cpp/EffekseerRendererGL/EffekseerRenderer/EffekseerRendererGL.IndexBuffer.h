@@ -23,6 +23,9 @@ class IndexBuffer
 private:
 	GLuint					m_buffer;
 
+	uint32_t				m_offset = 0;
+	uint32_t				m_lockedSize = 0;
+
 	IndexBuffer( RendererImplemented* renderer, GLuint buffer, int maxCount, bool isDynamic );
 
 public:
@@ -38,6 +41,8 @@ public:	// デバイス復旧用
 
 public:
 	void Lock() override;
+	bool RingBufferLock(int32_t size, int32_t& offset, void*& data) override;
+	bool TryRingBufferLock(int32_t size, int32_t& offset, void*& data) override;
 	void Unlock() override;
 
 	bool IsValid();

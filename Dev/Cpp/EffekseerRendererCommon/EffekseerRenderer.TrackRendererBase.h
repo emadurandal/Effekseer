@@ -787,7 +787,10 @@ namespace EffekseerRenderer
 
 			m_renderer->GetStandardRenderer()->UpdateStateAndRenderingIfRequired(state);
 
-			m_renderer->GetStandardRenderer()->BeginRenderingAndRenderingIfRequired(vertexCount, m_ringBufferOffset, (void*&)m_ringBufferData);
+			int32_t indOffset = 0;
+			void* indBuffer = nullptr;
+			m_renderer->GetStandardRenderer()->BeginRenderingAndRenderingIfRequired(vertexCount, m_ringBufferOffset, (void*&)m_ringBufferData, 0, indOffset, indBuffer);
+
 		}
 	};
 

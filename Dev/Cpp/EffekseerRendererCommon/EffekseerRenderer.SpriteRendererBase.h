@@ -46,6 +46,9 @@ protected:
 
 	std::vector<KeyValue>				instances;
 
+	int32_t indOffset = 0;
+	void* indBuffer = nullptr;
+
 public:
 
 	SpriteRendererBase(RENDERER* renderer)
@@ -93,10 +96,24 @@ protected:
 
 		renderer->GetStandardRenderer()->UpdateStateAndRenderingIfRequired(state);
 
-		renderer->GetStandardRenderer()->BeginRenderingAndRenderingIfRequired(count * 4, m_ringBufferOffset, (void*&) m_ringBufferData);
+		m_renderer->GetStandardRenderer()->BeginRenderingAndRenderingIfRequired(count * 4, m_ringBufferOffset, (void*&)m_ringBufferData, count * 6, indOffset, indBuffer);
 		m_spriteCount = 0;
 
 		instances.clear();
+
+		for (int i = 0; i < count; i++)
+		{
+			uint16_t* buff = (uint16_t*)(indBuffer);
+			buff[0] = (m_ringBufferOffset / sizeof(VERTEX_NORMAL)) + 3 + i * 4;
+			buff[1] = (m_ringBufferOffset / sizeof(VERTEX_NORMAL)) + 1 + i * 4;
+			buff[2] = (m_ringBufferOffset / sizeof(VERTEX_NORMAL)) + 0 + i * 4;
+			buff[3] = (m_ringBufferOffset / sizeof(VERTEX_NORMAL)) + 3 + i * 4;
+			buff[4] = (m_ringBufferOffset / sizeof(VERTEX_NORMAL)) + 0 + i * 4;
+			buff[5] = (m_ringBufferOffset / sizeof(VERTEX_NORMAL)) + 2 + i * 4;
+
+			buff += 6;
+			indBuffer = buff;
+		}
 	}
 
 	void Rendering_(const efkSpriteNodeParam& parameter, const efkSpriteInstanceParam& instanceParameter, void* userData, const ::Effekseer::Matrix44& camera)

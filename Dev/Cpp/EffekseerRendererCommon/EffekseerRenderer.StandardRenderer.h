@@ -83,6 +83,9 @@ private:
 	std::vector<uint8_t>		vertexCaches;
 	int32_t						vertexCacheMaxSize;
 
+	std::vector<uint8_t>		indexCaches;
+	int32_t						indexCacheMaxSize;
+
 	bool						m_isDistortionMode;
 public:
 
@@ -98,6 +101,10 @@ public:
 
 		vertexCaches.reserve(m_renderer->GetVertexBuffer()->GetMaxSize());
 		vertexCacheMaxSize = m_renderer->GetVertexBuffer()->GetMaxSize();
+
+		indexCaches.reserve(m_renderer->GetIndexBuffer()->GetMaxCount() * sizeof(int16_t));
+		indexCacheMaxSize = m_renderer->GetIndexBuffer()->GetMaxCount() * sizeof(int16_t);
+
 	}
 
 	void UpdateStateAndRenderingIfRequired(StandardRendererState state)
@@ -112,11 +119,12 @@ public:
 		m_isDistortionMode = m_state.Distortion;
 	}
 
-	void BeginRenderingAndRenderingIfRequired(int32_t count, int32_t& offset, void*& data)
+	void BeginRenderingAndRenderingIfRequired(int32_t count, int32_t& offset, void*& data, int32_t indexCount, int32_t& indexOffset, void*& indexData)
 	{
 		if (m_isDistortionMode)
 		{
-			if (count * sizeof(VERTEX_DISTORTION) + vertexCaches.size() > vertexCacheMaxSize)
+			if (count * sizeof(VERTEX_DISTORTION) + vertexCaches.size() > vertexCacheMaxSize ||
+				indexCount * sizeof(uint16_t) + indexCaches.size() > indexCacheMaxSize)
 			{
 				Rendering();
 			}
@@ -128,7 +136,8 @@ public:
 		}
 		else
 		{
-			if (count * sizeof(VERTEX) + vertexCaches.size() > vertexCacheMaxSize)
+			if (count * sizeof(VERTEX) + vertexCaches.size() > vertexCacheMaxSize ||
+				indexCount * sizeof(uint16_t) + indexCaches.size() > indexCacheMaxSize)
 			{
 				Rendering();
 			}
@@ -137,6 +146,13 @@ public:
 			vertexCaches.resize(count * sizeof(VERTEX) + vertexCaches.size());
 			offset = old;
 			data = (vertexCaches.data() + old);
+		}
+
+		{
+			auto old = indexCaches.size();
+			indexCaches.resize(indexCount * sizeof(uint16_t) + indexCaches.size());
+			indexOffset = old;
+			indexData = (indexCaches.data() + old);
 		}
 	}
 
@@ -171,8 +187,9 @@ public:
 			return;
 		}
 
+		// Send vertex
 		int32_t vertexSize = vertexCaches.size();
-		int32_t offsetSize = 0;
+		int32_t vertexOffsetSize = 0;
 		{
 			VertexBufferBase* vb = m_renderer->GetVertexBuffer();
 
@@ -191,7 +208,7 @@ public:
 				memcpy(data, vertexCaches.data(), vertexCaches.size());
 				vb->Unlock();
 			}
-			else if (vb->RingBufferLock(vertexCaches.size(), offsetSize, data))
+			else if (vb->RingBufferLock(vertexCaches.size(), vertexOffsetSize, data))
 			{
 				assert(data != nullptr);
 				memcpy(data, vertexCaches.data(), vertexCaches.size());
@@ -199,13 +216,53 @@ public:
 			}
 			else
 			{
-				// 現状、描画するインスタンス数が多すぎる場合は描画しなくしている
 				vertexCaches.clear();
+				indexCaches.clear();
 				return;
 			}
 
 			vertexCaches.clear();
+		}
 
+		// Send index
+		int32_t indexSize = indexCaches.size();
+		int32_t indexOffsetSize = 0;
+		{
+			IndexBufferBase* ib = m_renderer->GetIndexBuffer();
+
+			void* data = nullptr;
+
+			if (ib->RingBufferLock(indexCaches.size(), indexOffsetSize, data))
+			{
+				assert(data != nullptr);
+
+				// shift
+				int32_t indexOffset = 0;
+				if (m_state.Distortion)
+				{
+					indexOffset = vertexOffsetSize / sizeof(VERTEX_DISTORTION);
+				}
+				else
+				{
+					indexOffset = vertexOffsetSize / sizeof(VERTEX);
+				}
+				
+				for (int32_t i = 0; i < indexCaches.size() / 2; i++)
+				{
+					((uint16_t*)indexCaches.data())[i] += indexOffset;
+				}
+
+				memcpy(data, indexCaches.data(), indexCaches.size());
+				ib->Unlock();
+			}
+			else
+			{
+				vertexCaches.clear();
+				indexCaches.clear();
+				return;
+			}
+
+			indexCaches.clear();
 		}
 
 		RenderStateBase::State& state = m_renderer->GetRenderState()->Push();
@@ -268,15 +325,15 @@ public:
 			m_renderer->SetVertexBuffer(m_renderer->GetVertexBuffer(), sizeof(VERTEX_DISTORTION));
 			m_renderer->SetIndexBuffer(m_renderer->GetIndexBuffer());
 			m_renderer->SetLayout(shader_);
-			m_renderer->DrawSprites(vertexSize / sizeof(VERTEX_DISTORTION) / 4, offsetSize / sizeof(VERTEX_DISTORTION));
+			m_renderer->DrawSprites(vertexSize / sizeof(VERTEX_DISTORTION) / 4, vertexOffsetSize / sizeof(VERTEX_DISTORTION));
 		}
 		else
 		{
-			int32_t spriteCount = vertexSize / sizeof(VERTEX) / 4;
+			int32_t spriteCount = indexSize / 6 / 2;
 			m_renderer->SetVertexBuffer(m_renderer->GetVertexBuffer(), sizeof(VERTEX));
 			m_renderer->SetIndexBuffer(m_renderer->GetIndexBuffer());
 			m_renderer->SetLayout(shader_);
-			m_renderer->DrawSprites(spriteCount, offsetSize / sizeof(VERTEX));
+			m_renderer->DrawSprites(spriteCount, indexOffsetSize);
 		}
 
 		m_renderer->EndShader(shader_);

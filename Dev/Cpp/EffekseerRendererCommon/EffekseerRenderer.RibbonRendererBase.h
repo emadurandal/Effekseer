@@ -120,6 +120,9 @@ namespace EffekseerRenderer
 		int32_t							m_ringBufferOffset;
 		uint8_t*						m_ringBufferData;
 
+		int32_t indOffset = 0;
+		void* indBuffer = nullptr;
+
 		efkRibbonNodeParam					innstancesNodeParam;
 		std::vector<efkRibbonInstanceParam>	instances;
 		Spline								spline_left;
@@ -342,9 +345,7 @@ namespace EffekseerRenderer
 					}
 					else
 					{
-						verteies[2] = verteies[0];
-						verteies[3] = verteies[1];
-						m_ringBufferData += sizeof(VERTEX) * 4;
+						m_ringBufferData += sizeof(VERTEX) * 2;
 					}
 
 					if (!isFirst)
@@ -664,7 +665,7 @@ namespace EffekseerRenderer
 		void BeginRenderingGroup(const efkRibbonNodeParam& param, int32_t count, void* userData) override
 		{
 			m_ribbonCount = 0;
-			int32_t vertexCount = ((count - 1) * param.SplineDivision) * 4;
+			int32_t vertexCount = ((count) * param.SplineDivision) * 2;
 			if (vertexCount <= 0) return;
 
 			EffekseerRenderer::StandardRendererState state;
@@ -696,7 +697,24 @@ namespace EffekseerRenderer
 
 			m_renderer->GetStandardRenderer()->UpdateStateAndRenderingIfRequired(state);
 
-			m_renderer->GetStandardRenderer()->BeginRenderingAndRenderingIfRequired(vertexCount, m_ringBufferOffset, (void*&)m_ringBufferData);
+
+			m_renderer->GetStandardRenderer()->BeginRenderingAndRenderingIfRequired(vertexCount, m_ringBufferOffset, (void*&)m_ringBufferData, (count - 1) * 6, indOffset, indBuffer);
+
+			int32_t ringOffsetV = m_ringBufferOffset / sizeof(VERTEX_NORMAL);
+
+			for (int i = 0; i < count - 1; i++)
+			{
+				uint16_t* buff = (uint16_t*)(indBuffer);
+				buff[0] = ringOffsetV + 3 + i * 2;
+				buff[1] = ringOffsetV + 1 + i * 2;
+				buff[2] = ringOffsetV + 0 + i * 2;
+				buff[3] = ringOffsetV + 3 + i * 2;
+				buff[4] = ringOffsetV + 0 + i * 2;
+				buff[5] = ringOffsetV + 2 + i * 2;
+
+				buff += 6;
+				indBuffer = buff;
+			}
 		}
 
 		void Rendering(const efkRibbonNodeParam& parameter, const efkRibbonInstanceParam& instanceParameter, void* userData) override
