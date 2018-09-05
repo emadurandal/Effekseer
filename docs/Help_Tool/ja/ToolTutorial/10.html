@@ -35,7 +35,7 @@
 <tr>
 <td>
 <div data-align="center">
-<img src="../../img/Tutorial/10/effect1.gif">
+<img src="../../img/Tutorial/10/effect1_1.gif">
 <p>
 本章で作成するエフェクト1
 </p>
@@ -43,9 +43,17 @@
 </td>
 <td>
 <div data-align="center">
-<img src="../../img/Tutorial/10/effect2.gif">
+<img src="../../img/Tutorial/10/effect1_2.gif">
 <p>
 本章で作成するエフェクト2
+</p>
+</div>
+</td>
+<td>
+<div data-align="center">
+<img src="../../img/Tutorial/10/effect2.gif">
+<p>
+本章で作成するエフェクト3
 </p>
 </div>
 </td>
@@ -58,7 +66,12 @@
 </div>
 <h2>使い方</h2>
 <p>リボンと軌跡は、同じ親から生成されたパーティクル間を繋げます。 繋げることで、細長い形状を表現しています。</p>
-<p>図</p>
+<div data-align="center">
+<img src="../../img/Tutorial/10/track.png">
+<p>
+軌跡
+</p>
+</div>
 <p>通常のスプライトでは、パーティクルは個々に独立しています。</p>
 <p>パーティクル間に距離があれば、リボンと軌跡を使用できますが、 効果的に使用するには親子関係や生成方法と組み合わせる必要があります。</p>
 <h3>親子関係</h3>
@@ -68,7 +81,12 @@
 <p>帯が螺旋状に移動するエフェクトを作成します。</p>
 <p>effect1-1.efkprojを開いてください。</p>
 <p>親ノードは設定済みです。 親のパーティクルは回転しながら上昇します。</p>
-<p>図</p>
+<div data-align="center">
+<img src="../../img/Tutorial/10/effect1_1_no_track.gif">
+<p>
+親のパーティクル
+</p>
+</div>
 <p>子ノードのパラメーターも一部は設定済みです。</p>
 <p>重要なのは、位置、角度、拡大の影響が生成時のみになっていることです。 生成時のみを指定すると、パーティクルが生成された時の親のパラメーターのみの影響を受けます。</p>
 <p>加えて、子のパーティクルは複数生成される必要があります。 子のパーティクル間を繋げて軌跡を生成するため、子のパーティクルの量に応じて軌跡の長さが決まります。</p>
@@ -116,7 +134,12 @@
 </tbody>
 </table>
 <p>子のパーティクルは親のパーティクルの軌跡にそって配置されることがわかります。</p>
-<p>図</p>
+<div data-align="center">
+<img src="../../img/Tutorial/10/effect1_1.gif">
+<p>
+エフェクト
+</p>
+</div>
 <h3>生成方法</h3>
 <p>生成方法を使用すると親子関係を使用しなくても綺麗な軌跡やリボンのパーティクルを生成できます。 生成方法では、順番に規則的にパーティクルを配置できるため、生成方法で指定した順に軌跡やリボンが生成されます。</p>
 <p>実際に試してみましょう。</p>
@@ -191,11 +214,37 @@
 </tr>
 </tbody>
 </table>
-<p>図</p>
+<div data-align="center">
+<img src="../../img/Tutorial/10/effect1_2.gif">
+<p>
+エフェクト
+</p>
+</div>
 <p>生成方法で指定した配置順に沿って軌跡が生成されることがわかります。</p>
 <h2>軌跡とリボンの違いについて</h2>
 <p>リボンと軌跡の違いを確認するために、同じパラメーターでリボンと軌跡を変更します。</p>
-<p>図</p>
+<div data-align="center">
+<table>
+<tr>
+<td>
+<div data-align="center">
+<img src="../../img/Tutorial/10/diff_track.png">
+<p>
+軌跡
+</p>
+</div>
+</td>
+<td>
+<div data-align="center">
+<img src="../../img/Tutorial/10/diff_ribbon.png">
+<p>
+リボン
+</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
 <p>リボンはパーティクルの回転の影響を受けるため、向きが傾いていることがわかります。</p>
 <p>基本的には軌跡の方が便利ですが、剣の軌跡のような回転を要求する場合にリボンを使用します。</p>
 <h2>剣のエフェクト</h2>
@@ -253,7 +302,12 @@
 </tbody>
 </table>
 <p>剣のようなエフェクトが表示されていることがわかります。</p>
-<p>図</p>
+<div data-align="center">
+<img src="../../img/Tutorial/10/effect2.gif">
+<p>
+エフェクト
+</p>
+</div>
 <p>最後に、本章で作成されたエフェクトをダウンロードできるようにしてみました。</p>
 <div data-align="center">
 <p><a href = "../../Sample/10_02_Sample.zip">ダウンロード</a></p>
