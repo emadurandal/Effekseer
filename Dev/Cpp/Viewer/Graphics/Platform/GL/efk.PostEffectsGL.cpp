@@ -161,7 +161,7 @@ BlitterGL::BlitterGL(Graphics* graphics, const EffekseerRenderer::RendererRef& r
 	auto gd = this->renderer_->GetGraphicsDevice().DownCast<EffekseerRendererGL::Backend::GraphicsDevice>();
 
 	// Generate vertex data
-	vertexBuffer.reset(VertexBuffer::Create(gd, sizeof(Vertex) * 4, true));
+	vertexBuffer.reset(VertexBuffer::Create(gd, true, sizeof(Vertex) * 4, true));
 
 	vertexBuffer->Lock();
 	{
@@ -343,27 +343,27 @@ void BloomEffectGL::Render(Effekseer::Backend::TextureRef src, Effekseer::Backen
 			0.25f / (knee + 0.00001f),
 			intensity,
 		};
-		blitter.Blit(shaderExtract.get(), vaoExtract.get(), {src}, constantData, sizeof(constantData), extractBuffer->GetAsBackend());
+		blitter.Blit(shaderExtract.get(), vaoExtract.get(), std::vector<Effekseer::Backend::TextureRef>{src}, constantData, sizeof(constantData), extractBuffer->GetAsBackend());
 	}
 
 	// Shrink pass
 	for (int i = 0; i < BlurIterations; i++)
 	{
 		const auto textures = (i == 0) ? extractBuffer->GetAsBackend() : lowresBuffers[0][i - 1]->GetAsBackend();
-		blitter.Blit(shaderDownsample.get(), vaoDownsample.get(), {textures}, nullptr, 0, lowresBuffers[0][i]->GetAsBackend());
+		blitter.Blit(shaderDownsample.get(), vaoDownsample.get(), std::vector<Effekseer::Backend::TextureRef>{textures}, nullptr, 0, lowresBuffers[0][i]->GetAsBackend());
 	}
 
 	// Horizontal gaussian blur pass
 	for (int i = 0; i < BlurIterations; i++)
 	{
-		const auto textures = {lowresBuffers[0][i]->GetAsBackend()};
+		const std::vector<Effekseer::Backend::TextureRef> textures{lowresBuffers[0][i]->GetAsBackend()};
 		blitter.Blit(shaderBlurH.get(), vaoBlurH.get(), textures, nullptr, 0, lowresBuffers[1][i]->GetAsBackend());
 	}
 
 	// Vertical gaussian blur pass
 	for (int i = 0; i < BlurIterations; i++)
 	{
-		const auto textures = {lowresBuffers[1][i]->GetAsBackend()};
+		const std::vector<Effekseer::Backend::TextureRef> textures{lowresBuffers[1][i]->GetAsBackend()};
 		blitter.Blit(shaderBlurV.get(), vaoBlurV.get(), textures, nullptr, 0, lowresBuffers[0][i]->GetAsBackend());
 	}
 
@@ -371,10 +371,10 @@ void BloomEffectGL::Render(Effekseer::Backend::TextureRef src, Effekseer::Backen
 	state.AlphaBlend = AlphaBlendType::Add;
 	renderer_->GetRenderState()->Update(false);
 	{
-		const auto textures = {lowresBuffers[0][0]->GetAsBackend(),
-							   lowresBuffers[0][1]->GetAsBackend(),
-							   lowresBuffers[0][2]->GetAsBackend(),
-							   lowresBuffers[0][3]->GetAsBackend()};
+		const std::vector<Effekseer::Backend::TextureRef> textures{lowresBuffers[0][0]->GetAsBackend(),
+																   lowresBuffers[0][1]->GetAsBackend(),
+																   lowresBuffers[0][2]->GetAsBackend(),
+																   lowresBuffers[0][3]->GetAsBackend()};
 		blitter.Blit(shaderBlend.get(), vaoBlend.get(), textures, nullptr, 0, dest, false);
 	}
 
@@ -488,7 +488,7 @@ void TonemapEffectGL::Render(Effekseer::Backend::TextureRef src, Effekseer::Back
 	renderer_->GetRenderState()->Update(false);
 	renderer_->SetRenderMode(RenderMode::Normal);
 
-	const auto textures = {src};
+	const std::vector<Effekseer::Backend::TextureRef> textures{src};
 
 	if (algorithm == Algorithm::Off)
 	{
@@ -544,7 +544,7 @@ void LinearToSRGBEffectGL::Render(Effekseer::Backend::TextureRef src, Effekseer:
 	renderer_->GetRenderState()->Update(false);
 	renderer_->SetRenderMode(RenderMode::Normal);
 
-	const auto textures = {src};
+	const std::vector<Effekseer::Backend::TextureRef> textures{src};
 
 	blitter.Blit(shader_.get(), vao_.get(), textures, nullptr, 0, dest);
 

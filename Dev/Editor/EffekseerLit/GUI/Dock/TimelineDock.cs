@@ -96,23 +96,55 @@ namespace Effekseer.GUI.Dock
 
 			if (Manager.NativeManager.BeginNodeFrameTimeline())
 			{
-				for (int i = 0; i < Core.Root.Children.Count; i++)
-				{
-					var node = Core.Root.Children[i];
-					Manager.NativeManager.TimelineNode(node.Name);
-				}
+				// NOTE:
+				// [生成開始時間]  がオフセット
+				// [生存時間] が、1インスタンスの表示時間
+				// [生成時間] が [生成数] に対応して作られる 1　インスタンスごとのオフセット
+				// 
+				// 生成数: MaxGeneration
+				// 生成開始時間: GenerationTimeOffset
+				// 生存時間: Life
+				// 生成時間: GenerationTime
 
 				int frameMin = Core.StartFrame;
 				int frameMax = Core.EndFrame;
-				int currentFrame = (int)Manager.Viewer.Current;
-				int selectedEntry = 0;
-				Manager.NativeManager.EndNodeFrameTimeline(ref frameMin, ref frameMax, ref currentFrame, ref selectedEntry, ref _scrollFirstFrame);
 
-				Core.StartFrame = frameMin;
-				Core.EndFrame = frameMax;
-				Manager.Viewer.Current = currentFrame;
-				Manager.Viewer.Current = System.Math.Max(Manager.Viewer.Current, Core.StartFrame);
-				Manager.Viewer.Current = System.Math.Min(Manager.Viewer.Current, Core.EndFrame);
+
+				var timelineNodes = Core.Root.Children;
+				var currentSelectedIndex = timelineNodes.Internal.FindIndex(x => x == Core.SelectedNode);
+
+				for (int i = 0; i < timelineNodes.Count; i++)
+				{
+					var node = timelineNodes[i];
+
+					int frameStart = 0;
+					int frameLast = 0;
+					if (!Manager.Viewer.native.GetNodeLifeTimes(node.EditorNodeId, ref frameStart, ref frameLast))
+					{
+						// エディタ起動直後など、Native 側のインスタンスが作られていないことがある。
+						// その場合は空のタイムラインにしておく。
+					}
+
+					Manager.NativeManager.TimelineNode(node.Name, (int)frameStart, (int)frameLast);
+				}
+
+				{
+					int currentFrame = (int)Manager.Viewer.Current;
+					int selectedIndex = currentSelectedIndex;
+					Manager.NativeManager.EndNodeFrameTimeline(ref frameMin, ref frameMax, ref currentFrame, ref selectedIndex, ref _scrollFirstFrame);
+
+					// Selection changed?
+					if (selectedIndex != currentSelectedIndex)
+					{
+						Core.SelectedNode = timelineNodes[selectedIndex];
+					}
+
+					Core.StartFrame = frameMin;
+					Core.EndFrame = frameMax;
+					Manager.Viewer.Current = currentFrame;
+					Manager.Viewer.Current = System.Math.Max(Manager.Viewer.Current, Core.StartFrame);
+					Manager.Viewer.Current = System.Math.Min(Manager.Viewer.Current, Core.EndFrame);
+				}
 			}
 		}
 

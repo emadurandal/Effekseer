@@ -36,6 +36,16 @@ namespace Effekseer.Data
 			private set;
 		}
 
+		/// <summary>
+		/// Identifier to use when referring to a node from the editor.
+		/// </summary>
+		[IO(Export = false)]
+		public int EditorNodeId
+		{
+			get;
+			set;
+		}
+
 		public event ChangedValueEventHandler OnAfterAddNode;
 
 		public event ChangedValueEventHandler OnAfterRemoveNode;
@@ -406,4 +416,30 @@ namespace Effekseer.Data
 			}
 		}
 	}
+
+	public class NodeBaseValues : Data.IEditableValueCollection
+	{
+		Data.NodeBase node;
+
+		public NodeBaseValues(Data.NodeBase node)
+		{
+			this.node = node;
+		}
+		public Data.EditableValue[] GetValues()
+		{
+			List<Data.EditableValue> values = new List<Data.EditableValue>();
+
+			var valueIsRendered = Data.EditableValue.Create(node.IsRendered, node.GetType().GetProperty("IsRendered"));
+			var valueName = Data.EditableValue.Create(node.Name, node.GetType().GetProperty("Name"));
+
+			return new[]
+			{
+				valueIsRendered,
+				valueName,
+			};
+		}
+
+		public event ChangedValueEventHandler OnChanged;
+	}
+
 }
