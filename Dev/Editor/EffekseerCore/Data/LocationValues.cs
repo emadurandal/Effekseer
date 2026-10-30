@@ -78,6 +78,7 @@ namespace Effekseer.Data
 			PVA.Velocity.CanSelectDynamicEquation = true;
 			PVA.Acceleration.CanSelectDynamicEquation = true;
 			Easing.Start.CanSelectDynamicEquation = true;
+			Easing.Middle.CanSelectDynamicEquation = true;
 			Easing.End.CanSelectDynamicEquation = true;
 		}
 
@@ -172,7 +173,7 @@ namespace Effekseer.Data
 
 			public NurbsCurveParameter(Value.Path basepath)
 			{
-				FilePath = new Value.PathForCurve(basepath, Resources.GetString("CurveFilter"), true, "");
+				FilePath = new Value.PathForCurve(basepath, new MultiLanguageString("CurveFilter"), true, "");
 				Scale = new Value.Float(1.0f);
 				MoveSpeed = new Value.Float(1.0f, float.MaxValue, 0.0f);
 				LoopType = new Value.Enum<NurbsLoopType>(NurbsLoopType.Repeat);

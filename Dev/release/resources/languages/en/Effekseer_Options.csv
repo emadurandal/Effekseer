@@ -41,6 +41,12 @@ Options_LanguageSelector_Desc,Langueage
 Options_DistortionType_Name,Distortion method
 Options_DistortionType_Desc,Distortion method
 Options_MouseMappingType_Name,Mouse mapping
+Options_FileBrowserViewMode_Name,File view mode
+Options_FileBrowserIconSize_Name,File icon size
+Options_FloatFormatDigits_Name,Float format digits
+Options_FloatFormatDigits_Desc,Amount of digits after decimal point
+Options_AutoSaveIntervalMin_Name,Auto Save Interval (Minutes)
+Options_AutoSaveIntervalMin_Desc,Minutes between backup autosaves. Set to 0 to disable.
 RenderMode_Normal_Name,Normal
 RenderMode_Wireframe_Name,Wireframe
 RenderMode_NormalWithWireframe_Name,Normal+Wireframe
@@ -64,3 +70,7 @@ MouseMappingType_Effekseer_Name,Effekseer
 MouseMappingType_Unity_Name,Unity
 MouseMappingType_Blender_Name,Blender
 MouseMappingType_Maya_Name,Maya
+FileBrowser_ViewMode_IconView_Name,Icon view
+FileBrowser_ViewMode_ListView_Name,List view
+Options_TexturePreviewLines_Name,Texture preview size
+Options_TexturePreviewLines_Desc,"Height of the texture preview in the parameter panels, counted in text lines"

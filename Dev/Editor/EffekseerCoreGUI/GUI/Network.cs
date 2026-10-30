@@ -1,11 +1,12 @@
-﻿using System;
+﻿using Effekseer.swig;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
 namespace Effekseer.GUI
 {
-	public class Network
+	public class Network : System.IDisposable
 	{
 		public string Target { get; set; }
 		public int Port { get; set; }
@@ -18,13 +19,14 @@ namespace Effekseer.GUI
 
 		string target;
 		int port;
-		swig.Native native = null;
+		swig.NetworkClient networkClient = null;
 		const string ConfigNetworkFileName = "config.network.xml";
 		string configNetworkPath = string.Empty;
+		bool isProfiling = false;
 
 		public Action Loaded;
 
-		public Network(swig.Native native)
+		public Network()
 		{
 			Target = "127.0.0.1";
 			Port = 60000;
@@ -33,22 +35,27 @@ namespace Effekseer.GUI
 			SendOnEdit = false;
 			SendOnSave = true;
 
-			this.native = native;
+			networkClient = new swig.NetworkClient();
 
 			configNetworkPath = System.IO.Path.Combine(Manager.GetEntryDirectory(), ConfigNetworkFileName);
+		}
+
+		public void Dispose()
+		{
+			networkClient.Dispose();
 		}
 
 		public void Connect()
 		{
 
-			if (native.IsConnectingNetwork() && Target == target && Port == port) return;
+			if (networkClient.IsConnectingNetwork() && Target == target && Port == port) return;
 
-			if (native.IsConnectingNetwork())
+			if (networkClient.IsConnectingNetwork())
 			{
 				Disconnect();
 			}
 
-			if (native.StartNetwork(Target, (ushort)Port))
+			if (networkClient.StartNetwork(Target, (ushort)Port))
 			{
 				target = Target;
 				port = Port;
@@ -57,35 +64,65 @@ namespace Effekseer.GUI
 
 		public void Disconnect()
 		{
-			if (!native.IsConnectingNetwork()) return;
-			native.StopNetwork();
+			if (!networkClient.IsConnectingNetwork()) return;
+			networkClient.StopNetwork();
 		}
 
 		public bool IsConnected()
 		{
-			return native.IsConnectingNetwork();
+			return networkClient.IsConnectingNetwork();
 		}
 
 		public void Update()
 		{
 			if (AutoConnect && time % (60 * 15) == 0)
 			{
-				native.StartNetwork(Target, (ushort)Port);
+				networkClient.StartNetwork(Target, (ushort)Port);
 			}
+
+			networkClient.UpdateNetwork();
 
 			time++;
 		}
 
 		public unsafe void Send()
 		{
-			if (!native.IsConnectingNetwork()) return;
+			if (!networkClient.IsConnectingNetwork()) return;
 
 			var binaryExporter = new Binary.Exporter();
 			var data = binaryExporter.Export(Core.Root, 1.0f);
 			fixed (byte* p = &data[0])
 			{
-				native.SendDataByNetwork(System.IO.Path.GetFileNameWithoutExtension(Core.Root.GetFullPath()), new IntPtr(p), data.Length, Core.Root.GetFullPath());
+				networkClient.SendDataByNetwork(System.IO.Path.GetFileNameWithoutExtension(Core.Root.GetFullPath()), new IntPtr(p), data.Length, Core.Root.GetFullPath());
 			}
+		}
+
+		public void StartProfiling()
+		{
+			if (!isProfiling)
+			{
+				networkClient.StartProfiling();
+				isProfiling = true;
+			}
+		}
+
+		public void StopProfiling()
+		{
+			if (isProfiling)
+			{
+				networkClient.StopProfiling();
+				isProfiling = false;
+			}
+		}
+
+		public bool IsProfiling()
+		{
+			return isProfiling;
+		}
+
+		public swig.ProfileSample ReadProfileSample()
+		{
+			return networkClient.ReadProfileSample();
 		}
 
 		public void Save()
@@ -102,25 +139,33 @@ namespace Effekseer.GUI
 		{
 			if (System.IO.File.Exists(path))
 			{
-				System.Xml.XmlDocument doc = new System.Xml.XmlDocument();
-
-				doc.Load(path);
-
-				Target = doc["Root"]["Target"].ChildNodes[0].Value;
-
-				Port = int.Parse(doc["Root"]["Port"].ChildNodes[0].Value);
-
-				AutoConnect = bool.Parse(doc["Root"]["AutoConnect"].ChildNodes[0].Value);
-				SendOnLoad = bool.Parse(doc["Root"]["SendOnLoad"].ChildNodes[0].Value);
-				SendOnEdit = bool.Parse(doc["Root"]["SendOnEdit"].ChildNodes[0].Value);
-				SendOnSave = bool.Parse(doc["Root"]["SendOnSave"].ChildNodes[0].Value);
-
-				target = Target;
-				port = Port;
-
-				if (Loaded != null)
+				// For broken config file
+				try
 				{
-					Loaded();
+					System.Xml.XmlDocument doc = new System.Xml.XmlDocument();
+
+					doc.Load(path);
+
+					Target = doc["Root"]["Target"].ChildNodes[0].Value;
+
+					Port = int.Parse(doc["Root"]["Port"].ChildNodes[0].Value);
+
+					AutoConnect = bool.Parse(doc["Root"]["AutoConnect"].ChildNodes[0].Value);
+					SendOnLoad = bool.Parse(doc["Root"]["SendOnLoad"].ChildNodes[0].Value);
+					SendOnEdit = bool.Parse(doc["Root"]["SendOnEdit"].ChildNodes[0].Value);
+					SendOnSave = bool.Parse(doc["Root"]["SendOnSave"].ChildNodes[0].Value);
+
+					target = Target;
+					port = Port;
+
+					if (Loaded != null)
+					{
+						Loaded();
+					}
+				}
+				catch (Exception e)
+				{
+					Utils.Logger.Write($"Exception : {e}");
 				}
 			}
 		}
@@ -176,9 +221,9 @@ namespace Effekseer.GUI
 			{
 				doc.Save(path);
 			}
-			catch
+			catch (Exception e)
 			{
-
+				Utils.Logger.Write($"Exception : {e}");
 			}
 		}
 	}

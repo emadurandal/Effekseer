@@ -8,19 +8,9 @@ namespace Effekseer.GUI
 {
 	class DragAndDrops
 	{
-		public enum FileType
-		{
-			Image,
-			Sound,
-			Model,
-			Material,
-			Curve,
-			Other,
-		}
-
 		static byte[] tempBuffer = new byte[512];
 
-		public static void UpdateFileSrc(string path, FileType type)
+		public static void UpdateFileSrc(string path, FileType type, Action displayAction = null)
 		{
 			if (Manager.NativeManager.BeginDragDropSource())
 			{
@@ -29,7 +19,15 @@ namespace Effekseer.GUI
 				if (Manager.NativeManager.SetDragDropPayload(key, idBuf, idBuf.Length))
 				{
 				}
-				Manager.NativeManager.Text(path);
+
+				if (displayAction != null)
+				{
+					displayAction();
+				}
+				else
+				{
+					Manager.NativeManager.Text(path);
+				}
 
 				Manager.NativeManager.EndDragDropSource();
 			}

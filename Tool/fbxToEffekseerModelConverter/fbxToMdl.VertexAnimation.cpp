@@ -28,7 +28,7 @@ void VertexAnimation::Export(const char* path, std::shared_ptr<Scene> scene, std
 		{
 			for (int32_t j = 0; j < nodes.size(); j++)
 			{
-				if (mesh.Target->BoneConnectors[i].Name == nodes[j].TargetNode->Name)
+				if (mesh.Target->BoneConnectors[i].LinkNode == nodes[j].TargetNode->Original)
 				{
 					mesh.Connectors[i].NodeIndex = j;
 					break;
@@ -125,14 +125,17 @@ void VertexAnimation::Export(const char* path, std::shared_ptr<Scene> scene, std
 			std::vector<FbxMatrix> boneMat;
 			for (int32_t i = 0; i < mesh.Connectors.size(); i++)
 			{
-				auto m = nodes[mesh.Connectors[i].NodeIndex].MatGlobal * mesh.Target->BoneConnectors[i].OffsetMatrix * nodeState.MatGlobal *
+				auto m = nodes[mesh.Connectors[i].NodeIndex].MatGlobal * mesh.Target->BoneConnectors[i].TransformLinkMatrix.Inverse() *
+						 mesh.Target->BoneConnectors[i].TransformMatrix * nodeState.TargetNode->GeometryMatrix * nodeState.MatGlobal *
 						 nodeState.MatGlobalDefault.Inverse();
+
 				boneMat.push_back(m);
 			}
 
 			for (auto v : mesh.Target->Vertexes)
 			{
-				auto getBoneMat = [&](int32_t i) -> FbxMatrix {
+				auto getBoneMat = [&](int32_t i) -> FbxMatrix
+				{
 					if (i < 0)
 						return nodeState.MatGlobal;
 					return boneMat[i];

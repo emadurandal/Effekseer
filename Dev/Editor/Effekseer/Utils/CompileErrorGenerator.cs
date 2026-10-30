@@ -26,34 +26,34 @@ namespace Effekseer.Utils
 				GetErrorPosition(separators, compileException.Line, out errorLine, out errorPos);
 			}
 
-			var errorLinePos = string.Format(Resources.GetString("CompilePosition"), errorLine, errorPos);
+			var errorLinePos = string.Format(MultiLanguageTextProvider.GetText("CompilePosition"), errorLine, errorPos);
 
 
 			switch (e)
 			{
-			case InvalidTokenException exception:
-				return string.Format(Resources.GetString("CompileErrror_InvalidToken"), exception.Message) + errorLinePos;
+				case InvalidTokenException exception:
+					return string.Format(MultiLanguageTextProvider.GetText("CompileErrror_InvalidToken"), exception.Message) + errorLinePos;
 
-			case InvalidEOFException _:
-				return string.Format(Resources.GetString("CompileErrror_InvalidEoF")) + errorLinePos;
+				case InvalidEOFException _:
+					return string.Format(MultiLanguageTextProvider.GetText("CompileErrror_InvalidEoF")) + errorLinePos;
 
-			case InvalidOperationException _:
-				return string.Format(Resources.GetString("CompileError_InvalidOperation")) + errorLinePos;
+				case InvalidOperationException _:
+					return string.Format(MultiLanguageTextProvider.GetText("CompileError_InvalidOperation")) + errorLinePos;
 
-			case ArgSizeException exception:
-				return string.Format(Resources.GetString("CompileError_ArgSize"), string.Join(",", exception.Expected), exception.Actual) + errorLinePos;
+				case ArgSizeException exception:
+					return string.Format(MultiLanguageTextProvider.GetText("CompileError_ArgSize"), string.Join(",", exception.Expected), exception.Actual) + errorLinePos;
 
-			case InvalidSubstitution _:
-				return string.Format(Resources.GetString("CompileError_InvalidSubstitution")) + errorLinePos;
+				case InvalidSubstitution _:
+					return string.Format(MultiLanguageTextProvider.GetText("CompileError_InvalidSubstitution")) + errorLinePos;
 
-			case UnknownFunctionException exception:
-				return string.Format(Resources.GetString("CompileError_UnknownFunction"), exception.Message) + errorLinePos;
+				case UnknownFunctionException exception:
+					return string.Format(MultiLanguageTextProvider.GetText("CompileError_UnknownFunction"), exception.Message) + errorLinePos;
 
-			case UnknownValueException exception:
-				return string.Format(Resources.GetString("CompileError_UnknownValue"), exception.Message) + errorLinePos;
+				case UnknownValueException exception:
+					return string.Format(MultiLanguageTextProvider.GetText("CompileError_UnknownValue"), exception.Message) + errorLinePos;
 
-			default:
-				return "Unknown error";
+				default:
+					return "Unknown error";
 			}
 		}
 

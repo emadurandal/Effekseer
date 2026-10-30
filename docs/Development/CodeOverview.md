@@ -3,16 +3,11 @@
 
 > NOTE: See also ARCHITECTURE.md
 
-## CreateHeader.py
+## Development Docs
 
-To easy to include Effekseer, Effekseer makes a single header with a python script.
-This script combines header files.
-
-If you change a header, you need to run it.
-
-```
-Dev/Cpp/CreateHeader.py
-```
+- Release procedure: [ReleaseGuide.md](./ReleaseGuide.md)
+- Effekseer-specific imgui changes: [ImGuiCustomization.md](./ImGuiCustomization.md)
+- Easing internal implementation: [Implementation/Easing.md](./Implementation/Easing.md)
 
 ## Effekseer
 
@@ -119,4 +114,3 @@ Not used. It will be removed.
 ```
 Dev/Editor/EffekseerOld
 ```
-

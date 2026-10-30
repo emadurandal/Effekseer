@@ -1,12 +1,16 @@
 
 # Tool
 
-## FBXSDK
+## FBX
 
-Plese put fbxsdk on 
+EffekseerResourceConverter uses the bundled `ufbx` library for FBX import.
+
+No separate FBX SDK installation is required for the current toolchain.
+
+## Build
+
+### Windows
 
 ```
-fbxsdk/{os}/include/
-fbxsdk/{os}/lib/
-
+ cmake -B build -S . -G "Visual Studio 16 2019" -A Win32
 ```

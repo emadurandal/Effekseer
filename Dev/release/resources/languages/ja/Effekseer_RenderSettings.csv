@@ -9,19 +9,22 @@ RS_RenderingOrder_FirstCreatedInstanceIsFirst_Name,生成順
 RS_RenderingOrder_FirstCreatedInstanceIsLast_Name,生成順の逆
 BillboardType_Billboard_Name,ビルボード
 BillboardType_RotatedBillboard_Name,Z軸回転ビルボード
+BillboardType_DirectionalBillboard_Name,移動方向ビルボード
 BillboardType_YAxisFixed_Name,Y軸固定
 BillboardType_Fixed_Name,固定
 StandardColorType_Fixed_Name,固定
 StandardColorType_Random_Name,ランダム
 StandardColorType_Easing_Name,イージング
 StandardColorType_FCurve_Name,Fカーブ(RGBA)
+StandardColorType_Gradient_Name,グラディエント
 TextureUVTypeParameter_Type_Name,UV タイプ
+TextureUVTypeParameter_TileLength_Name,タイルの長さ
 TextureUVTypeParameter_TileEdgeHead_Name,頭のタイル数
 TextureUVTypeParameter_TileEdgeTail_Name,尻尾のタイル数
 TextureUVTypeParameter_TileLoopingArea_Name,ループ領域
 TextureUVTypeParameter_Type_Strech_Name,ストレッチ
 TextureUVTypeParameter_Type_Tile_Name,タイル
-,
+TextureUVTypeParameter_Type_TilePerParticle_Name,タイル(パーティクル毎)
 CullingType_Front_Name,表表示
 CullingType_Back_Name,裏表示
 CullingType_Double_Name,両面表示
@@ -63,9 +66,10 @@ FixedRandomEasingType_Fixed_Name,位置
 FixedRandomEasingType_Random_Name,ランダム
 FixedRandomEasingType_Easing_Name,イージング
 ,
+RS_ColorAll_Name,全体色
+,
 RS_Sprite_RenderingOrder_Name,描画順
 RS_Sprite_Billboard_Name,配置方法
-RS_Sprite_ColorAll_Name,全体色
 RS_Sprite_Color_Name,頂点色
 RS_Sprite_Color_Fixed_LL_Name,左下色
 RS_Sprite_Color_Fixed_LR_Name,右下色
@@ -110,6 +114,8 @@ RS_Model_Model_Desc,モデルファイル
 RS_Model_Billboard_Name,配置方法
 RS_Model_Culling_Name,カリング
 RS_Model_Color_Name,全体色
+RS_Model_ExternalIndex_Name,外部モデルのインデックス
+RS_Model_ExternalIndex_Desc,外部モデルのインデックス。
 ,
 RS_Ring_RingShape_Name,形状
 RS_Ring_RenderingOrder_Name,描画順
@@ -136,3 +142,8 @@ RS_Ring_PVALocation_Velocity_Name,速度
 RS_Ring_PVALocation_Velocity_Desc,辺の初期速度
 RS_Ring_PVALocation_Acceleration_Name,加速度
 RS_Ring_PVALocation_Acceleration_Desc,辺の初期加速度
+,
+"RS_TrailSmoothing_Name","スムージング"
+"RS_TrailTimeSource_Name","色の時間の取得元"
+"RS_TrailTimeSource_FirstParticle_Name", "最初のパーティクル"
+"RS_TrailTimeSource_ParticleGroup_Name", "グループ"

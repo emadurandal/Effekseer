@@ -54,7 +54,7 @@ namespace Effekseer.Data
 			get;
 			private set;
 		}
-		
+
 		[Selected(ID = 0, Value = 4)]
 		[IO(Export = true)]
 		public FloatEasingParamater SingleEasing
@@ -117,6 +117,7 @@ namespace Effekseer.Data
 			PVA.Velocity.CanSelectDynamicEquation = true;
 			PVA.Acceleration.CanSelectDynamicEquation = true;
 			Easing.Start.CanSelectDynamicEquation = true;
+			Easing.Middle.CanSelectDynamicEquation = true;
 			Easing.End.CanSelectDynamicEquation = true;
 		}
 

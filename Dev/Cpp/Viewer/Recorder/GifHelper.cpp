@@ -1,0 +1,76 @@
+#include "GifHelper.h"
+#include <Common/StringHelper.h>
+#include <math.h>
+
+namespace efk
+{
+GifHelper::~GifHelper()
+{
+	if (fp != nullptr)
+	{
+		gdImageGifAnimEnd(fp);
+		fclose(fp);
+	}
+	if (img != nullptr)
+	{
+		gdImageDestroy(img);
+	}
+}
+
+bool GifHelper::Initialize(const char16_t* path, int32_t width, int32_t height, int32_t freq)
+{
+#ifdef _WIN32
+	_wfopen_s(&fp, (const wchar_t*)path, L"wb");
+#else
+	auto path8 = Effekseer::Tool::StringHelper::ConvertUtf16ToUtf8(path);
+	fp = fopen(path8.c_str(), "wb");
+#endif
+	if (fp == nullptr)
+	{
+		return false;
+	}
+
+	img = gdImageCreate(width, height);
+	if (img == nullptr)
+	{
+		fclose(fp);
+		fp = nullptr;
+		return false;
+	}
+
+	gdImageGifAnimBegin(img, fp, false, 0);
+
+	this->width = width;
+	this->height = height;
+	this->freq = freq;
+
+	return true;
+}
+
+void GifHelper::AddImage(const std::vector<Effekseer::Color>& pixels)
+{
+	if (fp == nullptr || img == nullptr)
+	{
+		return;
+	}
+
+	int delay = (int)round((1.0 / (double)60.0 * freq) * 100.0);
+	gdImagePtr frameImage = gdImageCreateTrueColor(width, height);
+	if (frameImage == nullptr)
+	{
+		return;
+	}
+
+	for (int32_t y = 0; y < height; y++)
+	{
+		for (int32_t x = 0; x < width; x++)
+		{
+			auto c = pixels[x + y * width];
+			gdImageSetPixel(frameImage, x, y, gdTrueColor(c.R, c.G, c.B));
+		}
+	}
+	gdImageTrueColorToPalette(frameImage, true, gdMaxColors);
+	gdImageGifAnimAdd(frameImage, fp, true, 0, 0, delay, gdDisposalNone, nullptr);
+	gdImageDestroy(frameImage);
+}
+} // namespace efk

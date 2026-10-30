@@ -1,27 +1,15 @@
-[submodule "Downloads/libgd"]
-	path = Downloads/libgd
-	url = https://github.com/libgd/libgd.git
-[submodule "Downloads/OpenSoundMixer"]
-	path = Downloads/OpenSoundMixer
-	url = https://github.com/altseed/OpenSoundMixer
-[submodule "Downloads/glfw"]
-	path = Downloads/glfw
+[submodule "Dev/Cpp/3rdParty/OpenSoundMixer"]
+	path = Dev/Cpp/3rdParty/OpenSoundMixer
+	url = https://github.com/effekseer/OpenSoundMixer
+[submodule "Dev/Cpp/3rdParty/glfw"]
+	path = Dev/Cpp/3rdParty/glfw
 	url = https://github.com/glfw/glfw
-[submodule "Downloads/libpng"]
-	path = Downloads/libpng
-	url = https://github.com/glennrp/libpng
-[submodule "Downloads/zlib"]
-	path = Downloads/zlib
-	url = https://github.com/madler/zlib
 [submodule "Dev/Cpp/3rdParty/LLGI"]
 	path = Dev/Cpp/3rdParty/LLGI
-	url = https://github.com/altseed/LLGI
+	url = https://github.com/effekseer/LLGI
 [submodule "Dev/Cpp/3rdParty/stb"]
 	path = Dev/Cpp/3rdParty/stb
 	url = https://github.com/nothings/stb.git
-[submodule "Dev/Cpp/3rdParty/AltseedRHI"]
-	path = Dev/Cpp/3rdParty/AltseedRHI
-	url = https://github.com/altseed/AltseedRHI.git
 [submodule "TestData"]
 	path = TestData
 	url = https://github.com/effekseer/TestData.git
@@ -46,3 +34,16 @@
 [submodule "Dev/Cpp/3rdParty/imgui-node-editor"]
 	path = Dev/Cpp/3rdParty/imgui-node-editor
 	url = https://github.com/effekseer/imgui-node-editor.git
+[submodule "Dev/Cpp/3rdParty/ImGradientHDR"]
+	path = Dev/Cpp/3rdParty/ImGradientHDR
+	url = https://github.com/effekseer/ImGradientHDR.git
+[submodule "Dev/Cpp/3rdParty/libpng"]
+	path = Dev/Cpp/3rdParty/libpng
+	url = https://github.com/pnggroup/libpng.git
+[submodule "Dev/Cpp/3rdParty/zlib"]
+	path = Dev/Cpp/3rdParty/zlib
+	url = https://github.com/effekseer/zlib.git
+	branch = effekseer-18x
+[submodule "Dev/Cpp/3rdParty/libgd"]
+	path = Dev/Cpp/3rdParty/libgd
+	url = https://github.com/libgd/libgd.git

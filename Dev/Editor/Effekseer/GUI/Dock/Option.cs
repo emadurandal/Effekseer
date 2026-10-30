@@ -8,20 +8,22 @@ namespace Effekseer.GUI.Dock
 {
 	class Option : DockPanel
 	{
-		Component.ParameterList paramerterList = null;
+		BindableComponent.ParameterList paramerterList = null;
 
 		bool isFiestUpdate = true;
 
 		public Option()
 		{
-			Label = Icons.PanelOptions + Resources.GetString("Options") + "###Options";
-			paramerterList = new Component.ParameterList();
+			Label = Icons.PanelOptions + MultiLanguageTextProvider.GetText("Options") + "###Options";
+			DocPage = "options.html";
+
+			paramerterList = new BindableComponent.ParameterList();
 			paramerterList.SetType(typeof(Data.OptionValues));
 
 			Core.OnAfterLoad += OnAfter;
 			Core.OnAfterNew += OnAfter;
 
-			TabToolTip = Resources.GetString("Options");
+			TabToolTip = MultiLanguageTextProvider.GetText("Options");
 		}
 
 		public void FixValues()
@@ -39,7 +41,7 @@ namespace Effekseer.GUI.Dock
 
 		protected override void UpdateInternal()
 		{
-			if(isFiestUpdate)
+			if (isFiestUpdate)
 			{
 				paramerterList.SetValue(Core.Option);
 				isFiestUpdate = false;
@@ -50,6 +52,7 @@ namespace Effekseer.GUI.Dock
 				LanguageTable.OnLanguageChanged += RestartValue_OnChanged;
 			}
 
+			Manager.NativeManager.Separator();
 			paramerterList.Update();
 		}
 

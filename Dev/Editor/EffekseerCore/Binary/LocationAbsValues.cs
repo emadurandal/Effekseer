@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Runtime.InteropServices;
-using Effekseer.Utl;
+using Effekseer.Utils;
 
 namespace Effekseer.Binary
 {
 	class LocationAbsValues
 	{
-		public static byte[] GetBytes(Data.LocationAbsValues value, Data.ParentEffectType parentEffectType, ExporterVersion version)
+		public static byte[] GetBytes(Data.LocationAbsValues value, Data.ParentEffectType parentEffectType)
 		{
 			List<byte[]> data = new List<byte[]>();
 
@@ -24,9 +24,8 @@ namespace Effekseer.Binary
 
 			data.Add((lffs.Count).GetBytes());
 
-			foreach(var lff in lffs)
+			foreach (var lff in lffs)
 			{
-				if(version >= ExporterVersion.Ver16Alpha1)
 				{
 					data.Add(lff.Type.GetValueAsInt().GetBytes());
 
@@ -83,13 +82,13 @@ namespace Effekseer.Binary
 
 					data.Add(lff.Falloff.Type.GetValueAsInt().GetBytes());
 
-					if(lff.Falloff.Type.Value != Data.ForceFieldFalloffType.None)
+					if (lff.Falloff.Type.Value != Data.ForceFieldFalloffType.None)
 					{
 						data.Add(lff.Falloff.Power.GetBytes());
 						data.Add(lff.Falloff.MaxDistance.GetBytes());
 						data.Add(lff.Falloff.MinDistance.GetBytes());
 
-						if(lff.Falloff.Type.Value == Data.ForceFieldFalloffType.Tube)
+						if (lff.Falloff.Type.Value == Data.ForceFieldFalloffType.Tube)
 						{
 							data.Add(lff.Falloff.Tube.RadiusPower.GetBytes());
 							data.Add(lff.Falloff.Tube.MaxRadius.GetBytes());
@@ -104,36 +103,6 @@ namespace Effekseer.Binary
 						}
 					}
 				}
-				else
-				{
-					// 1.5 or later
-					if(lff.Type.Value == Data.LocalForceFieldType.Turbulence)
-					{
-						data.Add(lff.Type.GetValueAsInt().GetBytes());
-					}
-					else
-					{
-						data.Add(((int)(Data.LocalForceFieldType.None)).GetBytes());
-					}
-
-					if (lff.Type.Value == Data.LocalForceFieldType.Turbulence)
-					{
-						var strength = lff.Power.Value / 10.0f;
-
-						data.Add(lff.Turbulence.Seed.Value.GetBytes());
-						data.Add(lff.Turbulence.FieldScale.Value.GetBytes());
-						data.Add(strength.GetBytes());
-						data.Add(lff.Turbulence.Octave.Value.GetBytes());
-					}
-				}
-			}
-
-			// For compatibility
-			if(version < ExporterVersion.Ver16Alpha2)
-			{
-				var type = 0;
-				data.Add(((int)type).GetBytes());
-				data.Add(((int)0).GetBytes());
 			}
 
 			return data.ToArray().ToArray();

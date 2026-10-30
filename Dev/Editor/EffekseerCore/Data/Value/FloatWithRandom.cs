@@ -2,19 +2,19 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Effekseer.Utl;
+using Effekseer.Utils;
 
 namespace Effekseer.Data.Value
 {
-	public class FloatWithRandom : IValueChangedFromDefault
+	public class FloatWithRandom : IResettableValue, IValueChangedFromDefault
 	{
 		float _value_center = 0;
 		float _value_max = 0;
 		float _value_min = 0;
-		
+
 		float _max = float.MaxValue;
 		float _min = float.MinValue;
-		
+
 		public float Center
 		{
 			get
@@ -167,7 +167,7 @@ namespace Effekseer.Data.Value
 			float old_center = _value_center;
 			float new_center = value;
 			float old_max = _value_max;
-			float new_max = Math.Min(value + a, _max );
+			float new_max = Math.Min(value + a, _max);
 			float old_min = _value_min;
 			float new_min = Math.Max(value - a, _min);
 
@@ -349,6 +349,22 @@ namespace Effekseer.Data.Value
 			_value_center = new_center;
 			_value_max = new_max;
 			_value_min = new_min;
+		}
+
+		public void ResetValue()
+		{
+			Command.CommandManager.StartCollection();
+			SetCenter(DefaultValueCenter);
+			SetMax(DefaultValueMax);
+			SetMin(DefaultValueMin);
+			if (CanSelectDynamicEquation)
+			{
+				IsDynamicEquationEnabled.ResetValue();
+				DynamicEquationMin.SetValue(null);
+				DynamicEquationMax.SetValue(null);
+			}
+			DrawnAs = DefaultDrawnAs;
+			Command.CommandManager.EndCollection();
 		}
 
 		public byte[] GetBytes(float mul = 1.0f)

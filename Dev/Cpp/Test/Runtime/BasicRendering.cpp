@@ -1,0 +1,521 @@
+#include "BasicRendering.h"
+#include "../TestHelper.h"
+#include "TestPlatforms.h"
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <set>
+#include <utility>
+#include <vector>
+
+namespace
+{
+
+enum class BasicRenderingCaseRoot
+{
+	TestDataEffects,
+	ResourceData00Basic,
+	ResourceDataSamples,
+};
+
+enum class BasicRenderingCamera
+{
+	Default,
+	Fireworks,
+	SoftParticle,
+};
+
+enum class BasicRenderingPlayMode
+{
+	Single,
+	PerformanceGrid,
+};
+
+struct BasicRenderingCase
+{
+	const char* Name = nullptr;
+	BasicRenderingCaseRoot Root = BasicRenderingCaseRoot::TestDataEffects;
+	const char16_t* Directory = nullptr;
+	const char16_t* EffectName = nullptr;
+	const char16_t* Extension = nullptr;
+	const char* ScreenshotName = nullptr;
+	int32_t FrameCount = 30;
+	BasicRenderingCamera Camera = BasicRenderingCamera::Default;
+	EffekseerRenderer::UVStyle BackgroundTextureUVStyle = EffekseerRenderer::UVStyle::Normal;
+	bool OverridesBackgroundTextureUVStyle = false;
+	bool UseGroundDepth = false;
+	BasicRenderingPlayMode PlayMode = BasicRenderingPlayMode::Single;
+};
+
+struct BasicRenderingBackendOutput
+{
+	std::string BackendName;
+	std::filesystem::path Directory;
+	std::filesystem::path ManifestPath;
+};
+
+const std::vector<BasicRenderingCase>& GetBasicRenderingCases()
+{
+	static const std::vector<BasicRenderingCase> cases = {
+		{"Simple_Turbulence_Fireworks", BasicRenderingCaseRoot::ResourceData00Basic, nullptr, u"Simple_Turbulence_Fireworks", u".efkefc", "Simple_Turbulence_Fireworks", 180, BasicRenderingCamera::Fireworks},
+		{"ManyRings1", BasicRenderingCaseRoot::TestDataEffects, u"Performance", u"ManyRings1", u".efkefc", "ManyRings1", 30, BasicRenderingCamera::Default, EffekseerRenderer::UVStyle::Normal, false, false, BasicRenderingPlayMode::PerformanceGrid},
+		{"ManyRings2", BasicRenderingCaseRoot::TestDataEffects, u"Performance", u"ManyRings2", u".efkefc", "ManyRings2", 30, BasicRenderingCamera::Default, EffekseerRenderer::UVStyle::Normal, false, false, BasicRenderingPlayMode::PerformanceGrid},
+		{"ManySprites1", BasicRenderingCaseRoot::TestDataEffects, u"Performance", u"ManySprites1", u".efkefc", "ManySprites1", 30, BasicRenderingCamera::Default, EffekseerRenderer::UVStyle::Normal, false, false, BasicRenderingPlayMode::PerformanceGrid},
+		{"ManySpritesAdvance1", BasicRenderingCaseRoot::TestDataEffects, u"Performance", u"ManySpritesAdvance1", u".efkefc", "ManySpritesAdvance1", 30, BasicRenderingCamera::Default, EffekseerRenderer::UVStyle::Normal, false, false, BasicRenderingPlayMode::PerformanceGrid},
+		{"Benediction", BasicRenderingCaseRoot::TestDataEffects, u"Performance", u"Benediction", u".efkefc", "Benediction", 30, BasicRenderingCamera::Default, EffekseerRenderer::UVStyle::Normal, false, false, BasicRenderingPlayMode::PerformanceGrid},
+		{"hit_hanmado_0409", BasicRenderingCaseRoot::ResourceDataSamples, u"03_Hanmado01/Effect", u"hit_hanmado_0409", u".efkefc", "hit_hanmado_0409", 30, BasicRenderingCamera::Default, EffekseerRenderer::UVStyle::Normal, false, false, BasicRenderingPlayMode::PerformanceGrid},
+		{"ToonWater", BasicRenderingCaseRoot::ResourceDataSamples, u"02_Tktk03", u"ToonWater", u".efkefc", "ToonWater", 30, BasicRenderingCamera::Default, EffekseerRenderer::UVStyle::Normal, false, false, BasicRenderingPlayMode::PerformanceGrid},
+
+		{"SimpleLaser", BasicRenderingCaseRoot::TestDataEffects, u"10", u"SimpleLaser", u".efk", "SimpleLaser"},
+		{"FCurve_Parameters1", BasicRenderingCaseRoot::TestDataEffects, u"10", u"FCurve_Parameters1", u".efk", "FCurve_Parameters1"},
+		{"Ribbon_Parameters1", BasicRenderingCaseRoot::TestDataEffects, u"10", u"Ribbon_Parameters1", u".efk", "Ribbon_Parameters1"},
+		{"Ring_Parameters1", BasicRenderingCaseRoot::TestDataEffects, u"10", u"Ring_Parameters1", u".efk", "Ring_Parameters1"},
+		{"Track_Parameters1", BasicRenderingCaseRoot::TestDataEffects, u"10", u"Track_Parameters1", u".efk", "Track_Parameters1"},
+		{"Sprite_Parameters1", BasicRenderingCaseRoot::TestDataEffects, u"10", u"Sprite_Parameters1", u".efk", "Sprite_Parameters1"},
+		{"Distortions1", BasicRenderingCaseRoot::TestDataEffects, u"10", u"Distortions1", u".efk", "Distortions1"},
+
+		{"Model_Parameters1", BasicRenderingCaseRoot::TestDataEffects, u"14", u"Model_Parameters1", u".efk", "Model_Parameters1"},
+
+		{"Lighing_Parameters1", BasicRenderingCaseRoot::TestDataEffects, u"15", u"Lighing_Parameters1", u".efkefc", "Lighing_Parameters1"},
+		{"DynamicParameter1", BasicRenderingCaseRoot::TestDataEffects, u"15", u"DynamicParameter1", u".efkefc", "DynamicParameter1"},
+		{"Material_Sampler1", BasicRenderingCaseRoot::TestDataEffects, u"15", u"Material_Sampler1", u".efkefc", "Material_Sampler1"},
+		{"Material_Refraction", BasicRenderingCaseRoot::TestDataEffects, u"15", u"Material_Refraction", u".efkefc", "Material_Refraction"},
+		{"Material_WorldPositionOffset", BasicRenderingCaseRoot::TestDataEffects, u"15", u"Material_WorldPositionOffset", u".efkefc", "Material_WorldPositionOffset"},
+		{"BasicRenderSettings_Blend", BasicRenderingCaseRoot::TestDataEffects, u"15", u"BasicRenderSettings_Blend", u".efkefc", "BasicRenderSettings_Blend"},
+		{"BasicRenderSettings_Inherit_Color", BasicRenderingCaseRoot::TestDataEffects, u"15", u"BasicRenderSettings_Inherit_Color", u".efkefc", "BasicRenderSettings_Inherit_Color"},
+		{"ForceFieldLocal_Turbulence1", BasicRenderingCaseRoot::TestDataEffects, u"15", u"ForceFieldLocal_Turbulence1", u".efkefc", "ForceFieldLocal_Turbulence1"},
+		{"ForceFieldLocal_Old", BasicRenderingCaseRoot::TestDataEffects, u"15", u"ForceFieldLocal_Old", u".efkefc", "ForceFieldLocal_Old"},
+		{"Material_FresnelRotatorPolarCoords", BasicRenderingCaseRoot::TestDataEffects, u"15", u"Material_FresnelRotatorPolarCoords", u".efkefc", "Material_FresnelRotatorPolarCoords"},
+		{"Update_Easing", BasicRenderingCaseRoot::TestDataEffects, u"15", u"Update_Easing", u".efkefc", "Update_Easing"},
+		{"Update_MultiModel", BasicRenderingCaseRoot::TestDataEffects, u"15", u"Update_MultiModel", u".efkefc", "Update_MultiModel"},
+		{"Material_UV1", BasicRenderingCaseRoot::TestDataEffects, u"15", u"Material_UV1", u".efkefc", "Material_UV1"},
+		{"Material_UV2", BasicRenderingCaseRoot::TestDataEffects, u"15", u"Material_UV2", u".efkefc", "Material_UV2"},
+		{"Material_CustomData1", BasicRenderingCaseRoot::TestDataEffects, u"15", u"Material_CustomData1", u".efkefc", "Material_CustomData1"},
+		{"Material_CustomDataMax", BasicRenderingCaseRoot::TestDataEffects, u"15", u"Material_CustomDataMax", u".efkefc", "Material_CustomDataMax"},
+		{"SpawnMethodParameter1", BasicRenderingCaseRoot::TestDataEffects, u"15", u"SpawnMethodParameter1", u".efkefc", "SpawnMethodParameter1"},
+
+		{"DrawWithoutInstancing", BasicRenderingCaseRoot::TestDataEffects, u"16", u"DrawWithoutInstancing", u".efkefc", "DrawWithoutInstancing"},
+		{"AlphaBlendTexture01", BasicRenderingCaseRoot::TestDataEffects, u"16", u"AlphaBlendTexture01", u".efkefc", "AlphaBlendTexture01"},
+		{"AlphaCutoffEdgeColor01", BasicRenderingCaseRoot::TestDataEffects, u"16", u"AlphaCutoffEdgeColor01", u".efkefc", "AlphaCutoffEdgeColor01"},
+		{"BasicRenderSettings_Emissive", BasicRenderingCaseRoot::TestDataEffects, u"16", u"BasicRenderSettings_Emissive", u".efkefc", "BasicRenderSettings_Emissive"},
+		{"Curve01", BasicRenderingCaseRoot::TestDataEffects, u"16", u"Curve01", u".efkefc", "Curve01"},
+		{"EdgeFallOff01", BasicRenderingCaseRoot::TestDataEffects, u"16", u"EdgeFallOff01", u".efkefc", "EdgeFallOff01"},
+		{"Flip01", BasicRenderingCaseRoot::TestDataEffects, u"16", u"Flip01", u".efkefc", "Flip01"},
+		{"Flip_UV_01", BasicRenderingCaseRoot::TestDataEffects, u"16", u"Flip_UV_01", u".efkefc", "Flip_UV_01"},
+		{"ForceFieldLocal02", BasicRenderingCaseRoot::TestDataEffects, u"16", u"ForceFieldLocal02", u".efkefc", "ForceFieldLocal02"},
+		{"ForceFieldLocal03", BasicRenderingCaseRoot::TestDataEffects, u"16", u"ForceFieldLocal03", u".efkefc", "ForceFieldLocal03"},
+		{"Material_EffectScale", BasicRenderingCaseRoot::TestDataEffects, u"16", u"Material_EffectScale", u".efkefc", "Material_EffectScale"},
+		{"TGA01", BasicRenderingCaseRoot::TestDataEffects, u"16", u"TGA01", u".efkefc", "TGA01"},
+		{"ProcedualModel01", BasicRenderingCaseRoot::TestDataEffects, u"16", u"ProcedualModel01", u".efkefc", "ProcedualModel01"},
+		{"ProcedualModel02", BasicRenderingCaseRoot::TestDataEffects, u"16", u"ProcedualModel02", u".efkefc", "ProcedualModel02"},
+		{"ProcedualModel03", BasicRenderingCaseRoot::TestDataEffects, u"16", u"ProcedualModel03", u".efkefc", "ProcedualModel03"},
+		{"AlphaCutoffParameter01", BasicRenderingCaseRoot::TestDataEffects, u"16", u"AlphaCutoffParameter01", u".efkefc", "AlphaCutoffParameter01"},
+		{"RotateScale01", BasicRenderingCaseRoot::TestDataEffects, u"16", u"RotateScale01", u".efkefc", "RotateScale01"},
+		{"FollowParent01", BasicRenderingCaseRoot::TestDataEffects, u"16", u"FollowParent01", u".efkefc", "FollowParent01"},
+		{"SoftParticle01_NotFlipped", BasicRenderingCaseRoot::TestDataEffects, u"16", u"SoftParticle01", u".efkefc", "SoftParticle01_NotFlipped", 30, BasicRenderingCamera::SoftParticle, EffekseerRenderer::UVStyle::Normal, false, true},
+		{"SoftParticle01_Flipped", BasicRenderingCaseRoot::TestDataEffects, u"16", u"SoftParticle01", u".efkefc", "SoftParticle01_Flipped", 30, BasicRenderingCamera::SoftParticle, EffekseerRenderer::UVStyle::VerticalFlipped, true, true},
+
+		{"Flip_UV_02", BasicRenderingCaseRoot::TestDataEffects, u"17", u"Flip_UV_02", u".efkefc", "Flip_UV_02", 57},
+		{"Gradient1", BasicRenderingCaseRoot::TestDataEffects, u"17", u"Gradient1", u".efkefc", "Gradient1", 60},
+		{"KillRules01", BasicRenderingCaseRoot::TestDataEffects, u"17", u"KillRules01", u".efkefc", "KillRules01", 60},
+		{"Light1", BasicRenderingCaseRoot::TestDataEffects, u"17", u"Light1", u".efkefc", "Light1", 60},
+		{"LocalTime", BasicRenderingCaseRoot::TestDataEffects, u"17", u"LocalTime", u".efkefc", "LocalTime", 60},
+		{"Noise1", BasicRenderingCaseRoot::TestDataEffects, u"17", u"Noise1", u".efkefc", "Noise1", 60},
+
+		{"BC7", BasicRenderingCaseRoot::TestDataEffects, u"18", u"BC7", u".efkefc", "BC7"},
+		{"Collisions", BasicRenderingCaseRoot::TestDataEffects, u"18", u"Collisions", u".efkefc", "Collisions"},
+		{"GpuParticles_emit_mesh", BasicRenderingCaseRoot::TestDataEffects, u"18", u"GpuParticles_emit_mesh", u".efkefc", "GpuParticles_emit_mesh", 120},
+		{"GpuParticles_sprite_simple", BasicRenderingCaseRoot::TestDataEffects, u"18", u"GpuParticles_sprite_simple", u".efkefc", "GpuParticles_sprite_simple", 120},
+		{"GpuParticles_trails_simple", BasicRenderingCaseRoot::TestDataEffects, u"18", u"GpuParticles_trails_simple", u".efkefc", "GpuParticles_trails_simple", 120},
+		{"Materials1", BasicRenderingCaseRoot::TestDataEffects, u"18", u"Materials1", u".efkefc", "Materials1"},
+		{"Materials2", BasicRenderingCaseRoot::TestDataEffects, u"18", u"Materials2", u".efkefc", "Materials2"},
+	};
+	return cases;
+}
+
+const BasicRenderingCase* FindBasicRenderingCase(std::string_view name)
+{
+	for (const auto& testCase : GetBasicRenderingCases())
+	{
+		if (name == testCase.Name)
+		{
+			return &testCase;
+		}
+	}
+	return nullptr;
+}
+
+std::string MakeBasicRenderingSuffix(const EffectPlatformInitializingParameter& param, std::string suffix)
+{
+	if (param.CoordinateSyatem == Effekseer::CoordinateSystem::LH)
+	{
+		suffix += ".LH";
+	}
+	return suffix;
+}
+
+std::string MakeBasicRenderingBackendName(std::string suffix)
+{
+	while (!suffix.empty() && suffix.front() == '_')
+	{
+		suffix.erase(suffix.begin());
+	}
+	if (suffix.empty())
+	{
+		return "unknown";
+	}
+
+	for (auto& c : suffix)
+	{
+		const auto isAlpha = ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z');
+		const auto isDigit = '0' <= c && c <= '9';
+		if (!isAlpha && !isDigit && c != '_' && c != '-' && c != '.')
+		{
+			c = '_';
+		}
+	}
+	return suffix;
+}
+
+std::filesystem::path MakeBasicRenderingBaseOutputPath(const std::string& baseResultPath)
+{
+	return baseResultPath.empty() ? std::filesystem::path(".") : std::filesystem::path(baseResultPath);
+}
+
+std::string EscapeBasicRenderingCsvValue(const std::string& value)
+{
+	if (value.find_first_of(",\"\r\n") == std::string::npos)
+	{
+		return value;
+	}
+
+	std::string escaped = "\"";
+	for (const auto c : value)
+	{
+		if (c == '"')
+		{
+			escaped += "\"\"";
+		}
+		else
+		{
+			escaped += c;
+		}
+	}
+	escaped += "\"";
+	return escaped;
+}
+
+BasicRenderingBackendOutput PrepareBasicRenderingBackendOutput(const std::string& baseResultPath, const std::string& suffix)
+{
+	BasicRenderingBackendOutput output;
+	output.BackendName = MakeBasicRenderingBackendName(suffix);
+	output.Directory = MakeBasicRenderingBaseOutputPath(baseResultPath) / "screenshots_by_backend" / output.BackendName;
+	output.ManifestPath = output.Directory / "manifest.csv";
+
+	std::error_code ec;
+	std::filesystem::create_directories(output.Directory, ec);
+	if (ec)
+	{
+		printf("Failed to create screenshot directory %s: %s\n", output.Directory.string().c_str(), ec.message().c_str());
+	}
+	EXPECT_TRUE(!ec);
+
+	static std::set<std::string> initializedManifestPaths;
+	if (initializedManifestPaths.insert(output.ManifestPath.string()).second)
+	{
+		std::ofstream manifest(output.ManifestPath, std::ios::trunc);
+		EXPECT_TRUE(manifest.is_open());
+		manifest << "case,screenshot,backend,flat_path,backend_path\n";
+	}
+	return output;
+}
+
+void CopyBasicRenderingScreenshotForBackend(
+	const BasicRenderingBackendOutput& output,
+	const BasicRenderingCase& testCase,
+	const std::string& screenshotPrefix,
+	const std::filesystem::path& flatPath)
+{
+	const auto screenshotName = screenshotPrefix + testCase.ScreenshotName;
+	const auto backendPath = output.Directory / (screenshotName + ".png");
+
+	std::error_code ec;
+	std::filesystem::copy_file(flatPath, backendPath, std::filesystem::copy_options::overwrite_existing, ec);
+	if (ec)
+	{
+		printf(
+			"Failed to copy screenshot %s to %s: %s\n",
+			flatPath.string().c_str(),
+			backendPath.string().c_str(),
+			ec.message().c_str());
+	}
+	EXPECT_TRUE(!ec);
+
+	std::ofstream manifest(output.ManifestPath, std::ios::app);
+	EXPECT_TRUE(manifest.is_open());
+	manifest << EscapeBasicRenderingCsvValue(testCase.Name) << ","
+			 << EscapeBasicRenderingCsvValue(screenshotName) << ","
+			 << EscapeBasicRenderingCsvValue(output.BackendName) << ","
+			 << EscapeBasicRenderingCsvValue(flatPath.generic_string()) << ","
+			 << EscapeBasicRenderingCsvValue(backendPath.generic_string()) << "\n";
+}
+
+std::u16string MakeBasicRenderingEffectPath(const BasicRenderingCase& testCase)
+{
+	const auto directory = GetDirectoryPathAsU16(__FILE__);
+	if (testCase.Root == BasicRenderingCaseRoot::ResourceData00Basic)
+	{
+		return directory + u"../../../../ResourceData/samples/00_Basic/" + testCase.EffectName + testCase.Extension;
+	}
+	if (testCase.Root == BasicRenderingCaseRoot::ResourceDataSamples)
+	{
+		return directory + u"../../../../ResourceData/samples/" + testCase.Directory + u"/" + testCase.EffectName + testCase.Extension;
+	}
+
+	return directory + u"../../../../TestData/Effects/" + testCase.Directory + u"/" + testCase.EffectName + testCase.Extension;
+}
+
+void PlayBasicRenderingEffect(EffectPlatform* platform, const BasicRenderingCase& testCase, const std::u16string& path)
+{
+	if (testCase.PlayMode == BasicRenderingPlayMode::PerformanceGrid)
+	{
+		constexpr float gridMin = -2.0f;
+		constexpr float gridMax = 2.0f;
+		constexpr float gridStep = 2.0f;
+		constexpr float eps = 0.0001f;
+
+		for (float y = gridMin; y <= gridMax + eps; y += gridStep)
+		{
+			for (float x = gridMin; x <= gridMax + eps; x += gridStep)
+			{
+				platform->Play(path.c_str(), {x, y, 0.0f});
+			}
+		}
+		return;
+	}
+
+	platform->Play(path.c_str());
+}
+
+void SetBasicRenderingCamera(const EffectPlatformInitializingParameter& param, EffectPlatform* platform, BasicRenderingCamera camera)
+{
+	Effekseer::Matrix44 mat;
+	switch (camera)
+	{
+	case BasicRenderingCamera::Fireworks:
+		if (param.CoordinateSyatem == Effekseer::CoordinateSystem::RH)
+		{
+			mat.LookAtRH({0, 20, 20}, {0, 20, 0}, {0, 1, 0});
+		}
+		else
+		{
+			mat.LookAtLH({0, 20, -20}, {0, 20, 0}, {0, 1, 0});
+		}
+		break;
+	case BasicRenderingCamera::SoftParticle:
+		if (param.CoordinateSyatem == Effekseer::CoordinateSystem::RH)
+		{
+			mat.LookAtRH({0, 3, 10}, {0, 0, 0}, {0, 1, 0});
+		}
+		else
+		{
+			mat.LookAtLH({0, 3, -10}, {0, 0, 0}, {0, 1, 0});
+		}
+		break;
+	default:
+		return;
+	}
+
+	platform->GetRenderer()->SetCameraMatrix(mat);
+}
+
+void RunBasicRenderingCase(
+	const EffectPlatformInitializingParameter& param,
+	EffectPlatform* platform,
+	const std::string& baseResultPath,
+	const std::string& suffix,
+	const BasicRenderingCase& testCase,
+	const std::string& screenshotPrefix,
+	const BasicRenderingBackendOutput& backendOutput)
+{
+	const auto renderer = platform->GetRenderer();
+	const auto cameraMat = renderer->GetCameraMatrix();
+	const auto backgroundTextureUVStyle = renderer->GetBackgroundTextureUVStyle();
+	auto background = renderer->GetBackground();
+	::Effekseer::Backend::TextureRef depthTexture;
+	::EffekseerRenderer::DepthReconstructionParameter depthReconstructionParam{};
+	renderer->GetDepth(depthTexture, depthReconstructionParam);
+	const auto changesCamera = testCase.Camera != BasicRenderingCamera::Default;
+
+	if (changesCamera)
+	{
+		SetBasicRenderingCamera(param, platform, testCase.Camera);
+	}
+	if (testCase.OverridesBackgroundTextureUVStyle)
+	{
+		renderer->SetBackgroundTextureUVStyle(testCase.BackgroundTextureUVStyle);
+	}
+	if (testCase.UseGroundDepth)
+	{
+		platform->GenerateGroundDepth();
+	}
+	srand(0);
+	const auto path = MakeBasicRenderingEffectPath(testCase);
+	PlayBasicRenderingEffect(platform, testCase, path);
+
+	for (int32_t i = 0; i < testCase.FrameCount; i++)
+	{
+		platform->Update();
+	}
+
+	const auto screenshotPath = baseResultPath + screenshotPrefix + testCase.ScreenshotName + suffix + ".png";
+	EXPECT_TRUE(platform->TakeScreenshot(screenshotPath.c_str()));
+	CopyBasicRenderingScreenshotForBackend(backendOutput, testCase, screenshotPrefix, screenshotPath);
+	platform->StopAllEffects();
+	platform->ClearLoadedEffects();
+
+	if (changesCamera)
+	{
+		renderer->SetCameraMatrix(cameraMat);
+	}
+	if (testCase.OverridesBackgroundTextureUVStyle)
+	{
+		renderer->SetBackgroundTextureUVStyle(backgroundTextureUVStyle);
+	}
+	if (testCase.UseGroundDepth)
+	{
+		platform->ResetBackgroundPattern();
+	}
+	renderer->SetBackground(background);
+	renderer->SetDepth(depthTexture, depthReconstructionParam);
+}
+
+template <class T>
+void RegisterBasicRuntimeTestPlatformCasesFor(const char* platformName, const char* suffix)
+{
+	RegisterBasicRuntimeTestPlatformCases(
+		platformName,
+		suffix,
+		[]() -> std::shared_ptr<EffectPlatform>
+		{
+			return std::make_shared<T>();
+		});
+}
+
+struct BasicRenderingCaseTestRegistration
+{
+	BasicRenderingCaseTestRegistration()
+	{
+		ForEachTestPlatform([](auto type, const char* name)
+							{
+#if defined(__FROM_CI__)
+			if (std::string(name) != "DX11") return;
+#endif
+			using Platform = typename decltype(type)::Type;
+			RegisterBasicRuntimeTestPlatformCasesFor<Platform>(name, ("_" + std::string(name)).c_str()); });
+	}
+};
+
+BasicRenderingCaseTestRegistration basicRenderingCaseTestRegistration;
+
+} // namespace
+
+void BasicRuntimeTestPlatform(EffectPlatformInitializingParameter param, EffectPlatform* platform, std::string baseResultPath, std::string suffix)
+{
+	platform->Initialize(param);
+	suffix = MakeBasicRenderingSuffix(param, std::move(suffix));
+	const auto backendOutput = PrepareBasicRenderingBackendOutput(baseResultPath, suffix);
+
+	for (const auto& testCase : GetBasicRenderingCases())
+	{
+		RunBasicRenderingCase(param, platform, baseResultPath, suffix, testCase, "", backendOutput);
+	}
+}
+
+void BasicRuntimeTestPlatformCase(
+	EffectPlatformInitializingParameter param,
+	EffectPlatform* platform,
+	std::string baseResultPath,
+	std::string suffix,
+	std::string_view caseName)
+{
+	BasicRuntimeTestPlatformCases(param, platform, std::move(baseResultPath), std::move(suffix), {caseName});
+}
+
+void BasicRuntimeTestPlatformCases(
+	EffectPlatformInitializingParameter param,
+	EffectPlatform* platform,
+	std::string baseResultPath,
+	std::string suffix,
+	const std::vector<std::string_view>& caseNames,
+	std::string screenshotPrefix)
+{
+	platform->Initialize(param);
+	suffix = MakeBasicRenderingSuffix(param, std::move(suffix));
+	const auto backendOutput = PrepareBasicRenderingBackendOutput(baseResultPath, suffix);
+
+	for (const auto caseName : caseNames)
+	{
+		const auto testCase = FindBasicRenderingCase(caseName);
+		EXPECT_TRUE(testCase != nullptr);
+		RunBasicRenderingCase(param, platform, baseResultPath, suffix, *testCase, screenshotPrefix, backendOutput);
+	}
+}
+
+void RegisterBasicRuntimeTestPlatformCases(
+	const char* platformName,
+	const char* suffix,
+	std::function<std::shared_ptr<EffectPlatform>()> createPlatform)
+{
+	const auto allCasesTestName = std::string("Runtime.BasicRendering.") + platformName;
+	TestHelper::RegisterTest(
+		allCasesTestName.c_str(),
+		[suffix = std::string(suffix), createPlatform]() -> void
+		{
+			EffectPlatformInitializingParameter param;
+			auto platform = createPlatform();
+			BasicRuntimeTestPlatform(param, platform.get(), "", suffix);
+			platform->Terminate();
+		},
+		TestExecutionMode::FilterOnly);
+
+	for (const auto& testCase : GetBasicRenderingCases())
+	{
+		std::function<void()> runCase = [caseName = std::string(testCase.Name), suffix = std::string(suffix), createPlatform]() -> void
+		{
+			EffectPlatformInitializingParameter param;
+			auto platform = createPlatform();
+			BasicRuntimeTestPlatformCase(param, platform.get(), "", suffix, caseName);
+			platform->Terminate();
+		};
+
+		const auto testName = std::string("Runtime.BasicRendering.") + platformName + "." + testCase.Name;
+		TestHelper::RegisterTest(testName.c_str(), runCase, TestExecutionMode::FilterOnly);
+
+		const auto caseFirstTestName = std::string("Runtime.BasicRendering.Case.") + testCase.Name + "." + platformName;
+		TestHelper::RegisterTest(caseFirstTestName.c_str(), runCase, TestExecutionMode::FilterOnly);
+	}
+}
+
+template <class T>
+void RunBasicRuntimeTestOnPlatform(const EffectPlatformInitializingParameter& param, const char* suffix)
+{
+	auto platform = std::make_shared<T>();
+	BasicRuntimeTestPlatform(param, platform.get(), "", suffix);
+	platform->Terminate();
+}
+
+void BasicRuntimeTest()
+{
+	EffectPlatformInitializingParameter param;
+	ForEachTestPlatform([&](auto type, const char* name)
+						{
+#if defined(__FROM_CI__)
+		if (std::string(name) != "DX11") return;
+#endif
+		using Platform = typename decltype(type)::Type;
+		RunBasicRuntimeTestOnPlatform<Platform>(param, ("_" + std::string(name)).c_str()); });
+}
+
+TestRegister Runtime_BasicRuntimeTest("Runtime.BasicRuntimeTest", []() -> void
+									  { BasicRuntimeTest(); });

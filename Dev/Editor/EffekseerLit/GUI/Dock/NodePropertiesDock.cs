@@ -9,16 +9,16 @@ namespace Effekseer.GUI.Dock
 {
 	class NodePropertiesDock : DockPanel
 	{
-		Component.ParameterList paramerterList_Common = null;
-		Component.ParameterList paramerterList_Node = null;
+		BindableComponent.ParameterList paramerterList_Common = null;
+		BindableComponent.ParameterList paramerterList_Node = null;
 
 		public NodePropertiesDock()
 		{
-			Label = Icons.PanelOptions + Resources.GetString("Options") + "###NodePropertiesDock";
+			Label = Icons.PanelOptions + MultiLanguageTextProvider.GetText("Options") + "###NodePropertiesDock";
 
-			paramerterList_Node = new Component.ParameterList();
+			paramerterList_Node = new BindableComponent.ParameterList();
 			paramerterList_Node.SetType(typeof(Data.NodeBase));
-			paramerterList_Common = new Component.ParameterList();
+			paramerterList_Common = new BindableComponent.ParameterList();
 			paramerterList_Common.SetType(typeof(Data.CommonValues));
 
 			Core.OnAfterLoad += OnAfterLoad;
@@ -27,7 +27,7 @@ namespace Effekseer.GUI.Dock
 
 			Read();
 
-			TabToolTip = Resources.GetString("Options");
+			TabToolTip = MultiLanguageTextProvider.GetText("Options");
 
 			NoPadding = true;
 			NoScrollBar = true;

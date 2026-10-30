@@ -5,18 +5,19 @@ namespace Effekseer.GUI.Dock
 {
 	class Dynamic : DockPanel
 	{
-		readonly Component.ParameterList paramerterListInput = null;
-		readonly Component.ParameterList paramerterList = null;
+		readonly BindableComponent.ParameterList paramerterListInput = null;
+		readonly BindableComponent.ParameterList paramerterList = null;
 
 		string compileResult = string.Empty;
 
 		public Dynamic()
 		{
-			Label = Icons.PanelDynamicParams + Resources.GetString("DynamicParameter_Name") + "###DynamicParameter";
+			Label = Icons.PanelDynamicParams + MultiLanguageTextProvider.GetText("DynamicParameter_Name") + "###DynamicParameter";
+			DocPage = "dynamicParameter.html";
 
-			paramerterListInput = new Component.ParameterList();
-			paramerterList = new Component.ParameterList();
-			
+			paramerterListInput = new BindableComponent.ParameterList();
+			paramerterList = new BindableComponent.ParameterList();
+
 			Core.OnBeforeLoad += Core_OnBeforeLoad;
 			Core.OnBeforeNew += Core_OnBeforeNew;
 			Core.OnAfterLoad += OnAfterLoad;
@@ -29,7 +30,7 @@ namespace Effekseer.GUI.Dock
 
 			Read();
 
-			TabToolTip = Resources.GetString("DynamicParameter_Name");
+			TabToolTip = MultiLanguageTextProvider.GetText("DynamicParameter_Name");
 		}
 
 		private static void Input_OnChanged(object sender, ChangedValueEventArgs e)
@@ -62,19 +63,19 @@ namespace Effekseer.GUI.Dock
 
 		protected override void UpdateInternal()
 		{
-			Manager.NativeManager.Text(Resources.GetString("DynamicInput"));
+			Manager.NativeManager.Text(MultiLanguageTextProvider.GetText("DynamicInput"));
 
 			paramerterListInput.Update();
 
 			Manager.NativeManager.Separator();
 
-			Manager.NativeManager.Text(Resources.GetString("DynamicEquation"));
+			Manager.NativeManager.Text(MultiLanguageTextProvider.GetText("DynamicEquation"));
 
 			float width = Manager.NativeManager.GetContentRegionAvail().X;
-			
+
 			Manager.NativeManager.PushItemWidth(width - Manager.NativeManager.GetTextLineHeight() * 5.5f);
-			
-			var nextParam = Component.ObjectCollection.Select("", "", Core.Dynamic.Equations.Selected, false, Core.Dynamic.Equations);
+
+			var nextParam = BindableComponent.ObjectCollection.Select("", "", Core.Dynamic.Equations.Selected, false, Core.Dynamic.Equations);
 
 			if (Core.Dynamic.Equations.Selected != nextParam)
 			{
@@ -85,14 +86,14 @@ namespace Effekseer.GUI.Dock
 
 			Manager.NativeManager.SameLine();
 
-			if (Manager.NativeManager.Button(Resources.GetString("DynamicAdd") + "###DynamicAdd"))
+			if (Manager.NativeManager.Button(MultiLanguageTextProvider.GetText("DynamicAdd") + "###DynamicAdd"))
 			{
 				Core.Dynamic.Equations.New();
 			}
 
 			Manager.NativeManager.SameLine();
 
-			if (Manager.NativeManager.Button(Resources.GetString("DynamicDelete") + "###DynamicDelete"))
+			if (Manager.NativeManager.Button(MultiLanguageTextProvider.GetText("DynamicDelete") + "###DynamicDelete"))
 			{
 				Core.Dynamic.Equations.Delete(Core.Dynamic.Equations.Selected);
 			}
@@ -100,7 +101,7 @@ namespace Effekseer.GUI.Dock
 			paramerterList.Update();
 
 			if (Core.Dynamic.Equations.Selected != null
-				&& Manager.NativeManager.Button(Resources.GetString("Compile") + "###DynamicCompile")
+				&& Manager.NativeManager.Button(MultiLanguageTextProvider.GetText("Compile") + "###DynamicCompile")
 				&& Core.Dynamic.Equations.Selected is DynamicEquation selected)
 			{
 				var compiler = new InternalScript.Compiler();
@@ -151,4 +152,3 @@ namespace Effekseer.GUI.Dock
 		}
 	}
 }
-

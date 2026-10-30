@@ -8,30 +8,29 @@ namespace Effekseer.GUI.Dock
 {
 	class RendererCommonValues : DockPanel
 	{
-		Component.CopyAndPaste candp = null;
-		Component.ParameterList paramerterList = null;
+		BindableComponent.ParameterList paramerterList = null;
 
 		bool isFiestUpdate = true;
 
 		public RendererCommonValues()
 		{
-			Label = Icons.PanelRenderCommon + Resources.GetString("BasicRenderSettings") + "###BasicRenderSettings";
+			Label = Icons.PanelRenderCommon + MultiLanguageTextProvider.GetText("BasicRenderSettings") + "###BasicRenderSettings";
+			DocPage = "rendererCommon.html";
 
-			paramerterList = new Component.ParameterList();
+			paramerterList = new BindableComponent.ParameterList();
 			paramerterList.SetType(typeof(Data.RendererCommonValues));
 
-			candp = new Component.CopyAndPaste("BasicRenderSettings", GetTargetObject, Read);
+			CopyAndPaste = new BindableComponent.CopyAndPaste("BasicRenderSettings", GetTargetObject, Read);
 
 			Core.OnAfterLoad += OnAfterLoad;
 			Core.OnAfterNew += OnAfterLoad;
 			Core.OnAfterSelectNode += OnAfterSelectNode;
 
-			Controls.Add(candp);
 			Controls.Add(paramerterList);
-			
+
 			Read();
 
-			TabToolTip = Resources.GetString("BasicRenderSettings");
+			TabToolTip = MultiLanguageTextProvider.GetText("BasicRenderSettings");
 		}
 
 		public void FixValues()

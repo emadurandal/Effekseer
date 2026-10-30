@@ -43,7 +43,10 @@ public:
 	DefaultType Default;
 	std::array<float, 4> DefaultValues;
 
-	PinParameter() { DefaultValues.fill(0.0f); }
+	PinParameter()
+	{
+		DefaultValues.fill(0.0f);
+	}
 };
 
 class NodePropertyParameter
@@ -55,7 +58,10 @@ public:
 	std::array<float, 4> DefaultValues;
 	std::string DefaultStr;
 
-	NodePropertyParameter() { DefaultValues.fill(0.0f); }
+	NodePropertyParameter()
+	{
+		DefaultValues.fill(0.0f);
+	}
 };
 
 class NodeFunctionParameter
@@ -87,13 +93,19 @@ public:
 		return "";
 	}
 
-	virtual WarningType GetWarning(std::shared_ptr<Material> material, std::shared_ptr<Node> node) const { return WarningType::None; }
+	virtual WarningType GetWarning(std::shared_ptr<Material> material, std::shared_ptr<Node> node) const
+	{
+		return WarningType::None;
+	}
 };
 
 class NodeParameterBehaviorComponentTwoInputMath : public NodeParameterBehaviorComponent
 {
 public:
-	NodeParameterBehaviorComponentTwoInputMath() { IsGetHeaderInherited = true; }
+	NodeParameterBehaviorComponentTwoInputMath()
+	{
+		IsGetHeaderInherited = true;
+	}
 
 	std::string
 	GetHeader(std::shared_ptr<Material> material, std::shared_ptr<NodeParameter> parameter, std::shared_ptr<Node> node) const override;
@@ -102,7 +114,10 @@ public:
 class NodeParameterBehaviorComponentMask : public NodeParameterBehaviorComponent
 {
 public:
-	NodeParameterBehaviorComponentMask() { IsGetHeaderInherited = true; }
+	NodeParameterBehaviorComponentMask()
+	{
+		IsGetHeaderInherited = true;
+	}
 
 	std::string
 	GetHeader(std::shared_ptr<Material> material, std::shared_ptr<NodeParameter> parameter, std::shared_ptr<Node> node) const override;
@@ -111,8 +126,9 @@ public:
 class NodeParameterBehaviorComponentParameter : public NodeParameterBehaviorComponent
 {
 public:
-	NodeParameterBehaviorComponentParameter() {
-		IsGetHeaderInherited = true; 
+	NodeParameterBehaviorComponentParameter()
+	{
+		IsGetHeaderInherited = true;
 		IsGetWarningInherited = true;
 	}
 
@@ -128,7 +144,11 @@ private:
 	int32_t componentCount_ = 0;
 
 public:
-	NodeParameterBehaviorConstantName(int32_t componentCount) : componentCount_(componentCount) { IsGetHeaderInherited = true; }
+	NodeParameterBehaviorConstantName(int32_t componentCount)
+		: componentCount_(componentCount)
+	{
+		IsGetHeaderInherited = true;
+	}
 
 	std::string
 	GetHeader(std::shared_ptr<Material> material, std::shared_ptr<NodeParameter> parameter, std::shared_ptr<Node> node) const override;
@@ -137,7 +157,10 @@ public:
 class NodeParameterBehaviorComponentOutput : public NodeParameterBehaviorComponent
 {
 public:
-	NodeParameterBehaviorComponentOutput() { IsGetIsInputPinEnabledInherited = true; }
+	NodeParameterBehaviorComponentOutput()
+	{
+		IsGetIsInputPinEnabledInherited = true;
+	}
 
 	bool GetIsInputPinEnabled(std::shared_ptr<Material> material,
 							  std::shared_ptr<NodeParameter> parameter,
@@ -262,7 +285,10 @@ public:
 
 	virtual std::string GetHeader(std::shared_ptr<Material> material, std::shared_ptr<Node> node) const;
 
-	virtual WarningType GetWarning(std::shared_ptr<Material> material, std::shared_ptr<Node> node) const { return WarningType::None; }
+	virtual WarningType GetWarning(std::shared_ptr<Material> material, std::shared_ptr<Node> node) const
+	{
+		return WarningType::None;
+	}
 };
 
 class NodeConstant1 : public NodeParameter
@@ -438,6 +464,197 @@ public:
 		Properties.push_back(param);
 
 		BehaviorComponents = {std::make_shared<NodeParameterBehaviorComponentParameter>()};
+	}
+};
+
+class NodeBranch : public NodeParameter
+{
+public:
+	NodeBranch()
+	{
+		Type = NodeType::Branch;
+		TypeName = "Branch";
+		Group = std::vector<std::string>{"Logical"};
+
+		auto conditionPin = std::make_shared<PinParameter>();
+		conditionPin->Name = "Condition";
+		conditionPin->Type = ValueType::Bool;
+		conditionPin->DefaultValues[0] = 0.5f;
+		InputPins.push_back(conditionPin);
+
+		auto truePin = std::make_shared<PinParameter>();
+		truePin->Name = "True";
+		truePin->Type = ValueType::FloatN;
+		InputPins.push_back(truePin);
+
+		auto falsePin = std::make_shared<PinParameter>();
+		falsePin->Name = "False";
+		falsePin->Type = ValueType::FloatN;
+		InputPins.push_back(falsePin);
+
+		auto output = std::make_shared<PinParameter>();
+		output->Name = "Output";
+		output->Type = ValueType::FloatN;
+		OutputPins.push_back(output);
+
+		auto trueProp = std::make_shared<NodePropertyParameter>();
+		trueProp->Name = "True";
+		trueProp->Type = ValueType::Float1;
+		trueProp->DefaultValues[0] = 0.0f;
+		Properties.push_back(trueProp);
+
+		auto falseProp = std::make_shared<NodePropertyParameter>();
+		falseProp->Name = "False";
+		falseProp->Type = ValueType::Float1;
+		falseProp->DefaultValues[0] = 0.0f;
+		Properties.push_back(falseProp);
+	}
+
+	ValueType
+	GetOutputType(std::shared_ptr<Material> material, std::shared_ptr<Node> node, const std::vector<ValueType>& inputTypes) const override
+	{
+		if (inputTypes[1] == ValueType::Float1)
+			return inputTypes[2];
+
+		if (inputTypes[2] == ValueType::Float1)
+			return inputTypes[1];
+
+		return inputTypes[1];
+	}
+};
+
+class NodeCompare : public NodeParameter
+{
+public:
+	NodeCompare()
+	{
+		Type = NodeType::Compare;
+		TypeName = "Compare";
+		Group = std::vector<std::string>{"Logical"};
+
+		auto aPin = std::make_shared<PinParameter>();
+		aPin->Name = "A";
+		aPin->Type = ValueType::Float1;
+		InputPins.push_back(aPin);
+
+		auto bPin = std::make_shared<PinParameter>();
+		bPin->Name = "B";
+		bPin->Type = ValueType::Float1;
+		InputPins.push_back(bPin);
+
+		auto output = std::make_shared<PinParameter>();
+		output->Name = "Output";
+		output->Type = ValueType::Bool;
+		OutputPins.push_back(output);
+
+		auto aProp = std::make_shared<NodePropertyParameter>();
+		aProp->Name = "A";
+		aProp->Type = ValueType::Float1;
+		aProp->DefaultValues[0] = 0.0f;
+		Properties.push_back(aProp);
+
+		auto bProp = std::make_shared<NodePropertyParameter>();
+		bProp->Name = "B";
+		bProp->Type = ValueType::Float1;
+		bProp->DefaultValues[0] = 0.0f;
+		Properties.push_back(bProp);
+
+		auto condProp = std::make_shared<NodePropertyParameter>();
+		condProp->Name = "Condition";
+		condProp->Type = ValueType::Enum;
+		condProp->DefaultValues[0] = 0;
+		Properties.push_back(condProp);
+
+		BehaviorComponents = {std::make_shared<NodeParameterBehaviorComponentTwoInputMath>()};
+	}
+};
+
+class NodeBoolAnd : public NodeParameter
+{
+public:
+	NodeBoolAnd()
+	{
+		Type = NodeType::BoolAnd;
+		TypeName = "BoolAnd";
+		Group = std::vector<std::string>{"Logical"};
+
+		auto input1 = std::make_shared<PinParameter>();
+		input1->Name = "V1";
+		input1->Type = ValueType::Bool;
+		InputPins.push_back(input1);
+
+		auto input2 = std::make_shared<PinParameter>();
+		input2->Name = "V2";
+		input2->Type = ValueType::Bool;
+		InputPins.push_back(input2);
+
+		auto output = std::make_shared<PinParameter>();
+		output->Name = "Output";
+		output->Type = ValueType::Bool;
+		OutputPins.push_back(output);
+	}
+};
+
+class NodeBoolOr : public NodeParameter
+{
+public:
+	NodeBoolOr()
+	{
+		Type = NodeType::BoolOr;
+		TypeName = "BoolOr";
+		Group = std::vector<std::string>{"Logical"};
+
+		auto input1 = std::make_shared<PinParameter>();
+		input1->Name = "V1";
+		input1->Type = ValueType::Bool;
+		InputPins.push_back(input1);
+
+		auto input2 = std::make_shared<PinParameter>();
+		input2->Name = "V2";
+		input2->Type = ValueType::Bool;
+		InputPins.push_back(input2);
+
+		auto output = std::make_shared<PinParameter>();
+		output->Name = "Output";
+		output->Type = ValueType::Bool;
+		OutputPins.push_back(output);
+	}
+};
+
+class NodeBoolNot : public NodeParameter
+{
+public:
+	NodeBoolNot()
+	{
+		Type = NodeType::BoolNot;
+		TypeName = "BoolNot";
+		Group = std::vector<std::string>{"Logical"};
+
+		auto input = std::make_shared<PinParameter>();
+		input->Name = "V";
+		input->Type = ValueType::Bool;
+		InputPins.push_back(input);
+
+		auto output = std::make_shared<PinParameter>();
+		output->Name = "Output";
+		output->Type = ValueType::Bool;
+		OutputPins.push_back(output);
+	}
+};
+
+class NodeIsFrontFace : public NodeParameter
+{
+public:
+	NodeIsFrontFace()
+	{
+		Type = NodeType::IsFrontFace;
+		TypeName = "IsFrontFace";
+		Group = std::vector<std::string>{"Logical"};
+
+		auto output = std::make_shared<PinParameter>();
+		output->Name = "Output";
+		output->Type = ValueType::Bool;
+		OutputPins.push_back(output);
 	}
 };
 
@@ -762,6 +979,69 @@ public:
 		output->Name = "Output";
 		output->Type = ValueType::Float1;
 		OutputPins.push_back(output);
+
+		auto edgeProp = std::make_shared<NodePropertyParameter>();
+		edgeProp->Name = "Edge";
+		edgeProp->Type = ValueType::Float1;
+		edgeProp->DefaultValues[0] = 0.5f;
+		Properties.push_back(edgeProp);
+
+		auto valueProp = std::make_shared<NodePropertyParameter>();
+		valueProp->Name = "Value";
+		valueProp->Type = ValueType::Float1;
+		valueProp->DefaultValues[0] = 0.0f;
+		Properties.push_back(valueProp);
+	}
+};
+
+class NodeSmoothStep : public NodeParameter
+{
+public:
+	NodeSmoothStep()
+	{
+		Type = NodeType::SmoothStep;
+		TypeName = "SmoothStep";
+		Group = std::vector<std::string>{"Math"};
+
+		auto edge1 = std::make_shared<PinParameter>();
+		edge1->Name = "Edge1";
+		edge1->Type = ValueType::Float1;
+		edge1->DefaultValues[0] = 0.4f;
+		InputPins.push_back(edge1);
+
+		auto edge2 = std::make_shared<PinParameter>();
+		edge2->Name = "Edge2";
+		edge2->Type = ValueType::Float1;
+		edge2->DefaultValues[0] = 0.6f;
+		InputPins.push_back(edge2);
+
+		auto value = std::make_shared<PinParameter>();
+		value->Name = "Value";
+		value->Type = ValueType::Float1;
+		InputPins.push_back(value);
+
+		auto output = std::make_shared<PinParameter>();
+		output->Name = "Output";
+		output->Type = ValueType::Float1;
+		OutputPins.push_back(output);
+
+		auto edge1Prop = std::make_shared<NodePropertyParameter>();
+		edge1Prop->Name = "Edge1";
+		edge1Prop->Type = ValueType::Float1;
+		edge1Prop->DefaultValues[0] = 0.4f;
+		Properties.push_back(edge1Prop);
+
+		auto edge2Prop = std::make_shared<NodePropertyParameter>();
+		edge2Prop->Name = "Edge2";
+		edge2Prop->Type = ValueType::Float1;
+		edge2Prop->DefaultValues[0] = 0.6f;
+		Properties.push_back(edge2Prop);
+
+		auto valueProp = std::make_shared<NodePropertyParameter>();
+		valueProp->Name = "Value";
+		valueProp->Type = ValueType::Float1;
+		valueProp->DefaultValues[0] = 0.0f;
+		Properties.push_back(valueProp);
 	}
 };
 
@@ -1333,6 +1613,43 @@ public:
 	}
 };
 
+class NodeLocalTime : public NodeParameter
+{
+public:
+	NodeLocalTime()
+	{
+		Type = NodeType::LocalTime;
+		TypeName = "LocalTime";
+		Group = std::vector<std::string>{"Constant"};
+
+		auto output = std::make_shared<PinParameter>();
+		output->Name = "Output";
+		output->Type = ValueType::Float1;
+		OutputPins.push_back(output);
+	}
+};
+
+class NodeParticleTime : public NodeParameter
+{
+public:
+	NodeParticleTime()
+	{
+		Type = NodeType::ParticleTime;
+		TypeName = "ParticleTime";
+		Group = std::vector<std::string>{"Constant"};
+
+		auto normalized = std::make_shared<PinParameter>();
+		normalized->Name = "Normalized";
+		normalized->Type = ValueType::Float1;
+		OutputPins.push_back(normalized);
+
+		auto seconds = std::make_shared<PinParameter>();
+		seconds->Name = "Seconds";
+		seconds->Type = ValueType::Float1;
+		OutputPins.push_back(seconds);
+	}
+};
+
 class NodeEffectScale : public NodeParameter
 {
 public:
@@ -1487,14 +1804,12 @@ public:
 		inputFadeDistanceProp->DefaultValues[0] = 0.0f;
 		Properties.push_back(inputFadeDistanceProp);
 
-
 		auto output = std::make_shared<PinParameter>();
 		output->Name = "Opacity";
 		output->Type = ValueType::Float1;
 		OutputPins.push_back(output);
 	}
 };
-
 
 #ifdef _DEBUG
 class NodeVertexTangentWS : public NodeParameter
@@ -1723,6 +2038,254 @@ public:
 		output->Name = "RadicalCoordinates";
 		output->Type = ValueType::Float2;
 		OutputPins.push_back(output);
+	}
+};
+
+class NodeRgbToHsv : public NodeParameter
+{
+public:
+	NodeRgbToHsv()
+	{
+		Type = NodeType::RgbToHsv;
+		TypeName = "RgbToHsv";
+		Group = std::vector<std::string>{"Color"};
+
+		auto input = std::make_shared<PinParameter>();
+		input->Name = "RGB";
+		input->Type = ValueType::Float3;
+		InputPins.push_back(input);
+
+		auto output = std::make_shared<PinParameter>();
+		output->Name = "HSV";
+		output->Type = ValueType::Float3;
+		OutputPins.push_back(output);
+	}
+};
+
+class NodeHsvToRgb : public NodeParameter
+{
+public:
+	NodeHsvToRgb()
+	{
+		Type = NodeType::HsvToRgb;
+		TypeName = "HsvToRgb";
+		Group = std::vector<std::string>{"Color"};
+
+		auto input = std::make_shared<PinParameter>();
+		input->Name = "HSV";
+		input->Type = ValueType::Float3;
+		InputPins.push_back(input);
+
+		auto output = std::make_shared<PinParameter>();
+		output->Name = "RGB";
+		output->Type = ValueType::Float3;
+		OutputPins.push_back(output);
+	}
+};
+
+class NodeGradient : public NodeParameter
+{
+public:
+	NodeGradient()
+	{
+		Type = NodeType::Gradient;
+		TypeName = "Gradient";
+		Group = std::vector<std::string>{"Gradient"};
+
+		auto paramName = std::make_shared<NodePropertyParameter>();
+		paramName->Name = "Gradient";
+		paramName->Type = ValueType::Gradient;
+		Properties.push_back(paramName);
+
+		auto output = std::make_shared<PinParameter>();
+		output->Name = "Gradient";
+		output->Type = ValueType::Gradient;
+		OutputPins.push_back(output);
+	}
+};
+
+class NodeGradientParameter : public NodeParameter
+{
+public:
+	NodeGradientParameter()
+	{
+		Type = NodeType::GradientParameter;
+		TypeName = "GradientParameter";
+		Group = std::vector<std::string>{"Gradient"};
+		HasDescription = true;
+		IsDescriptionExported = true;
+
+		auto output = std::make_shared<PinParameter>();
+		output->Name = "Output";
+		output->Type = ValueType::Gradient;
+		OutputPins.push_back(output);
+
+		auto paramName = std::make_shared<NodePropertyParameter>();
+		paramName->Name = "Name";
+		paramName->Type = ValueType::String;
+		paramName->DefaultStr = "Noname";
+		Properties.push_back(paramName);
+
+		auto paramPriority = std::make_shared<NodePropertyParameter>();
+		paramPriority->Name = "Priority";
+		paramPriority->Type = ValueType::Int;
+		paramPriority->DefaultValues[0] = 1;
+		Properties.push_back(paramPriority);
+
+		auto param = std::make_shared<NodePropertyParameter>();
+		param->Name = "Gradient";
+		param->Type = ValueType::Gradient;
+		Properties.push_back(param);
+	}
+};
+
+class NodeSampleGradient : public NodeParameter
+{
+public:
+	NodeSampleGradient()
+	{
+		Type = NodeType::SampleGradient;
+		TypeName = "SampleGradient";
+		Group = std::vector<std::string>{"Gradient"};
+
+		auto inputTexture = std::make_shared<PinParameter>();
+		inputTexture->Name = "Gradient";
+		inputTexture->Type = ValueType::Gradient;
+		InputPins.push_back(inputTexture);
+
+		auto inputAlpha = std::make_shared<PinParameter>();
+		inputAlpha->Name = "Alpha";
+		inputAlpha->Type = ValueType::Float1;
+		InputPins.push_back(inputAlpha);
+
+		auto rgba = std::make_shared<PinParameter>();
+		rgba->Name = "RGBA";
+		rgba->Type = ValueType::Float4;
+		OutputPins.push_back(rgba);
+
+		auto param = std::make_shared<NodePropertyParameter>();
+		param->Name = "Gradient";
+		param->Type = ValueType::Gradient;
+		Properties.push_back(param);
+
+		IsPreviewOpened = true;
+	}
+};
+
+class NodeWhiteNoise : public NodeParameter
+{
+public:
+	NodeWhiteNoise()
+	{
+		Type = NodeType::WhiteNoise;
+		TypeName = "WhiteNoise";
+		Group = std::vector<std::string>{"Noise"};
+
+		{
+			auto input = std::make_shared<PinParameter>();
+			input->Name = "UV";
+			input->Type = ValueType::Float2;
+			InputPins.push_back(input);
+		}
+
+		auto output = std::make_shared<PinParameter>();
+		output->Name = "Value";
+		output->Type = ValueType::Float1;
+		OutputPins.push_back(output);
+	}
+};
+
+class NodeSimpleNoise : public NodeParameter
+{
+public:
+	NodeSimpleNoise()
+	{
+		Type = NodeType::SimpleNoise;
+		TypeName = "SimpleNoise";
+		Group = std::vector<std::string>{"Noise"};
+
+		{
+			auto input = std::make_shared<PinParameter>();
+			input->Name = "UV";
+			input->Type = ValueType::Float2;
+			InputPins.push_back(input);
+		}
+
+		{
+			auto input = std::make_shared<PinParameter>();
+			input->Name = "Scale";
+			input->Type = ValueType::Float1;
+			input->DefaultValues[0] = 1.0f;
+			InputPins.push_back(input);
+		}
+
+		auto output = std::make_shared<PinParameter>();
+		output->Name = "Value";
+		output->Type = ValueType::Float1;
+		OutputPins.push_back(output);
+	}
+};
+
+class NodeCellularNoise : public NodeParameter
+{
+public:
+	NodeCellularNoise()
+	{
+		Type = NodeType::CellularNoise;
+		TypeName = "CellularNoise";
+		Group = std::vector<std::string>{"Noise"};
+
+		{
+			auto input = std::make_shared<PinParameter>();
+			input->Name = "UV";
+			input->Type = ValueType::Float2;
+			InputPins.push_back(input);
+		}
+
+		{
+			auto input = std::make_shared<PinParameter>();
+			input->Name = "Scale";
+			input->Type = ValueType::Float1;
+			input->DefaultValues[0] = 1.0f;
+			InputPins.push_back(input);
+		}
+
+		auto output = std::make_shared<PinParameter>();
+		output->Name = "Value";
+		output->Type = ValueType::Float1;
+		OutputPins.push_back(output);
+	}
+};
+
+class NodeLight : public NodeParameter
+{
+public:
+	NodeLight()
+	{
+		Type = NodeType::Light;
+		TypeName = "Light";
+		Group = std::vector<std::string>{"Environment"};
+
+		{
+			auto output = std::make_shared<PinParameter>();
+			output->Name = "Direction";
+			output->Type = ValueType::Float3;
+			OutputPins.push_back(output);
+		}
+
+		{
+			auto output = std::make_shared<PinParameter>();
+			output->Name = "Color";
+			output->Type = ValueType::Float3;
+			OutputPins.push_back(output);
+		}
+
+		{
+			auto output = std::make_shared<PinParameter>();
+			output->Name = "AmbientColor";
+			output->Type = ValueType::Float3;
+			OutputPins.push_back(output);
+		}
 	}
 };
 

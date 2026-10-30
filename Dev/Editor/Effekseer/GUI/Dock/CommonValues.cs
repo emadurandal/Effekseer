@@ -9,23 +9,22 @@ namespace Effekseer.GUI.Dock
 {
 	class CommonValues : DockPanel
 	{
-		Component.CopyAndPaste candp = null;
-
-		Component.ParameterList paramerterList_Common = null;
-		Component.ParameterList paramerterList_Node = null;
+		BindableComponent.ParameterList paramerterList_Common = null;
+		BindableComponent.ParameterList paramerterList_Node = null;
 
 		bool isFiestUpdate = true;
 
 		public CommonValues()
 		{
-			Label = Icons.PanelCommon + Resources.GetString("BasicSettings") + "###BasicSettings";
+			Label = Icons.PanelCommon + MultiLanguageTextProvider.GetText("BasicSettings") + "###BasicSettings";
+			DocPage = "common.html";
 
-			paramerterList_Node = new Component.ParameterList();
+			paramerterList_Node = new BindableComponent.ParameterList();
 			paramerterList_Node.SetType(typeof(Data.NodeBase));
-			paramerterList_Common = new Component.ParameterList();
+			paramerterList_Common = new BindableComponent.ParameterList();
 			paramerterList_Common.SetType(typeof(Data.CommonValues));
 
-			candp = new Component.CopyAndPaste("BasicSettings", GetTargetObject, Read);
+			CopyAndPaste = new BindableComponent.CopyAndPaste("BasicSettings", GetTargetObject, Read);
 
 			Core.OnAfterLoad += OnAfterLoad;
 			Core.OnAfterNew += OnAfterLoad;
@@ -33,7 +32,7 @@ namespace Effekseer.GUI.Dock
 
 			Read();
 
-			TabToolTip = Resources.GetString("BasicSettings");
+			TabToolTip = MultiLanguageTextProvider.GetText("BasicSettings");
 		}
 
 		public void FixValues()
@@ -57,9 +56,10 @@ namespace Effekseer.GUI.Dock
 			{
 			}
 
-			candp.Update();
-
 			paramerterList_Node.Update();
+
+			Manager.NativeManager.Separator();
+
 			paramerterList_Common.Update();
 		}
 
@@ -74,7 +74,6 @@ namespace Effekseer.GUI.Dock
 			}
 			return null;
 		}
-
 
 		void Read()
 		{

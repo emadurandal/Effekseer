@@ -3,10 +3,13 @@
 #define __EFFEKSEER_PARAMETERS_H__
 
 #include "../Effekseer.Base.Pre.h"
-#include "../Effekseer.InternalStruct.h"
+#include "../Effekseer.Color.h"
+#include "../Utils/Effekseer.BinaryReader.h"
 
 namespace Effekseer
 {
+
+bool LoadGradient(Gradient& gradient, BinaryReader<true>& reader, int32_t version);
 
 /**
 	@brief
@@ -15,8 +18,9 @@ namespace Effekseer
 */
 enum class TextureUVType : int32_t
 {
-	Strech,
-	Tile,
+	Strech = 0,
+	TilePerParticle = 1,
+	Tile = 2,
 };
 
 /**
@@ -32,7 +36,7 @@ struct NodeRendererTextureUVTypeParameter
 	float TileLoopAreaBegin = 0.0f;
 	float TileLoopAreaEnd = 0.0f;
 
-	void Load(uint8_t*& pos, int32_t version);
+	void Load(BinaryReader<true>& pos, int32_t version);
 };
 
 struct FalloffParameter

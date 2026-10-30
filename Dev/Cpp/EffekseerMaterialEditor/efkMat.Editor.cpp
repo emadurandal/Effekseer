@@ -1,13 +1,16 @@
 #define NOMINMAX
-#include "efkMat.Editor.h"
-#include "efkMat.CommandManager.h"
-#include "efkMat.Models.h"
+#define IMGUI_DEFINE_MATH_OPERATORS 1
 
-#include <imgui_node_editor.h>
+#include "efkMat.Editor.h"
 
 #include <imgui_node_editor_internal.h>
 
-#include <imgui_internal.h>
+// #include <imgui_internal.h>
+
+#include "efkMat.CommandManager.h"
+#include "efkMat.GradientEditor.h"
+#include "efkMat.Models.h"
+
 #include <nfd.h>
 
 #include <GUI/MainWindow.h>
@@ -18,9 +21,9 @@
 #include <efkMat.StringContainer.h>
 #include <efkMat.TextExporter.h>
 
-#include "../Effekseer/Effekseer/Material/Effekseer.MaterialFile.h"
 #include "../EffekseerMaterialCompiler/OpenGL/EffekseerMaterialCompilerGL.h"
-#include "../EffekseerRendererGL/EffekseerRenderer/EffekseerRendererGL.MaterialLoader.h"
+#include <Effekseer/Material/Effekseer.MaterialFile.h>
+#include <EffekseerRendererGL/EffekseerRendererGL.MaterialLoader.h>
 
 #include <boxer.h>
 
@@ -50,52 +53,108 @@ static Vector2DF GetNodeGroupSize(uint64_t guid)
 	return {size.x, size.y};
 }
 
-void Compile(std::shared_ptr<Graphics> graphics,
-			 std::shared_ptr<Material> material,
-			 std::shared_ptr<Node> node,
-			 std::vector<std::shared_ptr<TextureWithSampler>>& outputTextures,
-			 std::vector<std::shared_ptr<TextExporterUniform>>& outputUniforms,
-			 std::string& vs,
-			 std::string& ps)
+static std::tuple<Vector2DF, Vector2DF> GetSelectedNodeBounds(float margin)
 {
+	std::array<ed::NodeId, 256> selectedNodes;
+	auto selectedCount = ed::GetSelectedNodes(selectedNodes.data(), selectedNodes.size());
+
+	ImVec2 areaMin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+	ImVec2 areaMax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
+
+	for (size_t i = 0; i < selectedCount; i++)
+	{
+		const auto pos = ed::GetNodePosition(selectedNodes[i]);
+		const auto size = ed::GetNodeSize(selectedNodes[i]);
+		areaMin.x = std::min(areaMin.x, pos.x);
+		areaMin.y = std::min(areaMin.y, pos.y);
+		areaMax.x = std::max(areaMax.x, (pos + size).x);
+		areaMax.y = std::max(areaMax.y, (pos + size).y);
+	}
+
+	if (selectedCount > 0)
+	{
+		areaMin.x -= margin;
+		areaMin.y -= margin;
+		areaMax.x += margin;
+		areaMax.y += margin;
+		return std::tuple<Vector2DF, Vector2DF>{Vector2DF{areaMin.x, areaMin.y}, Vector2DF{areaMax.x, areaMax.y}};
+	}
+
+	return std::tuple<Vector2DF, Vector2DF>{};
+}
+
+CompileResult Compile(std::shared_ptr<Graphics> graphics,
+					  std::shared_ptr<Material> material,
+					  std::shared_ptr<Node> node)
+{
+	CompileResult compileResult;
+	compileResult.materialFile = std::make_shared<Effekseer::MaterialFile>();
+
+	std::vector<std::shared_ptr<TextureWithSampler>> outputTextures;
+
 	EffekseerMaterial::TextExporter exporter;
 	auto result = (&exporter)->Export(material, node);
 
-	auto efkMaterial = Effekseer::MaterialFile();
-	efkMaterial.SetGenericCode(result.Code.c_str());
-	efkMaterial.SetIsSimpleVertex(false);
-	efkMaterial.SetHasRefraction(result.HasRefraction);
-	efkMaterial.SetShadingModel(static_cast<Effekseer::ShadingModelType>(result.ShadingModel));
+	compileResult.materialFile->SetGenericCode(result.Code.c_str());
+	compileResult.materialFile->SetIsSimpleVertex(false);
+	compileResult.materialFile->SetHasRefraction(result.HasRefraction);
+	compileResult.materialFile->SetShadingModel(static_cast<Effekseer::ShadingModelType>(result.ShadingModel));
+	compileResult.materialFile->SetCustomData1Count(result.CustomData1);
+	compileResult.materialFile->SetCustomData2Count(result.CustomData2);
 
-	// HACK (adhoc support in the editor)
-	// efkMaterial.SetCustomData1Count(result.CustomData1);
-	// efkMaterial.SetCustomData2Count(result.CustomData2);
+	compileResult.materialFile->SetTextureCount(result.Textures.size());
+	compileResult.materialFile->SetUniformCount(result.Uniforms.size());
 
-	efkMaterial.SetTextureCount(result.Textures.size());
-	efkMaterial.SetUniformCount(result.Uniforms.size());
+	for (const auto& type : result.RequiredPredefinedMethodTypes)
+	{
+		compileResult.materialFile->RequiredMethods.emplace_back(static_cast<Effekseer::MaterialFile::RequiredPredefinedMethodType>(type));
+	}
 
 	for (size_t i = 0; i < result.Textures.size(); i++)
 	{
-		efkMaterial.SetTextureIndex(i, i);
-		efkMaterial.SetTextureName(i, result.Textures[i]->UniformName.c_str());
+		compileResult.materialFile->SetTextureIndex(i, i);
+		compileResult.materialFile->SetTextureName(i, result.Textures[i]->UniformName.c_str());
 	}
 
 	for (size_t i = 0; i < result.Uniforms.size(); i++)
 	{
-		efkMaterial.SetUniformIndex(i, (int)result.Uniforms[i]->Type);
-		efkMaterial.SetUniformName(i, result.Uniforms[i]->UniformName.c_str());
+		compileResult.materialFile->SetUniformIndex(i, (int)result.Uniforms[i]->Type);
+		compileResult.materialFile->SetUniformName(i, result.Uniforms[i]->UniformName.c_str());
 	}
 
-	auto compiler = ::Effekseer::CreateUniqueReference(new Effekseer::MaterialCompilerGL());
-	auto binary = ::Effekseer::CreateUniqueReference(compiler->Compile(&efkMaterial, 1024));
+	const auto copyGradient = [&](std::vector<Effekseer::MaterialFile::GradientParameter>& dst, const std::vector<std::shared_ptr<TextExporterGradient>>& src)
+	{
+		dst.resize(src.size());
 
-	vs = reinterpret_cast<const char*>(binary->GetVertexShaderData(Effekseer::MaterialShaderType::Standard));
-	ps = reinterpret_cast<const char*>(binary->GetPixelShaderData(Effekseer::MaterialShaderType::Standard));
+		for (size_t i = 0; i < dst.size(); i++)
+		{
+			dst[i].Name = src[i]->UniformName;
+			dst[i].Data.ColorCount = src[i]->Defaults.ColorCount;
+			for (size_t j = 0; j < dst[i].Data.Colors.size(); j++)
+			{
+				dst[i].Data.Colors[j].Color = src[i]->Defaults.Colors[j].Color;
+				dst[i].Data.Colors[j].Intensity = src[i]->Defaults.Colors[j].Intensity;
+				dst[i].Data.Colors[j].Position = src[i]->Defaults.Colors[j].Position;
+			}
+
+			dst[i].Data.AlphaCount = src[i]->Defaults.AlphaCount;
+			for (size_t j = 0; j < dst[i].Data.Alphas.size(); j++)
+			{
+				dst[i].Data.Alphas[j].Alpha = src[i]->Defaults.Alphas[j].Alpha;
+				dst[i].Data.Alphas[j].Position = src[i]->Defaults.Alphas[j].Position;
+			}
+		}
+	};
+
+	copyGradient(compileResult.materialFile->Gradients, result.Gradients);
+
+	copyGradient(compileResult.materialFile->FixedGradients, result.FixedGradients);
 
 	auto textures = result.Textures;
 	auto removed_it = std::remove_if(textures.begin(),
 									 textures.end(),
-									 [](const std::shared_ptr<EffekseerMaterial::TextExporterTexture>& v) -> bool { return v->Index < 0; });
+									 [](const std::shared_ptr<EffekseerMaterial::TextExporterTexture>& v) -> bool
+									 { return v->Index < 0; });
 
 	if (removed_it != textures.end())
 	{
@@ -105,7 +164,8 @@ void Compile(std::shared_ptr<Graphics> graphics,
 	std::sort(textures.begin(),
 			  textures.end(),
 			  [](const std::shared_ptr<EffekseerMaterial::TextExporterTexture>& a,
-				 const std::shared_ptr<EffekseerMaterial::TextExporterTexture>& b) -> bool { return a->Index < b->Index; });
+				 const std::shared_ptr<EffekseerMaterial::TextExporterTexture>& b) -> bool
+			  { return a->Index < b->Index; });
 
 	for (auto t : textures)
 	{
@@ -117,14 +177,22 @@ void Compile(std::shared_ptr<Graphics> graphics,
 		outputTextures.push_back(ts);
 	}
 
-	outputUniforms = result.Uniforms;
+	compileResult.textures = outputTextures;
+	compileResult.uniforms = result.Uniforms;
+	compileResult.fixedGradients = result.FixedGradients;
+	compileResult.gradients = result.Gradients;
+	compileResult.customData1Count = result.CustomData1;
+	compileResult.customData2Count = result.CustomData2;
+
+	return compileResult;
 }
 
 void ExtractUniforms(std::shared_ptr<Graphics> graphics,
 					 std::shared_ptr<Material> material,
 					 std::shared_ptr<Node> node,
 					 std::vector<std::shared_ptr<TextureWithSampler>>& outputTextures,
-					 std::vector<std::shared_ptr<TextExporterUniform>>& outputUniforms)
+					 std::vector<std::shared_ptr<TextExporterUniform>>& outputUniforms,
+					 std::vector<std::shared_ptr<TextExporterGradient>>& outputGradients)
 {
 	outputTextures.clear();
 	outputUniforms.clear();
@@ -137,7 +205,8 @@ void ExtractUniforms(std::shared_ptr<Graphics> graphics,
 	auto textures = result.Textures;
 	auto removed_it = std::remove_if(textures.begin(),
 									 textures.end(),
-									 [](const std::shared_ptr<EffekseerMaterial::TextExporterTexture>& v) -> bool { return v->Index < 0; });
+									 [](const std::shared_ptr<EffekseerMaterial::TextExporterTexture>& v) -> bool
+									 { return v->Index < 0; });
 
 	if (removed_it != textures.end())
 	{
@@ -147,7 +216,8 @@ void ExtractUniforms(std::shared_ptr<Graphics> graphics,
 	std::sort(textures.begin(),
 			  textures.end(),
 			  [](const std::shared_ptr<EffekseerMaterial::TextExporterTexture>& a,
-				 const std::shared_ptr<EffekseerMaterial::TextExporterTexture>& b) -> bool { return a->Index < b->Index; });
+				 const std::shared_ptr<EffekseerMaterial::TextExporterTexture>& b) -> bool
+			  { return a->Index < b->Index; });
 
 	for (auto t : textures)
 	{
@@ -160,6 +230,8 @@ void ExtractUniforms(std::shared_ptr<Graphics> graphics,
 	}
 
 	outputUniforms = result.Uniforms;
+
+	outputGradients = result.Gradients;
 }
 
 NodeUserDataObject::NodeUserDataObject()
@@ -290,9 +362,9 @@ ErrorCode EditorContent::Load(const char* path, std::shared_ptr<Library> library
 	fclose(fp);
 
 	auto err = material_->Load(data, library, path);
-	if(err != ErrorCode::OK)
+	if (err != ErrorCode::OK)
 	{
-		if(err == ErrorCode::NewVersion)
+		if (err == ErrorCode::NewVersion)
 		{
 			boxer::show(
 				StringContainer::GetValue("Error_NewVersion").c_str(),
@@ -420,13 +492,18 @@ static const char* label_edit_node = "##EDIT_NODE";
 
 bool Editor::InputText(const char* label, std::string& text)
 {
-	char buf[255];
-	memcpy(buf, text.c_str(), text.size());
-	buf[text.size()] = 0;
-
-	if (ImGui::InputText(label, buf, 255))
+	std::array<char, 256> local_buffer;
+	const auto max_len = std::min(text.size(), local_buffer.size() - 1);
+	if (text.size() > 0)
 	{
-		text = buf;
+		memcpy(local_buffer.data(), text.c_str(), max_len);
+	}
+
+	local_buffer[max_len] = 0;
+
+	if (ImGui::InputText(label, local_buffer.data(), local_buffer.size() - 1))
+	{
+		text = local_buffer.data();
 		return true;
 	}
 
@@ -569,7 +646,8 @@ void Editor::CloseContents()
 	auto selectedContent = contents_[selectedContentInd_];
 
 	auto removed_it =
-		std::remove_if(contents_.begin(), contents_.end(), [](std::shared_ptr<EditorContent> d) -> bool { return d->IsClosing; });
+		std::remove_if(contents_.begin(), contents_.end(), [](std::shared_ptr<EditorContent> d) -> bool
+					   { return d->IsClosing; });
 	contents_.erase(removed_it, contents_.end());
 
 	if (selectedContent->IsClosing)
@@ -617,8 +695,7 @@ void Editor::Update()
 #endif
 
 		// copy
-		if (isCtrlPressed && ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_C]] &&
-			ImGui::GetIO().KeysDownDuration[ImGui::GetIO().KeyMap[ImGuiKey_C]] == 0)
+		if (isCtrlPressed && ImGui::IsKeyPressed(ImGuiKey_C))
 		{
 			ed::NodeId ids[256];
 			auto count = ed::GetSelectedNodes(ids, 256);
@@ -640,8 +717,7 @@ void Editor::Update()
 		}
 
 		// paste
-		if (isCtrlPressed && ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_V]] &&
-			ImGui::GetIO().KeysDownDuration[ImGui::GetIO().KeyMap[ImGuiKey_V]] == 0)
+		if (isCtrlPressed && ImGui::IsKeyPressed(ImGuiKey_V))
 		{
 			auto text = ImGui::GetClipboardText();
 			if (text != nullptr)
@@ -652,8 +728,7 @@ void Editor::Update()
 		}
 
 		// save
-		if (isCtrlPressed && ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_S]] &&
-			ImGui::GetIO().KeysDownDuration[ImGui::GetIO().KeyMap[ImGuiKey_S]] == 0)
+		if (isCtrlPressed && ImGui::IsKeyPressed(ImGuiKey_S))
 		{
 			Save();
 		}
@@ -693,8 +768,9 @@ void Editor::Update()
 	else if (ed::ShowBackgroundContextMenu())
 	{
 		ImGui::OpenPopup(label_new_node);
-		searchingKeywords.fill(0);
-		searchingKeywordsActual.fill(0);
+		searchingKeywords_.fill(0);
+		searchingKeywordsActual_.fill(0);
+		isJustNewNodePanelOpened_ = true;
 		currentPin = nullptr;
 		popupPosition = posOnEditor;
 	}
@@ -726,11 +802,7 @@ void Editor::UpdateNodes()
 			if (!node->GetIsDirtied() && !isSelectedDirty_)
 				continue;
 
-			std::vector<std::shared_ptr<TextExporterUniform>> uniforms;
-			std::vector<std::shared_ptr<TextureWithSampler>> textures;
-			std::string vs;
-			std::string ps;
-			Compile(graphics_, material, node, textures, uniforms, vs, ps);
+			auto compileResult = Compile(graphics_, material, node);
 
 			// update pin state
 			for (auto behavior : node->Parameter->BehaviorComponents)
@@ -745,9 +817,10 @@ void Editor::UpdateNodes()
 				}
 			}
 
-			preview_->CompileShader(vs, ps, textures, uniforms);
-			previewTextureCount_ = textures.size();
-			previewUniformCount_ = uniforms.size();
+			preview_->UpdateShader(compileResult);
+			previewTextureCount_ = compileResult.textures.size();
+			previewUniformCount_ = compileResult.uniforms.size();
+			previewGradientCount_ = compileResult.gradients.size();
 		}
 
 		for (auto node : material->GetNodes())
@@ -759,12 +832,14 @@ void Editor::UpdateNodes()
 
 			std::vector<std::shared_ptr<TextExporterUniform>> uniforms;
 			std::vector<std::shared_ptr<TextureWithSampler>> textures;
+			std::vector<std::shared_ptr<TextExporterGradient>> gradients;
 
-			ExtractUniforms(graphics_, material, node, textures, uniforms);
+			ExtractUniforms(graphics_, material, node, textures, uniforms, gradients);
 
-			preview_->UpdateUniforms(textures, uniforms);
+			preview_->UpdateUniforms(textures, uniforms, gradients);
 			previewTextureCount_ = textures.size();
 			previewUniformCount_ = uniforms.size();
+			previewGradientCount_ = gradients.size();
 		}
 	}
 
@@ -802,11 +877,7 @@ void Editor::UpdateNodes()
 				preview->ModelType = PreviewModelType::Sphere;
 			}
 
-			std::vector<std::shared_ptr<TextExporterUniform>> uniforms;
-			std::vector<std::shared_ptr<TextureWithSampler>> textures;
-			std::string vs;
-			std::string ps;
-			Compile(graphics_, material, node, textures, uniforms, vs, ps);
+			auto compileResult = Compile(graphics_, material, node);
 
 			// update pin state
 			for (auto behavior : node->Parameter->BehaviorComponents)
@@ -821,7 +892,7 @@ void Editor::UpdateNodes()
 				}
 			}
 
-			preview->CompileShader(vs, ps, textures, uniforms);
+			preview->UpdateShader(compileResult);
 
 			material->ClearDirty(node);
 			material->ClearContentDirty(node);
@@ -836,10 +907,11 @@ void Editor::UpdateNodes()
 
 			std::vector<std::shared_ptr<TextExporterUniform>> uniforms;
 			std::vector<std::shared_ptr<TextureWithSampler>> textures;
+			std::vector<std::shared_ptr<TextExporterGradient>> gradients;
 
-			ExtractUniforms(graphics_, material, node, textures, uniforms);
+			ExtractUniforms(graphics_, material, node, textures, uniforms, gradients);
 
-			preview->UpdateUniforms(textures, uniforms);
+			preview->UpdateUniforms(textures, uniforms, gradients);
 			material->ClearContentDirty(node);
 		}
 
@@ -901,13 +973,26 @@ void Editor::UpdatePopup()
 	// New node
 	if (ImGui::BeginPopup(label_new_node))
 	{
-		auto create_node = [&, this](std::shared_ptr<LibraryContentBase> content) -> void {
+		auto create_node = [&, this](std::shared_ptr<LibraryContentBase> content) -> void
+		{
 			auto nodeParam = content->Create();
 			auto node = material->CreateNode(nodeParam, false);
 			ImVec2 nodePos{floorf(popupPosition.x), floorf(popupPosition.y)};
 			ed::SetNodePosition(node->GUID, nodePos);
 			node->Pos.X = nodePos.x;
 			node->Pos.Y = nodePos.y;
+
+			if (node->Parameter->Type == NodeType::Comment)
+			{
+				// A comment node includes all selected nodes
+				const auto [areaMin, areaMax] = GetSelectedNodeBounds(30.0f);
+				if (areaMax.X - areaMin.X > 0.0f && areaMax.Y - areaMin.Y > 0.0f)
+				{
+					node->Pos = areaMin;
+					node->CommentSize.X = areaMax.X - areaMin.X;
+					node->CommentSize.Y = areaMax.Y - areaMin.Y;
+				}
+			}
 
 			// link automatically
 			if (currentPin != nullptr)
@@ -930,7 +1015,8 @@ void Editor::UpdatePopup()
 			}
 		};
 
-		auto showContent = [&create_node](std::shared_ptr<LibraryContentBase> c) -> void {
+		auto showContent = [&create_node](std::shared_ptr<LibraryContentBase> c) -> void
+		{
 			auto& nodeTypeName = StringContainer::GetValue((c->Name + "_Node_Name").c_str(), c->Name.c_str());
 
 			if (ImGui::MenuItem(nodeTypeName.c_str()))
@@ -945,29 +1031,30 @@ void Editor::UpdatePopup()
 				auto desc = std::string("Key : ") + c->KeywordsShown + "\n";
 				desc += StringContainer::GetValue((c->Name + "_Node_Desc").c_str(), "");
 
-				ImGui::SetTooltip(desc.c_str());
+				ImGui::SetTooltip("%s", desc.c_str());
 			}
 		};
 
-		auto isShown = [this](std::shared_ptr<LibraryContentBase> c) -> bool {
+		auto isShown = [this](std::shared_ptr<LibraryContentBase> c) -> bool
+		{
 			if (!c->IsShown)
 			{
 				return false;
 			}
 
-			if (searchingKeywordsActual[0] == 0)
+			if (searchingKeywordsActual_[0] == 0)
 			{
 				return true;
 			}
 
 			auto name = c->Name;
 
-			if (name.find(searchingKeywordsActual.data()) != std::string::npos)
+			if (name.find(searchingKeywordsActual_.data()) != std::string::npos)
 				return true;
 
 			for (auto keyword : c->Keywords)
 			{
-				if (keyword.find(searchingKeywordsActual.data()) != std::string::npos)
+				if (keyword.find(searchingKeywordsActual_.data()) != std::string::npos)
 					return true;
 			}
 
@@ -977,19 +1064,21 @@ void Editor::UpdatePopup()
 		// keyword box
 
 		// focus into a searching textbox
-		if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && !ImGui::IsAnyItemActive() && !ImGui::IsAnyItemFocused())
-			ImGui::SetKeyboardFocusHere(0);
-
-		ImGui::InputText(StringContainer::GetValue("Search").c_str(), searchingKeywords.data(), searchingKeywords.size());
-
-		for (size_t c = 0; c < searchingKeywords.size(); c++)
+		if (isJustNewNodePanelOpened_)
 		{
-			searchingKeywordsActual[c] = tolower(searchingKeywords[c]);
-			if (searchingKeywordsActual[c] == 0)
+			ImGui::SetKeyboardFocusHere(0);
+		}
+
+		ImGui::InputText(StringContainer::GetValue("Search").c_str(), searchingKeywords_.data(), searchingKeywords_.size());
+
+		for (size_t c = 0; c < searchingKeywords_.size(); c++)
+		{
+			searchingKeywordsActual_[c] = tolower(searchingKeywords_[c]);
+			if (searchingKeywordsActual_[c] == 0)
 				break;
 		}
 
-		if (searchingKeywordsActual[0] == 0)
+		if (searchingKeywordsActual_[0] == 0)
 		{
 			for (auto group : library->Root->Groups)
 			{
@@ -1049,6 +1138,8 @@ void Editor::UpdatePopup()
 			}
 		}
 
+		isJustNewNodePanelOpened_ = false;
+
 		ImGui::EndPopup();
 	}
 }
@@ -1068,7 +1159,8 @@ void Editor::UpdateCreating()
 	if (ed::BeginCreate(ImColor(255, 255, 255), 2.0f))
 	{
 
-		auto showLabel = [](const char* label, ImColor color) {
+		auto showLabel = [](const char* label, ImColor color)
+		{
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() - ImGui::GetTextLineHeight());
 			auto size = ImGui::CalcTextSize(label);
 
@@ -1167,8 +1259,9 @@ void Editor::UpdateCreating()
 				ed::Suspend();
 				popupPosition = posOnEditor;
 				ImGui::OpenPopup(label_new_node);
-				searchingKeywords.fill(0);
-				searchingKeywordsActual.fill(0);
+				searchingKeywords_.fill(0);
+				searchingKeywordsActual_.fill(0);
+				isJustNewNodePanelOpened_ = true;
 				ed::Resume();
 			}
 		}
@@ -1193,7 +1286,8 @@ void Editor::UpdateDeleting()
 	{
 		bool foundDelete = false;
 
-		auto startCollection = [&foundDelete, &material]() -> void {
+		auto startCollection = [&foundDelete, &material]() -> void
+		{
 			if (!foundDelete)
 			{
 				material->GetCommandManager()->StartCollection();
@@ -1243,7 +1337,8 @@ void Editor::UpdateParameterEditor(std::shared_ptr<Node> node)
 	}
 
 	// Property
-	auto updateProp = [&, node](ValueType type, std::string name, std::shared_ptr<EffekseerMaterial::NodeProperty> p) -> void {
+	auto updateProp = [&, node](ValueType type, std::string name, std::shared_ptr<EffekseerMaterial::NodeProperty> p) -> void
+	{
 		auto floatValues = p->Floats;
 
 		auto nameStr = StringContainer::GetValue((name + "_Name").c_str(), name.c_str());
@@ -1302,10 +1397,7 @@ void Editor::UpdateParameterEditor(std::shared_ptr<Node> node)
 		}
 		else if (type == ValueType::String)
 		{
-			// is memory safe?
-
 			auto str = p->Str;
-			str.resize(str.size() + 16, 0);
 
 			// Shader result doesn't change
 			if (InputText(nameStr.c_str(), str))
@@ -1315,10 +1407,11 @@ void Editor::UpdateParameterEditor(std::shared_ptr<Node> node)
 		}
 		else if (type == ValueType::Texture)
 		{
-			auto showPath = [&p]() -> void {
+			auto showPath = [&p]() -> void
+			{
 				if (ImGui::IsItemHovered() && !ImGui::IsItemActive())
 				{
-					ImGui::SetTooltip(p->Str.c_str());
+					ImGui::SetTooltip("%s", p->Str.c_str());
 				}
 			};
 
@@ -1350,12 +1443,12 @@ void Editor::UpdateParameterEditor(std::shared_ptr<Node> node)
 
 				if (texture != nullptr && texture->GetTexture() != nullptr)
 				{
-					ImGui::Image((void*)texture->GetTexture()->GetInternalObjects()[0], size, ImVec2(0.0, 1.0), ImVec2(1.0, 0.0));
+					ImGui::Image((void*)texture->GetInternal(), size, ImVec2(0.0, 1.0), ImVec2(1.0, 0.0));
 
 					showPath();
 
 					// adhoc
-					glBindTexture(GL_TEXTURE_2D, (GLuint)texture->GetTexture()->GetInternalObjects()[0]);
+					glBindTexture(GL_TEXTURE_2D, (GLuint)texture->GetInternal());
 					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 				}
@@ -1428,7 +1521,7 @@ void Editor::UpdateParameterEditor(std::shared_ptr<Node> node)
 					ImGui::EndCombo();
 				}
 			}
-			else
+			else if (name == std::string("ShadingModel"))
 			{
 				const char* items[] = {"Lit", "Unlit"};
 
@@ -1449,6 +1542,37 @@ void Editor::UpdateParameterEditor(std::shared_ptr<Node> node)
 					ImGui::EndCombo();
 				}
 			}
+			else if (name == std::string("Condition"))
+			{
+				const char* items[] = {"A < B", "A <= B", "A > B", "A >= B", "A == B", "A != B"};
+
+				if (ImGui::BeginCombo(nameStr.c_str(), items[static_cast<int>(floatValues[0])]))
+				{
+					for (size_t i = 0; i < 6; i++)
+					{
+						auto isSelected = static_cast<int>(floatValues[0]) == i;
+						if (ImGui::Selectable(items[i], isSelected))
+						{
+							floatValues[0] = i;
+							material->ChangeValue(p, floatValues);
+							material->MakeDirty(node);
+						}
+						if (isSelected)
+							ImGui::SetItemDefaultFocus();
+					}
+					ImGui::EndCombo();
+				}
+			}
+		}
+		else if (type == ValueType::Gradient)
+		{
+			assert(p->GradientData != nullptr);
+
+			auto gradient = *p->GradientData;
+			if (UpdateGradientEditor(static_cast<int32_t>(node->GUID), nameStr.c_str(), gradient))
+			{
+				material->ChangeValue(p, gradient);
+			}
 		}
 		else
 		{
@@ -1459,7 +1583,7 @@ void Editor::UpdateParameterEditor(std::shared_ptr<Node> node)
 
 		if (ImGui::IsItemHovered() && !ImGui::IsItemActive() && descStr != "")
 		{
-			ImGui::SetTooltip(descStr.c_str());
+			ImGui::SetTooltip("%s", descStr.c_str());
 		}
 	};
 
@@ -1490,49 +1614,28 @@ void Editor::UpdateParameterEditor(std::shared_ptr<Node> node)
 	if (node->Parameter->HasDescription)
 	{
 		ImGui::Separator();
-		ImGui::Text(StringContainer::GetValue("Description_Name").c_str());
+		ImGui::Text("%s", StringContainer::GetValue("Description_Name").c_str());
 
 		if (ImGui::IsItemHovered())
 		{
-			ImGui::SetTooltip(StringContainer::GetValue("Description_Desc").c_str());
-		}
-
-		const char* languages[] = {"Ja", "En"};
-
-		if (ImGui::BeginCombo(StringContainer::GetValue("Language_Name").c_str(),
-							  (StringContainer::GetValue(languages[static_cast<int>(material->Language)]) + "###" +
-							   languages[static_cast<int>(material->Language)])
-								  .c_str()))
-		{
-			for (size_t i = 0; i < 2; i++)
-			{
-				auto isSelected = static_cast<int>(material->Language) == i;
-				if (ImGui::Selectable((StringContainer::GetValue(languages[i]) + "###" + languages[i]).c_str(), isSelected))
-				{
-					material->Language = static_cast<LanguageType>(i);
-				}
-				if (isSelected)
-					ImGui::SetItemDefaultFocus();
-			}
-
-			ImGui::EndCombo();
+			ImGui::SetTooltip("%s", StringContainer::GetValue("Description_Desc").c_str());
 		}
 
 		// is memory safe?
-		auto name = node->Descriptions[static_cast<int>(material->Language)]->Summary;
+		auto name = node->Description->Summary;
 		name.resize(name.size() + 256, 0);
 
-		auto desc = node->Descriptions[static_cast<int>(material->Language)]->Detail;
+		auto desc = node->Description->Detail;
 		desc.resize(desc.size() + 256, 0);
 
 		if (ImGui::InputText(StringContainer::GetValue("Summary_Name").c_str(), const_cast<char*>(name.data()), name.size()))
 		{
-			node->Descriptions[static_cast<int>(material->Language)]->Summary = name.c_str();
+			node->Description->Summary = name.c_str();
 		}
 
 		if (ImGui::InputTextMultiline(StringContainer::GetValue("Detail_Name").c_str(), const_cast<char*>(desc.data()), desc.size()))
 		{
-			node->Descriptions[static_cast<int>(material->Language)]->Detail = desc.c_str();
+			node->Description->Detail = desc.c_str();
 		}
 	}
 }
@@ -1544,44 +1647,71 @@ void Editor::UpdatePreview()
 	size.y = Preview::TextureSize;
 	ImGui::Image((void*)preview_->GetInternal(), size, ImVec2(0.0, 1.0), ImVec2(1.0, 0.0));
 
-	if (ImGui::ImageButton((ImTextureID)previewTypeButtons_[0]->GetInternal(), ImVec2(20.0, 20.0), ImVec2(0.0, 1.0), ImVec2(1.0, 0.0)))
+	if (ImGui::ImageButton(
+			"##preview_screen",
+			ImTextureRef((ImTextureID)previewTypeButtons_[0]->GetInternal()),
+			ImVec2(20.0, 20.0),
+			ImVec2(0.0, 1.0),
+			ImVec2(1.0, 0.0)))
 	{
 		preview_->ModelType = PreviewModelType::Screen;
 	}
 
 	ImGui::SameLine();
 
-	if (ImGui::ImageButton((ImTextureID)previewTypeButtons_[1]->GetInternal(), ImVec2(20.0, 20.0), ImVec2(0.0, 1.0), ImVec2(1.0, 0.0)))
+	if (ImGui::ImageButton(
+			"##preview_sphere",
+			ImTextureRef((ImTextureID)previewTypeButtons_[1]->GetInternal()),
+			ImVec2(20.0, 20.0),
+			ImVec2(0.0, 1.0),
+			ImVec2(1.0, 0.0)))
 	{
 		preview_->ModelType = PreviewModelType::Sphere;
 	}
 
-	auto textureNumHeader = StringContainer::GetValue("TextureCount", "Texture");
-
-	if (previewTextureCount_ > Effekseer::UserTextureSlotMax)
 	{
-		ImGui::TextColored(
-			ImColor(255, 0, 0, 255), (textureNumHeader + " %d / %d").c_str(), previewTextureCount_, Effekseer::UserTextureSlotMax);
-	}
-	else
-	{
-		ImGui::Text((textureNumHeader + " %d / %d").c_str(), previewTextureCount_, Effekseer::UserTextureSlotMax);
+		auto textureNumHeader = StringContainer::GetValue("TextureCount", "Texture");
+
+		if (previewTextureCount_ > Effekseer::UserTextureSlotMax)
+		{
+			ImGui::TextColored(
+				ImColor(255, 0, 0, 255), "%s %d / %d", textureNumHeader.c_str(), previewTextureCount_, Effekseer::UserTextureSlotMax);
+		}
+		else
+		{
+			ImGui::Text("%s %d / %d", textureNumHeader.c_str(), previewTextureCount_, Effekseer::UserTextureSlotMax);
+		}
 	}
 
-	// uniform
-	
 	// TODO : refactor
-	auto uniformNumHeader = StringContainer::GetValue("UniformCount", "Uniform");
-	const int uniformMax = 16;
+	{
+		auto uniformNumHeader = StringContainer::GetValue("UniformCount", "Uniform");
+		const int uniformMax = 16;
 
-	if (previewUniformCount_ > uniformMax)
-	{
-		ImGui::TextColored(
-			ImColor(255, 0, 0, 255), (uniformNumHeader + " %d / %d").c_str(), previewUniformCount_, uniformMax);
+		if (previewUniformCount_ > uniformMax)
+		{
+			ImGui::TextColored(
+				ImColor(255, 0, 0, 255), "%s %d / %d", uniformNumHeader.c_str(), previewUniformCount_, uniformMax);
+		}
+		else
+		{
+			ImGui::Text("%s %d / %d", uniformNumHeader.c_str(), previewUniformCount_, uniformMax);
+		}
 	}
-	else
+
 	{
-		ImGui::Text((uniformNumHeader + " %d / %d").c_str(), previewUniformCount_, uniformMax);
+		const auto uniformNumHeader = StringContainer::GetValue("GradientCount", "Gradient");
+		const int uniformMax = 2;
+
+		if (previewGradientCount_ > uniformMax)
+		{
+			ImGui::TextColored(
+				ImColor(255, 0, 0, 255), "%s %d / %d", uniformNumHeader.c_str(), previewGradientCount_, uniformMax);
+		}
+		else
+		{
+			ImGui::Text("%s %d / %d", uniformNumHeader.c_str(), previewGradientCount_, uniformMax);
+		}
 	}
 }
 
@@ -1624,7 +1754,8 @@ void Editor::UpdateToRecordMovingCommand()
 
 void Editor::UpdateNode(std::shared_ptr<Node> node)
 {
-	auto applyPosition = [&]() -> void {
+	auto applyPosition = [&]() -> void
+	{
 		if (contents_[GetSelectedContentIndex()]->IsLoading || node->GetIsPosDirtied())
 		{
 			ed::SetNodePosition(node->GUID, ImVec2(node->Pos.X, node->Pos.Y));
@@ -1641,9 +1772,9 @@ void Editor::UpdateNode(std::shared_ptr<Node> node)
 
 		ImGui::BeginVertical("content");
 		ImGui::BeginHorizontal("horizontal");
-		ImGui::Text(node->Properties[0]->Str.c_str());
+		ImGui::Text("%s", node->Properties[0]->Str.c_str());
 		ImGui::EndHorizontal();
-		
+
 		auto editor = reinterpret_cast<ax::NodeEditor::Detail::EditorContext*>(ed::GetCurrentEditor());
 		auto nodeContext = editor->GetNode(node->GUID);
 
@@ -1655,7 +1786,7 @@ void Editor::UpdateNode(std::shared_ptr<Node> node)
 		size.x = size.x < 64 ? 64 : size.x;
 		size.y = size.y < 64 ? 64 : size.y;
 
-		//auto size = ed::GetNodeSize(node->GUID);
+		// auto size = ed::GetNodeSize(node->GUID);
 
 		// initialize
 		if (contents_[GetSelectedContentIndex()]->IsLoading || node->GetIsPosDirtied())
@@ -1689,6 +1820,9 @@ void Editor::UpdateNode(std::shared_ptr<Node> node)
 
 	ImGui::PushID(node->GUID);
 
+	ImRect nodePreviewRect;
+	uint64_t nodePreviewTexture = 0;
+
 	ImGui::BeginVertical("node");
 
 	// Header
@@ -1710,7 +1844,7 @@ void Editor::UpdateNode(std::shared_ptr<Node> node)
 		headerName = node->Parameter->GetHeader(GetSelectedMaterial(), node);
 	}
 
-	ImGui::Text(headerName.c_str());
+	ImGui::Text("%s", headerName.c_str());
 
 	// show preview button
 	ImGui::Spring(1, 0);
@@ -1763,11 +1897,11 @@ void Editor::UpdateNode(std::shared_ptr<Node> node)
 
 			if (pin->IsEnabled)
 			{
-				ImGui::Text(text.c_str());
+				ImGui::Text("%s", text.c_str());
 			}
 			else
 			{
-				ImGui::TextColored(ImColor(100, 100, 100), text.c_str());
+				ImGui::TextColored(ImColor(100, 100, 100), "%s", text.c_str());
 			}
 
 			ImGui::EndHorizontal();
@@ -1784,7 +1918,40 @@ void Editor::UpdateNode(std::shared_ptr<Node> node)
 				ImVec2 size;
 				size.x = Preview::TextureSize;
 				size.y = Preview::TextureSize;
-				ImGui::Image((void*)preview->GetPreview()->GetInternal(), size, ImVec2(0.0, 1.0), ImVec2(1.0, 0.0));
+				nodePreviewRect = ImRect(ImGui::GetCursorScreenPos(), ImGui::GetCursorScreenPos() + size);
+				nodePreviewTexture = preview->GetPreview()->GetInternal();
+				ImGui::Dummy(size);
+
+				const auto screenIcon = previewTypeButtons_.size() > 0 && previewTypeButtons_[0] != nullptr ? previewTypeButtons_[0]->GetInternal() : 0;
+				const auto sphereIcon = previewTypeButtons_.size() > 1 && previewTypeButtons_[1] != nullptr ? previewTypeButtons_[1]->GetInternal() : 0;
+				const ImVec2 iconSize(20.0f, 20.0f);
+				const auto itemSpacing = ImGui::GetStyle().ItemSpacing;
+				ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f, itemSpacing.y));
+				ImGui::BeginHorizontal("preview_controls");
+
+				if (screenIcon != 0 &&
+					ImGui::ImageButton(
+						"##node_preview_screen_icon",
+						ImTextureRef((ImTextureID)screenIcon),
+						iconSize,
+						ImVec2(0.0f, 1.0f),
+						ImVec2(1.0f, 0.0f)))
+				{
+					preview->GetPreview()->ModelType = PreviewModelType::Screen;
+				}
+
+				if (sphereIcon != 0 &&
+					ImGui::ImageButton(
+						"##node_preview_sphere_icon",
+						ImTextureRef((ImTextureID)sphereIcon),
+						iconSize,
+						ImVec2(0.0f, 1.0f),
+						ImVec2(1.0f, 0.0f)))
+				{
+					preview->GetPreview()->ModelType = PreviewModelType::Sphere;
+				}
+				ImGui::EndHorizontal();
+				ImGui::PopStyleVar();
 			}
 		}
 
@@ -1817,9 +1984,10 @@ void Editor::UpdateNode(std::shared_ptr<Node> node)
 				typeShape = "-";
 			}
 
-			ImGui::Text((StringContainer::GetValue((pin->Parameter->Name + "_Name").c_str(), pin->Parameter->Name.c_str()) +
-						 std::string(" ") + typeShape)
-							.c_str());
+			ImGui::Text("%s",
+						 (StringContainer::GetValue((pin->Parameter->Name + "_Name").c_str(), pin->Parameter->Name.c_str()) +
+						  std::string(" ") + typeShape)
+							 .c_str());
 
 			ImGui::EndHorizontal();
 
@@ -1833,54 +2001,32 @@ void Editor::UpdateNode(std::shared_ptr<Node> node)
 
 	ImGui::EndHorizontal();
 
-	// show a preview
-	if (node->IsPreviewOpened)
-	{
-		auto preview = (NodeUserDataObject*)node->UserObj.get();
-		if (preview != nullptr)
-		{
-			if (ImGui::ImageButton(
-					(ImTextureID)previewTypeButtons_[0]->GetInternal(), ImVec2(20.0, 20.0), ImVec2(0.0, 1.0), ImVec2(1.0, 0.0)))
-			{
-				preview->GetPreview()->ModelType = PreviewModelType::Screen;
-			}
-
-			ImGui::SameLine();
-
-			if (ImGui::ImageButton(
-					(ImTextureID)previewTypeButtons_[1]->GetInternal(), ImVec2(20.0, 20.0), ImVec2(0.0, 1.0), ImVec2(1.0, 0.0)))
-			{
-				preview->GetPreview()->ModelType = PreviewModelType::Sphere;
-			}
-		}
-	}
-
 	// show an warning
 	if (node->CurrentWarning != WarningType::None)
 	{
 		if (node->CurrentWarning == WarningType::DifferentSampler)
 		{
-			ImGui::TextColored(ImColor(1.0f, 0.0f, 0.0f, 1.0f), StringContainer::GetValue("Warning_DifferentSampler").c_str());
+			ImGui::TextColored(ImColor(1.0f, 0.0f, 0.0f, 1.0f), "%s", StringContainer::GetValue("Warning_DifferentSampler").c_str());
 		}
 		else if (node->CurrentWarning == WarningType::WrongInputType)
 		{
-			ImGui::TextColored(ImColor(1.0f, 0.0f, 0.0f, 1.0f), StringContainer::GetValue("Warning_WrongInputType").c_str());
+			ImGui::TextColored(ImColor(1.0f, 0.0f, 0.0f, 1.0f), "%s", StringContainer::GetValue("Warning_WrongInputType").c_str());
 		}
 		else if (node->CurrentWarning == WarningType::WrongProperty)
 		{
-			ImGui::TextColored(ImColor(1.0f, 0.0f, 0.0f, 1.0f), StringContainer::GetValue("Warning_WrongProperty").c_str());
+			ImGui::TextColored(ImColor(1.0f, 0.0f, 0.0f, 1.0f), "%s", StringContainer::GetValue("Warning_WrongProperty").c_str());
 		}
 		else if (node->CurrentWarning == WarningType::SameName)
 		{
-			ImGui::TextColored(ImColor(1.0f, 0.0f, 0.0f, 1.0f), StringContainer::GetValue("Warning_SameName").c_str());
+			ImGui::TextColored(ImColor(1.0f, 0.0f, 0.0f, 1.0f), "%s", StringContainer::GetValue("Warning_SameName").c_str());
 		}
 		else if (node->CurrentWarning == WarningType::InvalidName)
 		{
-			ImGui::TextColored(ImColor(1.0f, 0.0f, 0.0f, 1.0f), StringContainer::GetValue("Warning_InvalidName").c_str());
+			ImGui::TextColored(ImColor(1.0f, 0.0f, 0.0f, 1.0f), "%s", StringContainer::GetValue("Warning_InvalidName").c_str());
 		}
 		else if (node->CurrentWarning == WarningType::PixelNodeAndNormal)
 		{
-			ImGui::TextColored(ImColor(1.0f, 0.0f, 0.0f, 1.0f), StringContainer::GetValue("Warning_PixelNodeAndNormal").c_str());
+			ImGui::TextColored(ImColor(1.0f, 0.0f, 0.0f, 1.0f), "%s", StringContainer::GetValue("Warning_PixelNodeAndNormal").c_str());
 		}
 		else
 		{
@@ -1904,7 +2050,17 @@ void Editor::UpdateNode(std::shared_ptr<Node> node)
 							   ImVec2(itemRectMax.x, itemRectMin.y + 30 * mainWindow->GetDPIScale()),
 							   IM_COL32(110, 110, 110, 255),
 							   ed::GetStyle().NodeRounding,
-							   ImDrawCornerFlags_Top);
+							   ImDrawFlags_RoundCornersTop);
+
+	if (nodePreviewTexture != 0)
+	{
+		bg_drawList->AddImage(
+			ImTextureRef((ImTextureID)nodePreviewTexture),
+			nodePreviewRect.Min,
+			nodePreviewRect.Max,
+			ImVec2(0.0f, 1.0f),
+			ImVec2(1.0f, 0.0f));
+	}
 
 	node->ClearPosDirtied();
 }

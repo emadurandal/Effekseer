@@ -5,7 +5,10 @@
 namespace EffekseerMaterial
 {
 
-ValueType InferOutputTypeIn1Out1(const std::vector<ValueType>& inputTypes) { return inputTypes[0]; }
+ValueType InferOutputTypeIn1Out1(const std::vector<ValueType>& inputTypes)
+{
+	return inputTypes[0];
+}
 
 ValueType InferOutputTypeIn2Out1Param2(const std::vector<ValueType>& inputTypes)
 {
@@ -103,7 +106,7 @@ WarningType NodeParameterBehaviorComponentParameter::GetWarning(std::shared_ptr<
 {
 	assert(node->Parameter->Properties[0]->Name == "Name");
 
-	if (!IsValidName(node->Properties[0]->Str.c_str()))
+	if (!IsValidName(node->Properties[0]->Str))
 	{
 		return WarningType::InvalidName;
 	}
@@ -216,7 +219,10 @@ bool ExtractTextureParameter(std::shared_ptr<Material> material, std::shared_ptr
 	return false;
 }
 
-ValueType NodeParameter::GetOutputTypeIn1Out1(const std::vector<ValueType>& inputTypes) const { return inputTypes[0]; }
+ValueType NodeParameter::GetOutputTypeIn1Out1(const std::vector<ValueType>& inputTypes) const
+{
+	return inputTypes[0];
+}
 
 ValueType NodeParameter::GetOutputTypeIn2Out1Param2(const std::vector<ValueType>& inputTypes) const
 {
@@ -311,7 +317,8 @@ NodeConstant1::NodeConstant1()
 
 	auto func1 = std::make_shared<NodeFunctionParameter>();
 	func1->Name = "ConvertParam";
-	func1->Func = [](std::shared_ptr<Material> material, std::shared_ptr<Node> node) -> bool {
+	func1->Func = [](std::shared_ptr<Material> material, std::shared_ptr<Node> node) -> bool
+	{
 		auto param = std::make_shared<NodeParameter1>();
 		auto new_node = material->CreateNode(param, false);
 		auto links = material->GetConnectedPins(node->OutputPins[0]);
@@ -352,7 +359,8 @@ NodeConstant2::NodeConstant2()
 
 	auto func1 = std::make_shared<NodeFunctionParameter>();
 	func1->Name = "ConvertParam";
-	func1->Func = [](std::shared_ptr<Material> material, std::shared_ptr<Node> node) -> bool {
+	func1->Func = [](std::shared_ptr<Material> material, std::shared_ptr<Node> node) -> bool
+	{
 		auto param = std::make_shared<NodeParameter2>();
 		auto new_node = material->CreateNode(param, false);
 		auto links = material->GetConnectedPins(node->OutputPins[0]);
@@ -393,7 +401,8 @@ NodeConstant3::NodeConstant3()
 
 	auto func1 = std::make_shared<NodeFunctionParameter>();
 	func1->Name = "ConvertParam";
-	func1->Func = [](std::shared_ptr<Material> material, std::shared_ptr<Node> node) -> bool {
+	func1->Func = [](std::shared_ptr<Material> material, std::shared_ptr<Node> node) -> bool
+	{
 		auto param = std::make_shared<NodeParameter3>();
 		auto new_node = material->CreateNode(param, false);
 		auto links = material->GetConnectedPins(node->OutputPins[0]);
@@ -434,7 +443,8 @@ NodeConstant4::NodeConstant4()
 
 	auto func1 = std::make_shared<NodeFunctionParameter>();
 	func1->Name = "ConvertParam";
-	func1->Func = [](std::shared_ptr<Material> material, std::shared_ptr<Node> node) -> bool {
+	func1->Func = [](std::shared_ptr<Material> material, std::shared_ptr<Node> node) -> bool
+	{
 		auto param = std::make_shared<NodeParameter4>();
 		auto new_node = material->CreateNode(param, false);
 		auto links = material->GetConnectedPins(node->OutputPins[0]);
@@ -474,7 +484,8 @@ NodeTextureObject::NodeTextureObject()
 
 	auto func1 = std::make_shared<NodeFunctionParameter>();
 	func1->Name = "ConvertParam";
-	func1->Func = [](std::shared_ptr<Material> material, std::shared_ptr<Node> node) -> bool {
+	func1->Func = [](std::shared_ptr<Material> material, std::shared_ptr<Node> node) -> bool
+	{
 		auto param = std::make_shared<NodeTextureObjectParameter>();
 		auto new_node = material->CreateNode(param, false);
 		auto links = material->GetConnectedPins(node->OutputPins[0]);
@@ -584,16 +595,17 @@ WarningType NodeAppendVector::GetWarning(std::shared_ptr<Material> material, std
 	return WarningType::None;
 }
 
-WarningType NodePixelNormalWS::GetWarning(std::shared_ptr<Material> material, std::shared_ptr<Node> node) const {
+WarningType NodePixelNormalWS::GetWarning(std::shared_ptr<Material> material, std::shared_ptr<Node> node) const
+{
 
 	auto pins = material->GetRelatedPins(node->OutputPins[0]);
-	
+
 	for (auto& pin : pins)
 	{
-		auto node = pin->Parent.lock();
-		if (node != nullptr && node->Parameter->Type == NodeType::Output && pin->Parameter->Name == "Normal")
+		auto parentNode = pin->Parent.lock();
+		if (parentNode != nullptr && parentNode->Parameter->Type == NodeType::Output && pin->Parameter->Name == "Normal")
 		{
-			return WarningType::PixelNodeAndNormal;		
+			return WarningType::PixelNodeAndNormal;
 		}
 	}
 

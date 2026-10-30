@@ -1,25 +1,37 @@
 #pragma once
 
+#include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <functional>
 #include <map>
 #include <memory>
+#include <numeric>
+#include <optional>
+#include <regex>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string>
+#include <string_view>
 #include <vector>
 
-std::string GetDirectoryPath(const char* path);
+[[nodiscard]] std::u16string GetDirectoryPathAsU16(const char* path);
 
-std::u16string GetDirectoryPathAsU16(const char* path);
-
-std::vector<uint8_t> LoadFile(const char16_t* path);
+[[nodiscard]] std::vector<uint8_t> LoadFile(const char16_t* path);
 
 struct InternalTestHelper;
 
 struct ParsedArgs
 {
 	std::string Filter;
+	std::optional<std::regex> FilterPattern;
+	bool List = false;
+};
+
+enum class TestExecutionMode
+{
+	Default,
+	FilterOnly,
 };
 
 class TestHelper
@@ -30,22 +42,81 @@ private:
 public:
 	static ParsedArgs ParseArg(int argc, char* argv[]);
 
-	static void Run(const ParsedArgs& args);
+	static const std::vector<std::string>& GetCommandLineArgs();
 
-	static void RegisterTest(const char* name, std::function<void()> func);
+	static bool Run(const ParsedArgs& args);
+
+	static void RegisterTest(const char* name, std::function<void()> func, TestExecutionMode executionMode = TestExecutionMode::Default);
 };
 
 struct TestRegister
 {
-	TestRegister(const char* name, std::function<void()> func)
+	TestRegister(const char* name, std::function<void()> func, TestExecutionMode executionMode = TestExecutionMode::Default)
 	{
-		TestHelper::RegisterTest(name, func);
+		TestHelper::RegisterTest(name, func, executionMode);
 	}
 };
 
-#define EXPECT_TRUE(condition)                                          \
-	if (!(condition))                                                   \
-	{                                                                   \
-		printf("%s(%d): FAILED: " #condition "\n", __FILE__, __LINE__); \
-		abort();                                                        \
+[[noreturn]] inline void FailTestExpectation(const char* file, int line, const char* expression)
+{
+	fprintf(stderr, "%s(%d): FAILED: %s\n", file, line, expression);
+	fflush(stdout);
+	fflush(stderr);
+	abort();
+}
+
+#define EXPECT_TRUE(condition)                              \
+	do                                                        \
+	{                                                         \
+		if (!(condition))                                       \
+		{                                                       \
+			FailTestExpectation(__FILE__, __LINE__, #condition); \
+		}                                                       \
+	} while (false);
+
+#define EXPECT_EQUAL_NEAR(v1, v2, error)                       \
+	do                                                           \
+	{                                                            \
+		if (!(std::abs(v1 - v2) <= error))                         \
+		{                                                        \
+			FailTestExpectation(__FILE__, __LINE__, #v1 " " #v2); \
+		}                                                        \
+	} while (false);
+
+struct Performance
+{
+	uint32_t Min, Max, Average, Median;
+
+	void Print(const char* label)
+	{
+		printf("%s: Min=%u, Max=%u, Ave=%u, Med:%u\n", label, Min, Max, Average, Median);
 	}
+};
+
+template <class Func>
+inline Performance TestPerformance(size_t iterationCount, Func&& func)
+{
+	using namespace std::chrono;
+
+	std::vector<int64_t> counts;
+
+	for (size_t i = 0; i < iterationCount; i++)
+	{
+		auto t0 = high_resolution_clock::now();
+
+		func();
+
+		auto t1 = high_resolution_clock::now();
+
+		counts.push_back(duration_cast<microseconds>(t1 - t0).count());
+	}
+
+	std::sort(counts.begin(), counts.end());
+
+	Performance result;
+	result.Min = static_cast<uint32_t>(counts.front());
+	result.Max = static_cast<uint32_t>(counts.back());
+	result.Average = static_cast<uint32_t>(std::accumulate(counts.begin(), counts.end(), 0) / counts.size());
+	result.Median = counts[counts.size() / 2];
+	return result;
+};

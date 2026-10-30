@@ -80,11 +80,8 @@ namespace Effekseer.IO
 		public byte[] Buffer;
 	}
 
-	class EfkEfc
+	class EfkEfcXml
 	{
-		const int Version = 0;
-
-
 		class Element
 		{
 			public string Name = null;
@@ -93,7 +90,7 @@ namespace Effekseer.IO
 			public List<Element> Children = null;
 		}
 
-		byte[] Compress(System.Xml.XmlDocument xml)
+		public static byte[] Compress(System.Xml.XmlDocument xml)
 		{
 			// visit all nodes
 			Func<System.Xml.XmlNodeList, List<Element>> visit = null;
@@ -185,12 +182,12 @@ namespace Effekseer.IO
 			return Utils.Zlib.Compress(binary.GetBinary());
 		}
 
-		System.Xml.XmlDocument Decompress(byte[] buffer)
+		public static System.Xml.XmlDocument Decompress(byte[] buffer)
 		{
 			var decompressBuffer = Utils.Zlib.Decompress(buffer);
 
 			var doc = new System.Xml.XmlDocument();
-			var reader = new Utl.BinaryReader(decompressBuffer);
+			var reader = new Utils.BinaryReader(decompressBuffer);
 
 			var keys = new Dictionary<Int16, string>();
 			Int16 keySize = -1;
@@ -253,8 +250,11 @@ namespace Effekseer.IO
 
 			return doc;
 		}
+	}
 
-		byte[] GetBinaryStr(string str)
+	class EfkEfcInfo
+	{
+		static byte[] GetBinaryStr(string str)
 		{
 			List<byte[]> data = new List<byte[]>();
 
@@ -266,11 +266,149 @@ namespace Effekseer.IO
 			return data.SelectMany(_ => _).ToArray();
 		}
 
-		public bool Save(string path, Data.NodeRoot rootNode, XmlDocument editorData)
+		enum TextureColorType : int
+		{
+			sRGB = 1 << 0,
+			Linear = 1 << 1,
+		}
+
+		class Dependency
+		{
+			public FileType FileType = FileType.Other;
+			public int Flag = 0;
+			public string Path = string.Empty;
+		}
+
+		public static byte[] GetInfoData(Binary.Exporter binaryExporter)
+		{
+			// info data
+			byte[] infoData = null;
+			{
+				var data = new List<byte[]>();
+				Action<HashSet<string>> exportStrs = (HashSet<string> strs) =>
+				{
+					data.Add(BitConverter.GetBytes(strs.Count));
+					foreach (var exportedPath in strs)
+					{
+						data.Add(GetBinaryStr(exportedPath));
+					}
+				};
+
+				int infoVersion = (int)Binary.ExporterVersion.Latest;
+				data.Add(BitConverter.GetBytes(infoVersion));
+
+				if ((int)infoVersion <= (int)Binary.ExporterVersion.Ver1600)
+				{
+					exportStrs(binaryExporter.UsedTextures);
+					exportStrs(binaryExporter.UsedNormalTextures);
+					exportStrs(binaryExporter.UsedDistortionTextures);
+					exportStrs(binaryExporter.Models);
+					exportStrs(binaryExporter.Sounds);
+					exportStrs(binaryExporter.Materials);
+					exportStrs(binaryExporter.Curves);
+				}
+				else
+				{
+					var srgbTextures = binaryExporter.UsedTextures;
+					var linearTextures = binaryExporter.UsedNormalTextures.Concat(binaryExporter.UsedDistortionTextures).ToList();
+					var textures = srgbTextures.Concat(linearTextures).Distinct().ToArray();
+
+					var dependencies = new List<Dependency>();
+
+					foreach (var texture in textures)
+					{
+						var d = new Dependency();
+						d.FileType = FileType.Texture;
+						d.Flag = 0;
+						if (srgbTextures.Contains(texture))
+						{
+							d.Flag += (int)TextureColorType.sRGB;
+						}
+
+						if (linearTextures.Contains(texture))
+						{
+							d.Flag += (int)TextureColorType.Linear;
+						}
+
+						d.Path = texture;
+						dependencies.Add(d);
+					}
+
+					foreach (var model in binaryExporter.Models)
+					{
+						var d = new Dependency();
+						d.FileType = FileType.Model;
+						d.Flag = 0;
+						d.Path = model;
+						dependencies.Add(d);
+					}
+
+					foreach (var sound in binaryExporter.Sounds)
+					{
+						var d = new Dependency();
+						d.FileType = FileType.Sound;
+						d.Flag = 0;
+						d.Path = sound;
+						dependencies.Add(d);
+					}
+
+					foreach (var material in binaryExporter.Materials)
+					{
+						var d = new Dependency();
+						d.FileType = FileType.Material;
+						d.Flag = 0;
+						d.Path = material;
+						dependencies.Add(d);
+					}
+
+					foreach (var curve in binaryExporter.Curves)
+					{
+						var d = new Dependency();
+						d.FileType = FileType.Curve;
+						d.Flag = 0;
+						d.Path = curve;
+						dependencies.Add(d);
+					}
+
+					data.Add(BitConverter.GetBytes(dependencies.Count));
+					foreach (var dependency in dependencies)
+					{
+						data.Add(BitConverter.GetBytes((int)dependency.FileType));
+						data.Add(BitConverter.GetBytes((int)dependency.Flag));
+						data.Add(GetBinaryStr(dependency.Path));
+					}
+				}
+
+				infoData = data.SelectMany(_ => _).ToArray();
+			}
+
+			return infoData;
+		}
+	}
+
+	class EfkEfc
+	{
+		const int ExporterVersion = 0;
+
+		/// <summary>
+		/// Import only
+		/// </summary>
+		public int Version = 0;
+
+		/// <summary>
+		/// Export only
+		/// </summary>
+		public Data.NodeRoot RootNode;
+
+		public XmlDocument EditorData;
+
+
+		public bool Save(string path)
 		{
 			Utils.Logger.Write(string.Format("Save : Start : {0}", path));
 
-			var allData = Save(rootNode, editorData);
+			var binaryExporter = new Binary.Exporter();
+			var allData = Save(binaryExporter);
 
 			try
 			{
@@ -279,13 +417,13 @@ namespace Effekseer.IO
 			catch (Exception e)
 			{
 				string messeage = "";
-				if (Core.Language == Language.English)
+				if (LanguageTable.Languages[LanguageTable.SelectedIndex] == "ja")
 				{
-					messeage = "Failed to save a file " + path + "\nThis error is \n";
+					messeage = "保存に失敗しました。 " + path + "\nエラーは \n";
 				}
 				else
 				{
-					messeage = "保存に失敗しました。 " + path + "\nエラーは \n";
+					messeage = "Failed to save a file " + path + "\nThis error is \n";
 				}
 
 				messeage += e.ToString();
@@ -305,92 +443,57 @@ namespace Effekseer.IO
 			return true;
 		}
 
-		public byte[] Save(Data.NodeRoot rootNode, XmlDocument editorData)
+		public byte[] Save(Binary.Exporter binaryExporter)
 		{
-			// binary data
-			var binaryExporter = new Binary.Exporter();
-			var binaryDataLatest = binaryExporter.Export(rootNode, 1, Binary.ExporterVersion.Latest);  // TODO change magnification
+			Data.NodeRoot rootNode = RootNode;
+			XmlDocument editorData = EditorData;
 
-			// info data
-			byte[] infoData = null;
-			{
-				var data = new List<byte[]>();
-				Action<HashSet<string>> exportStrs = (HashSet<string> strs) =>
-				{
-					data.Add(BitConverter.GetBytes(strs.Count));
-					foreach (var exportedPath in strs)
-					{
-						data.Add(GetBinaryStr(exportedPath));
-					}
-				};
-
-				int infoVersion = (int)Binary.ExporterVersion.Latest;
-				data.Add(BitConverter.GetBytes(infoVersion));
-
-				exportStrs(binaryExporter.UsedTextures);
-				exportStrs(binaryExporter.UsedNormalTextures);
-				exportStrs(binaryExporter.UsedDistortionTextures);
-				exportStrs(binaryExporter.Models);
-				exportStrs(binaryExporter.Sounds);
-				exportStrs(binaryExporter.Materials);
-				exportStrs(binaryExporter.Curves);
-
-				infoData = data.SelectMany(_ => _).ToArray();
-			}
+			var binaryDataLatest = binaryExporter.Export(rootNode, 1);  // TODO change magnification
 
 			// header
 			byte[] headerData = null;
 			{
 				var data = new List<byte[]>();
 				data.Add(Encoding.UTF8.GetBytes("EFKE"));
-				data.Add(BitConverter.GetBytes(Version));
+				data.Add(BitConverter.GetBytes(ExporterVersion));
 
 				headerData = data.SelectMany(_ => _).ToArray();
 			}
 
 			var chunk = new Chunk();
-			chunk.AddChunk("INFO", infoData);
-			chunk.AddChunk("EDIT", Compress(editorData));
+			chunk.AddChunk("INFO", EfkEfcInfo.GetInfoData(binaryExporter));
+			chunk.AddChunk("EDIT", EfkEfcXml.Compress(editorData));
 			chunk.AddChunk("BIN_", binaryDataLatest);
-
-			// fallback
-			if(Binary.ExporterVersion.Latest > Binary.ExporterVersion.Ver1500)
-			{
-				var binaryExporterFallback = new Binary.Exporter();
-				var binaryDataFallback = binaryExporterFallback.Export(Core.Root, 1, Binary.ExporterVersion.Ver1500);
-				chunk.AddChunk("BIN_", binaryDataFallback);
-			}
 
 			var chunkData = chunk.Save();
 
 			return headerData.Concat(chunkData).ToArray();
 		}
 
-		public XmlDocument Load(string path)
+		public bool Load(string path)
 		{
-			byte[] allData = null;
 			try
 			{
+				byte[] allData = null;
 				allData = System.IO.File.ReadAllBytes(path);
+				return Load(allData);
 			}
 			catch
 			{
-				return null;
+				return false;
 			}
-
-			return Load(allData);
 		}
 
-		public XmlDocument Load(byte[] allData)
+		public bool Load(byte[] allData)
 		{
-			if (allData.Length < 24) return null;
+			if (allData.Length < 24) return false;
 
 			if (allData[0] != 'E' ||
 				allData[1] != 'F' ||
 				allData[2] != 'K' ||
 				allData[3] != 'E')
 			{
-				return null;
+				return false;
 			}
 
 			var version = BitConverter.ToInt32(allData, 4);
@@ -403,10 +506,12 @@ namespace Effekseer.IO
 			var editBlock = chunk.Blocks.FirstOrDefault(_ => _.Chunk == "EDIT");
 			if (editBlock == null)
 			{
-				return null;
+				return false;
 			}
 
-			return Decompress(editBlock.Buffer);
+			EditorData = EfkEfcXml.Decompress(editBlock.Buffer);
+
+			return true;
 		}
 	}
 }

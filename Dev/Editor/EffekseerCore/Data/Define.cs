@@ -5,20 +5,20 @@ using System.Text;
 
 namespace Effekseer.Data
 {
-    public enum RecordingExporterType : int
-    {
-        Sprite,
-        SpriteSheet,
-        Gif,
-        Avi,
-    }
+	public enum RecordingExporterType : int
+	{
+		Sprite,
+		SpriteSheet,
+		Gif,
+		Avi,
+	}
 
-    public enum RecordingTransparentMethodType : int
-    {
-        None,
-        Original,
-        GenerateAlpha,
-    }
+	public enum RecordingTransparentMethodType : int
+	{
+		None,
+		Original,
+		GenerateAlpha,
+	}
 
 	public enum RecordingStorageTargetTyoe : int
 	{
@@ -32,6 +32,8 @@ namespace Effekseer.Data
 		File = 0,
 		[Key(key = "ModelReferenceType_ProdecualModel")]
 		ProceduralModel = 1,
+		[Key(key = "ModelReferenceType_ExternalModel")]
+		ExternalModel = 2,
 	}
 
 
@@ -195,13 +197,13 @@ namespace Effekseer.Data
 	}
 
 	public enum DrawnAs : int
-	{ 
+	{
 		MaxAndMin,
 		CenterAndAmplitude,
 	}
-	
+
 	public enum ColorSpace : int
-	{ 
+	{
 		RGBA,
 		HSVA,
 	}
@@ -216,12 +218,66 @@ namespace Effekseer.Data
 		Easing = 2,
 		[Key(key = "StandardColorType_FCurve")]
 		FCurve = 3,
+		[Key(key = "StandardColorType_Gradient")]
+		Gradient = 4,
+	}
+
+	public class StandardColor
+	{
+		[Selector(ID = 0)]
+		public Value.Enum<StandardColorType> Type { get; internal set; } = new Value.Enum<StandardColorType>(StandardColorType.Fixed);
+
+		[Selected(ID = 0, Value = 0)]
+		public Value.Color Fixed { get; internal set; } = new Value.Color(255, 255, 255, 255);
+
+		[Selected(ID = 0, Value = 1)]
+		public Value.ColorWithRandom Random { get; internal set; } = new Value.ColorWithRandom(255, 255, 255, 255);
+
+		[Selected(ID = 0, Value = 2)]
+		[IO(Export = true)]
+		public ColorEasingParamater Easing { get; internal set; } = new ColorEasingParamater();
+
+		[Selected(ID = 0, Value = 3)]
+		[IO(Export = true)]
+		public ColorFCurveParameter FCurve { get; internal set; } = new ColorFCurveParameter();
+
+		[Selected(ID = 0, Value = 4)]
+		[IO(Export = true)]
+		public Value.Gradient Gradient { get; internal set; } = new Value.Gradient();
 	}
 
 	public enum TrackSizeType : int
 	{
 		[Key(key = "TrackSizeType_Fixed")]
 		Fixed = 0,
+	}
+
+	public enum TriggerType : int
+	{
+		[Key(key = "TriggerType_None")]
+		None = 0,
+		[Key(key = "TriggerType_Trigger0")]
+		Trigger0 = 1 + (0 << 8),
+		[Key(key = "TriggerType_Trigger1")]
+		Trigger1 = 1 + (1 << 8),
+		[Key(key = "TriggerType_Trigger2")]
+		Trigger2 = 1 + (2 << 8),
+		[Key(key = "TriggerType_Trigger3")]
+		Trigger3 = 1 + (3 << 8),
+		[Key(key = "TriggerType_ParentRemoved")]
+		ParentRemoved = 2,
+		[Key(key = "TriggerType_ParentCollided")]
+		ParentCollided = 3,
+	}
+
+	public enum LODBehaviourType : int
+	{
+		[Key(key = "LODBehaviour_Hide")]
+		Hide = 0,
+		[Key(key = "LODBehaviour_DontSpawn")]
+		DontSpawn = 1,
+		[Key(key = "LODBehaviour_DontSpawnAndHide")]
+		DontSpawnAndHide = 2,
 	}
 
 	public class ColorEasingParamater
@@ -372,13 +428,13 @@ namespace Effekseer.Data
 		}
 
 		internal FloatEasingParamater(float value = 0.0f, float max = float.MaxValue, float min = float.MinValue)
-        {
+		{
 			Type = new Value.Enum<EasingType>();
 
-            Start = new Value.FloatWithRandom(value, max, min);
-            End = new Value.FloatWithRandom(value, max, min);
-            StartSpeed = new Value.Enum<EasingStart>(EasingStart.Start);
-            EndSpeed = new Value.Enum<EasingEnd>(EasingEnd.End);
+			Start = new Value.FloatWithRandom(value, max, min);
+			End = new Value.FloatWithRandom(value, max, min);
+			StartSpeed = new Value.Enum<EasingStart>(EasingStart.Start);
+			EndSpeed = new Value.Enum<EasingEnd>(EasingEnd.End);
 
 			IsMiddleEnabled = new Value.Boolean(false);
 			Middle = new Value.FloatWithRandom(value, max, min);
@@ -390,46 +446,46 @@ namespace Effekseer.Data
 			IsIndividualTypeEnabled = new Value.Boolean(false);
 			Type_A = new Value.Enum<EasingType>(EasingType.Linear);
 		}
-    }
+	}
 
-    public class Vector2DEasingParamater
-    {
-		[Key(key="Easing_Start")]
-        public Value.Vector2DWithRandom Start
-        {
-            get;
-            private set;
-        }
+	public class Vector2DEasingParamater
+	{
+		[Key(key = "Easing_Start")]
+		public Value.Vector2DWithRandom Start
+		{
+			get;
+			private set;
+		}
 
-		[Key(key="Easing_End")]
+		[Key(key = "Easing_End")]
 		public Value.Vector2DWithRandom End
-        {
-            get;
-            private set;
-        }
+		{
+			get;
+			private set;
+		}
 
-		[Key(key="Easing_StartSpeed")]
+		[Key(key = "Easing_StartSpeed")]
 		public Value.Enum<EasingStart> StartSpeed
-        {
-            get;
-            private set;
-        }
+		{
+			get;
+			private set;
+		}
 
-		[Key(key="Easing_EndSpeed")]
+		[Key(key = "Easing_EndSpeed")]
 		public Value.Enum<EasingEnd> EndSpeed
-        {
-            get;
-            private set;
-        }
+		{
+			get;
+			private set;
+		}
 
-        internal Vector2DEasingParamater()
-        {
-            Start = new Value.Vector2DWithRandom(0, 0);
-            End = new Value.Vector2DWithRandom(0, 0);
-            StartSpeed = new Value.Enum<EasingStart>(EasingStart.Start);
-            EndSpeed = new Value.Enum<EasingEnd>(EasingEnd.End);
-        }
-    }
+		internal Vector2DEasingParamater()
+		{
+			Start = new Value.Vector2DWithRandom(0, 0);
+			End = new Value.Vector2DWithRandom(0, 0);
+			StartSpeed = new Value.Enum<EasingStart>(EasingStart.Start);
+			EndSpeed = new Value.Enum<EasingEnd>(EasingEnd.End);
+		}
+	}
 
 	public class Vector3DEasingParamater
 	{
@@ -587,7 +643,7 @@ namespace Effekseer.Data
 		public Vector3DFCurveParameter()
 		{
 			FCurve = new Value.FCurveVector3D();
-			
+
 			FCurve.X.DefaultValueRangeMax = 10.0f;
 			FCurve.X.DefaultValueRangeMin = -10.0f;
 			FCurve.Y.DefaultValueRangeMax = 10.0f;
@@ -722,6 +778,10 @@ namespace Effekseer.Data
 		Small,
 	}
 
+	public class GroupAttribute : Attribute
+	{
+	}
+
 	/// <summary>
 	/// For collection to create a treenode in GUI
 	/// </summary>
@@ -769,6 +829,7 @@ namespace Effekseer.Data
 		public int SelfSelectorID = -1;
 		public string TreeNodeID = null;
 		public TreeNodeType TreeNodeType = TreeNodeType.Large;
+		public bool IsGroup = false;
 
 		/// <summary>
 		/// If this value is larger than 0, target selector id is used to show it.
@@ -815,7 +876,7 @@ namespace Effekseer.Data
 			var selectedAttributes = attributes.OfType<Data.SelectedAttribute>();
 			if (selectedAttributes.Count() > 0)
 			{
-				if(selectedAttributes.Select(_=>_.ID).Distinct().Count() > 1)
+				if (selectedAttributes.Select(_ => _.ID).Distinct().Count() > 1)
 				{
 					throw new Exception("Same IDs are required.");
 				}
@@ -826,12 +887,12 @@ namespace Effekseer.Data
 
 			var key = KeyAttribute.GetKey(attributes);
 			var nameKey = key + "_Name";
-			if(string.IsNullOrEmpty(key))
+			if (string.IsNullOrEmpty(key))
 			{
 				nameKey = info.ReflectedType.Name + "_" + info.Name + "_Name";
 			}
 
-			if(MultiLanguageTextProvider.HasKey(nameKey))
+			if (MultiLanguageTextProvider.HasKey(nameKey))
 			{
 				ret.Title = new MultiLanguageString(nameKey);
 			}
@@ -866,6 +927,12 @@ namespace Effekseer.Data
 				{
 					ret.Title = new MultiLanguageString(treeNode.key + "_Name");
 				}
+			}
+
+			var group = attributes.OfType<GroupAttribute>().FirstOrDefault();
+			if(group != null)
+			{
+				ret.IsGroup = true;
 			}
 
 			return ret;

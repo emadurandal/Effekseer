@@ -43,7 +43,7 @@ namespace Effekseer.Utils
 		}
 		public static string GetAbsolutePath(string basePath, string path)
 		{
-			if(string.IsNullOrEmpty(path))
+			if (string.IsNullOrEmpty(path))
 			{
 				return string.Empty;
 			}
@@ -135,7 +135,7 @@ namespace Effekseer.Utils
 								}
 
 								var blend_uv_distortion_relative_path = _node.AdvancedRendererCommonValuesValues.BlendTextureParams.BlendUVDistortionTextureParam.Texture.RelativePath;
-								if (_node.AdvancedRendererCommonValuesValues.BlendTextureParams.EnableBlendUVDistortionTexture && 
+								if (_node.AdvancedRendererCommonValuesValues.BlendTextureParams.EnableBlendUVDistortionTexture &&
 									blend_uv_distortion_relative_path != string.Empty)
 								{
 									resources.ColorTextures.Add(_node.AdvancedRendererCommonValuesValues.BlendTextureParams.BlendUVDistortionTextureParam.Texture);
@@ -227,7 +227,7 @@ namespace Effekseer.Utils
 								}
 
 								var blend_uv_distortion_relative_path = _node.AdvancedRendererCommonValuesValues.BlendTextureParams.BlendUVDistortionTextureParam.Texture.RelativePath;
-								if (_node.AdvancedRendererCommonValuesValues.BlendTextureParams.EnableBlendUVDistortionTexture && 
+								if (_node.AdvancedRendererCommonValuesValues.BlendTextureParams.EnableBlendUVDistortionTexture &&
 									blend_uv_distortion_relative_path != string.Empty)
 								{
 									resources.ColorTextures.Add(_node.AdvancedRendererCommonValuesValues.BlendTextureParams.BlendUVDistortionTextureParam.Texture);
@@ -241,7 +241,7 @@ namespace Effekseer.Utils
 						if (material_path != string.Empty)
 						{
 							resources.Materials.Add(_node.RendererCommonValues.MaterialFile.Path);
-							
+
 							var materialInfo = Core.ResourceCache.LoadMaterialInformation(material_path);
 
 							var textures = _node.RendererCommonValues.MaterialFile.GetTextures(materialInfo).Where(_ => _.Item1 != null);
@@ -252,7 +252,7 @@ namespace Effekseer.Utils
 								var relative_path = pathImage.RelativePath;
 								if (relative_path != string.Empty)
 								{
-									if (texture.Item2.Type == Utl.TextureType.Value)
+									if (texture.Item2.Type == Utils.TextureType.Value)
 									{
 										resources.NormalTextures.Add(pathImage);
 									}
@@ -295,6 +295,39 @@ namespace Effekseer.Utils
 							resources.Materials.Add(_node.RendererCommonValues.MaterialFile.Path);
 						}
 					}
+
+					if (_node.GpuParticles.Enabled.Value)
+					{
+						var colorTexturePath = _node.GpuParticles.RenderMaterial.ColorTexture.Path.RelativePath;
+						if (colorTexturePath != string.Empty)
+						{
+							resources.ColorTextures.Add(_node.GpuParticles.RenderMaterial.ColorTexture.Path);
+						}
+
+						var normalTexturePath = _node.GpuParticles.RenderMaterial.NormalTexture.Path.RelativePath;
+						if (normalTexturePath != string.Empty)
+						{
+							resources.NormalTextures.Add(_node.GpuParticles.RenderMaterial.NormalTexture.Path);
+						}
+
+						if (_node.GpuParticles.EmitShape.Shape.Value == Data.GpuParticlesValues.EmitShapeParams.ShapeType.Model)
+						{
+							var modelPath = _node.GpuParticles.EmitShape.ModelPath.RelativePath;
+							if (modelPath != string.Empty)
+							{
+								resources.Models.Add(_node.GpuParticles.EmitShape.ModelPath);
+							}
+						}
+
+						if (_node.GpuParticles.RenderShape.Shape.Value == Data.GpuParticlesValues.RenderShapeParams.ShapeType.Model)
+						{
+							var modelPath = _node.GpuParticles.RenderShape.ModelPath.RelativePath;
+							if (modelPath != string.Empty)
+							{
+								resources.Models.Add(_node.GpuParticles.RenderShape.ModelPath);
+							}
+						}
+					}
 				}
 
 				// Enumulate used model data path
@@ -305,6 +338,17 @@ namespace Effekseer.Utils
 					if (relative_path != string.Empty)
 					{
 						resources.Models.Add(_node.GenerationLocationValues.Model.Model);
+					}
+				}
+
+				// Enumerate used curve paths
+				if (_node.LocationValues.Type == Data.LocationValues.ParamaterType.NurbsCurve)
+				{
+					var relative_path = _node.LocationValues.NurbsCurve.FilePath.RelativePath;
+
+					if (relative_path != string.Empty)
+					{
+						resources.Curves.Add(_node.LocationValues.NurbsCurve.FilePath);
 					}
 				}
 			}
@@ -321,7 +365,8 @@ namespace Effekseer.Utils
 		{
 			var rendered = node.IsRendered.Value && node.DrawingValues.Type.Value != Data.RendererValues.ParamaterType.None;
 			var hasSound = node.SoundValues.Type.GetValue() == Data.SoundValues.ParamaterType.Use;
-			return rendered || hasSound;
+			var hasGpuParticles = node.GpuParticles.Enabled;
+			return rendered || hasSound || hasGpuParticles;
 		}
 
 		static bool IsRenderedNodeGroup(Data.Node node)

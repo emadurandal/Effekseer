@@ -13,9 +13,28 @@
 #include <easy/profiler.h>
 #endif
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+
+EM_JS(void, effekseer_report_test_result, (int result, const char* message), {
+	let text = UTF8ToString(message);
+	let status = result === 0 ? 'passed' : 'failed';
+	if (Module.llgiTestResult && Module.llgiTestResult.status === 'failed') {
+		console.log('EFFEKSEER_TEST_FAIL', Module.llgiTestResult.message);
+		return;
+	}
+	if (status === 'passed' && Module.llgiLastWebGPUError) {
+		status = 'failed';
+		text = Module.llgiLastWebGPUError;
+	}
+	Module.llgiTestResult = { status: status, message: text };
+	console.log(status === 'passed' ? 'EFFEKSEER_TEST_PASS' : 'EFFEKSEER_TEST_FAIL', text);
+});
+#endif
+
 int main(int argc, char* argv[])
 {
-	bool onCI = argc >= 2;
+	[[maybe_unused]] const bool onCI = argc >= 2;
 
 #if _WIN32
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
@@ -26,11 +45,18 @@ int main(int argc, char* argv[])
 	profiler::startListen();
 #endif
 
-	Effekseer::SetLogger([](Effekseer::LogType type, const std::string& s) -> void { std::cout << s << std::endl; });
+	Effekseer::SetLogger([](Effekseer::LogType type, const std::string& s) -> void
+						 { std::cout << s << std::endl; });
 
-	// You can specify "Test --filter=*.* to run a single test"
+	// Examples:
+	//   TestCpp --filter=Runtime.BasicRendering.WebGPU.SimpleLaser
+	//   TestCpp --list --filter=Runtime.BasicRendering.WebGPU.*
 	auto parsed = TestHelper::ParseArg(argc, argv);
-	TestHelper::Run(parsed);
+	const auto succeeded = TestHelper::Run(parsed);
+
+#ifdef __EMSCRIPTEN__
+	effekseer_report_test_result(succeeded ? 0 : 1, succeeded ? "completed" : "failed");
+#endif
 
 #if _WIN32
 	//_CrtDumpMemoryLeaks();
@@ -39,5 +65,5 @@ int main(int argc, char* argv[])
 #ifdef BUILD_WITH_EASY_PROFILER
 	profiler::dumpBlocksToFile("effekseer_profile.prof");
 #endif
-	return 0;
+	return succeeded ? 0 : 1;
 }

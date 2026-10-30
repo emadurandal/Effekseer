@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Runtime.InteropServices;
-using Effekseer.Utl;
+using Effekseer.Utils;
 using Effekseer.Data;
 
 namespace Effekseer.Binary
@@ -21,7 +21,18 @@ namespace Effekseer.Binary
 		Ver16Alpha8 = 1607,
 		Ver16Alpha9 = 1608,
 		Ver1600 = 1610,
-		Latest = Ver1600,
+		Ver17Alpha1 = 1700,
+		Ver17Alpha2 = 1701,
+		Ver17Alpha3 = 1702,
+		Ver17Alpha4 = 1703,
+		Ver17Alpha5 = 1704,
+		Ver17Alpha6 = 1705,
+		Ver17 = 1710,
+		Ver18Alpha1 = 1800,
+		Ver18Alpha2 = 1801,
+		Ver18Alpha3 = 1802,
+		Ver1800 = 1810,
+		Latest = Ver1800,
 	}
 
 	public class Exporter
@@ -43,10 +54,15 @@ namespace Effekseer.Binary
 		public List<ProceduralModelParameter> ProceduralModels = new List<ProceduralModelParameter>();
 
 		/// <summary>
+		/// Convert an absolute path to load dependencies from redirected files
+		/// </summary>
+		public Func<string, string> ConvertLoadingFilePath;
+
+		/// <summary>
 		/// Export effect data
 		/// </summary>
 		/// <returns></returns>
-		public byte[] Export(Data.NodeRoot rootNode, float magnification = 1.0f, ExporterVersion exporterVersion = ExporterVersion.Latest)
+		public byte[] Export(Data.NodeRoot rootNode, float magnification = 1.0f)
 		{
 			List<byte[]> data = new List<byte[]>();
 
@@ -54,7 +70,7 @@ namespace Effekseer.Binary
 			data.Add(Encoding.UTF8.GetBytes("SKFE"));
 
 			// Version
-			data.Add(BitConverter.GetBytes((int)exporterVersion));
+			data.Add(BitConverter.GetBytes((int)Binary.ExporterVersion.Latest));
 
 			// reset texture names
 			UsedTextures = new HashSet<string>();
@@ -63,7 +79,7 @@ namespace Effekseer.Binary
 
 			UsedDistortionTextures = new HashSet<string>();
 
-            Sounds = new HashSet<string>();
+			Sounds = new HashSet<string>();
 
 			Models = new HashSet<string>();
 
@@ -80,9 +96,9 @@ namespace Effekseer.Binary
 					{
 						var _node = node as Data.Node;
 
-						if(IsRenderedNode(_node))
+						if (IsRenderedNode(_node))
 						{
-							if(_node.RendererCommonValues.Material.Value == Data.RendererCommonValues.MaterialType.Default)
+							if (_node.RendererCommonValues.Material.Value == Data.RendererCommonValues.MaterialType.Default)
 							{
 								var relative_path = _node.RendererCommonValues.ColorTexture.RelativePath;
 								if (relative_path != string.Empty)
@@ -92,7 +108,7 @@ namespace Effekseer.Binary
 										UsedTextures.Add(relative_path);
 									}
 								}
-								if (exporterVersion >= ExporterVersion.Ver16Alpha1)
+
 								{
 									var alpha_relative_path = _node.AdvancedRendererCommonValuesValues.AlphaTextureParam.Texture.RelativePath;
 									if (_node.AdvancedRendererCommonValuesValues.AlphaTextureParam.Enabled && alpha_relative_path != string.Empty)
@@ -131,7 +147,7 @@ namespace Effekseer.Binary
 										}
 
 										var blend_uv_distortion_relative_path = _node.AdvancedRendererCommonValuesValues.BlendTextureParams.BlendUVDistortionTextureParam.Texture.RelativePath;
-										if (_node.AdvancedRendererCommonValuesValues.BlendTextureParams.EnableBlendUVDistortionTexture && 
+										if (_node.AdvancedRendererCommonValuesValues.BlendTextureParams.EnableBlendUVDistortionTexture &&
 											blend_uv_distortion_relative_path != string.Empty)
 										{
 											if (!UsedTextures.Contains(blend_uv_distortion_relative_path))
@@ -142,7 +158,7 @@ namespace Effekseer.Binary
 									}
 								}
 							}
-							if (_node.RendererCommonValues.Material.Value == Data.RendererCommonValues.MaterialType.BackDistortion )
+							if (_node.RendererCommonValues.Material.Value == Data.RendererCommonValues.MaterialType.BackDistortion)
 							{
 								var relative_path = _node.RendererCommonValues.ColorTexture.RelativePath;
 								if (relative_path != string.Empty)
@@ -153,7 +169,6 @@ namespace Effekseer.Binary
 									}
 								}
 
-								if (exporterVersion >= ExporterVersion.Ver16Alpha1)
 								{
 									var alpha_relative_path = _node.AdvancedRendererCommonValuesValues.AlphaTextureParam.Texture.RelativePath;
 									if (_node.AdvancedRendererCommonValuesValues.AlphaTextureParam.Enabled && alpha_relative_path != string.Empty)
@@ -223,7 +238,6 @@ namespace Effekseer.Binary
 									}
 								}
 
-								if (exporterVersion >= ExporterVersion.Ver16Alpha1)
 								{
 									// alpha texture
 									var path3 = _node.AdvancedRendererCommonValuesValues.AlphaTextureParam.Texture.RelativePath;
@@ -308,6 +322,21 @@ namespace Effekseer.Binary
 									}
 								}
 							}
+
+							if (_node.GpuParticles.Enabled.Value)
+							{
+								var colorTexPath = _node.GpuParticles.RenderMaterial.ColorTexture.Path.RelativePath;
+								if (colorTexPath != string.Empty && !UsedTextures.Contains(colorTexPath))
+								{
+									UsedTextures.Add(colorTexPath);
+								}
+
+								var normalTexPath = _node.GpuParticles.RenderMaterial.NormalTexture.Path.RelativePath;
+								if (normalTexPath != string.Empty && !UsedNormalTextures.Contains(normalTexPath))
+								{
+									UsedNormalTextures.Add(normalTexPath);
+								}
+							}
 						}
 					}
 
@@ -319,16 +348,16 @@ namespace Effekseer.Binary
 
 			get_textures(rootNode);
 
-			
-            var texture_and_index = new SortedDictionary<string, int>();
-            {
-                int index = 0;
-                foreach (var texture in UsedTextures.ToList().OrderBy(_ => _))
-                {
-                    texture_and_index.Add(texture, index);
-                    index++;
-                }
-            }
+
+			var texture_and_index = new SortedDictionary<string, int>();
+			{
+				int index = 0;
+				foreach (var texture in UsedTextures.ToList().OrderBy(_ => _))
+				{
+					texture_and_index.Add(texture, index);
+					index++;
+				}
+			}
 
 			var normalTexture_and_index = new SortedDictionary<string, int>();
 			{
@@ -350,12 +379,12 @@ namespace Effekseer.Binary
 				}
 			}
 
-            Action<Data.NodeBase> get_waves = null;
-            get_waves = (node) =>
-            {
-                if (node is Data.Node)
-                {
-                    var _node = node as Data.Node;
+			Action<Data.NodeBase> get_waves = null;
+			get_waves = (node) =>
+			{
+				if (node is Data.Node)
+				{
+					var _node = node as Data.Node;
 
 					if (IsRenderedNode(_node))
 					{
@@ -374,25 +403,25 @@ namespace Effekseer.Binary
 							}
 						}
 					}
-                }
+				}
 
-                for (int i = 0; i < node.Children.Count; i++)
-                {
-                    get_waves(node.Children[i]);
-                }
-            };
+				for (int i = 0; i < node.Children.Count; i++)
+				{
+					get_waves(node.Children[i]);
+				}
+			};
 
-            get_waves(rootNode);
+			get_waves(rootNode);
 
-            var wave_and_index = new SortedDictionary<string, int>();
-            {
-                int index = 0;
-                foreach (var wave in Sounds.ToList().OrderBy(_ => _))
-                {
-                    wave_and_index.Add(wave, index);
-                    index++;
-                }
-            }
+			var wave_and_index = new SortedDictionary<string, int>();
+			{
+				int index = 0;
+				foreach (var wave in Sounds.ToList().OrderBy(_ => _))
+				{
+					wave_and_index.Add(wave, index);
+					index++;
+				}
+			}
 
 			Action<Data.NodeBase> get_models = null;
 			get_models = (node) =>
@@ -401,41 +430,63 @@ namespace Effekseer.Binary
 				{
 					var _node = node as Data.Node;
 
-					if (IsRenderedNode(_node) && _node.DrawingValues.Type.Value == Data.RendererValues.ParamaterType.Model)
+					if (IsRenderedNode(_node))
 					{
-						var relative_path = _node.DrawingValues.Model.Model.RelativePath;
+						if (_node.DrawingValues.Type.Value == Data.RendererValues.ParamaterType.Model)
+						{
+							var relative_path = _node.DrawingValues.Model.Model.RelativePath;
 
-                        if (!string.IsNullOrEmpty(relative_path))
-                        {
-							relative_path = Utils.GetModelPath(_node.DrawingValues.Model.Model);
+							if (!string.IsNullOrEmpty(relative_path))
+							{
+								relative_path = Utils.GetModelPath(_node.DrawingValues.Model.Model);
 
-							if (relative_path != string.Empty)
-                            {
-                                if (!Models.Contains(relative_path))
-                                {
-                                    Models.Add(relative_path);
-                                }
-                            }
-                        }
-                       
+								if (relative_path != string.Empty)
+								{
+									if (!Models.Contains(relative_path))
+									{
+										Models.Add(relative_path);
+									}
+								}
+							}
+						}
+						
+						if (_node.GpuParticles.Enabled.Value)
+						{
+							if (_node.GpuParticles.EmitShape.Shape.Value == Data.GpuParticlesValues.EmitShapeParams.ShapeType.Model)
+							{
+								var modelPath = Utils.GetModelPath(_node.GpuParticles.EmitShape.ModelPath);
+								if (!Models.Contains(modelPath))
+								{
+									Models.Add(modelPath);
+								}
+							}
+							if (_node.GpuParticles.RenderShape.Shape.Value == Data.GpuParticlesValues.RenderShapeParams.ShapeType.Model)
+							{
+								var modelPath = Utils.GetModelPath(_node.GpuParticles.RenderShape.ModelPath);
+								if (!Models.Contains(modelPath))
+								{
+									Models.Add(modelPath);
+								}
+							}
+						}
 					}
 
 					if (_node.GenerationLocationValues.Type.Value == Data.GenerationLocationValues.ParameterType.Model)
 					{
 						var relative_path = _node.GenerationLocationValues.Model.Model.RelativePath;
 
-                        if (!string.IsNullOrEmpty(relative_path))
-                        {
+						if (!string.IsNullOrEmpty(relative_path))
+						{
 							relative_path = Utils.GetModelPath(_node.GenerationLocationValues.Model.Model);
 
 							if (relative_path != string.Empty)
-                            {
-                                if (!Models.Contains(relative_path))
-                                {
-                                    Models.Add(relative_path);
-                                }
-                            }
-                        }
+							{
+								if (!Models.Contains(relative_path))
+								{
+									Models.Add(relative_path);
+								}
+							}
+						}
 					}
 				}
 
@@ -535,9 +586,8 @@ namespace Effekseer.Binary
 				}
 			};
 
-			get_curves(Core.Root);
+			get_curves(rootNode);
 
-			if (exporterVersion >= ExporterVersion.Ver16Alpha1)
 			{
 				int index = 0;
 				foreach (var curve in Curves.ToList().OrderBy(_ => _))
@@ -559,7 +609,7 @@ namespace Effekseer.Binary
 					if (IsRenderedNode(_node) && _node.DrawingValues.Type.Value == Data.RendererValues.ParamaterType.Model && _node.DrawingValues.Model.ModelReference.Value == ModelReferenceType.ProceduralModel)
 					{
 						var param = _node.DrawingValues.Model.Reference.Value;
-						
+
 						if (param != null && !ProceduralModels.Contains(param))
 						{
 							ProceduralModels.Add(param);
@@ -608,7 +658,7 @@ namespace Effekseer.Binary
 					nodes.Add(_node);
 				}
 
-				var children = node.Children.Internal.Where(_ =>IsRenderedNodeGroup(_)).ToList();
+				var children = node.Children.Internal.Where(_ => IsRenderedNodeGroup(_)).ToList();
 
 				for (int i = 0; i < children.Count; i++)
 				{
@@ -623,8 +673,8 @@ namespace Effekseer.Binary
 				OrderBy(_ => _.Item1.DepthValues.DrawingPriority.Value * 255 + _.Item2).
 				Select((v, i) => Tuple35.Create(v.Item1, i)).ToList();
 
-				// ファイルにテクスチャ一覧出力
-				data.Add(BitConverter.GetBytes(texture_and_index.Count));
+			// export color textures to a file
+			data.Add(BitConverter.GetBytes(texture_and_index.Count));
 			foreach (var texture in texture_and_index)
 			{
 				var path = Encoding.Unicode.GetBytes(texture.Key);
@@ -633,6 +683,7 @@ namespace Effekseer.Binary
 				data.Add(new byte[] { 0, 0 });
 			}
 
+			// export normal textures to a file
 			data.Add(BitConverter.GetBytes(normalTexture_and_index.Count));
 			foreach (var texture in normalTexture_and_index)
 			{
@@ -642,6 +693,7 @@ namespace Effekseer.Binary
 				data.Add(new byte[] { 0, 0 });
 			}
 
+			// export distortion textures to a file
 			data.Add(BitConverter.GetBytes(distortionTexture_and_index.Count));
 			foreach (var texture in distortionTexture_and_index)
 			{
@@ -651,17 +703,17 @@ namespace Effekseer.Binary
 				data.Add(new byte[] { 0, 0 });
 			}
 
-            // ファイルにウェーブ一覧出力
-            data.Add(BitConverter.GetBytes(wave_and_index.Count));
-            foreach (var wave in wave_and_index)
-            {
-                var path = Encoding.Unicode.GetBytes(wave.Key);
-                data.Add(((path.Count() + 2) / 2).GetBytes());
-                data.Add(path);
-                data.Add(new byte[] { 0, 0 });
-            }
+			// export sound waves to a file
+			data.Add(BitConverter.GetBytes(wave_and_index.Count));
+			foreach (var wave in wave_and_index)
+			{
+				var path = Encoding.Unicode.GetBytes(wave.Key);
+				data.Add(((path.Count() + 2) / 2).GetBytes());
+				data.Add(path);
+				data.Add(new byte[] { 0, 0 });
+			}
 
-			// ファイルにモデル一覧出力
+			// export models to a file
 			data.Add(BitConverter.GetBytes(model_and_index.Count));
 			foreach (var model in model_and_index)
 			{
@@ -681,7 +733,6 @@ namespace Effekseer.Binary
 				data.Add(new byte[] { 0, 0 });
 			}
 
-			if (exporterVersion >= ExporterVersion.Ver16Alpha1)
 			{
 				// export curves to a file
 				data.Add(BitConverter.GetBytes(curve_and_index.Count));
@@ -700,7 +751,7 @@ namespace Effekseer.Binary
 					var type = (int)param.Type.Value;
 					data.Add(type.GetBytes());
 
-					if(param.Type.Value == ProceduralModelType.Mesh)
+					if (param.Type.Value == ProceduralModelType.Mesh)
 					{
 						data.Add(param.Mesh.AngleBeginEnd.X.Value.GetBytes());
 						data.Add(param.Mesh.AngleBeginEnd.Y.Value.GetBytes());
@@ -719,7 +770,7 @@ namespace Effekseer.Binary
 					}
 
 					var primitiveType = (int)param.Shape.PrimitiveType.Value;
-										
+
 					data.Add(primitiveType.GetBytes());
 
 					if (param.Shape.PrimitiveType.Value == ProceduralModelPrimitiveType.Sphere)
@@ -763,7 +814,7 @@ namespace Effekseer.Binary
 					data.Add((byte[])param.VertexColor.ColorUpperLeft);
 					data.Add((byte[])param.VertexColor.ColorUpperCenter);
 					data.Add((byte[])param.VertexColor.ColorUpperRight);
-					
+
 					data.Add((byte[])param.VertexColor.ColorMiddleLeft);
 					data.Add((byte[])param.VertexColor.ColorMiddleCenter);
 					data.Add((byte[])param.VertexColor.ColorMiddleRight);
@@ -839,8 +890,14 @@ namespace Effekseer.Binary
 				data.Add(BitConverter.GetBytes(Core.Culling.Sphere.Location.Y));
 				data.Add(BitConverter.GetBytes(Core.Culling.Sphere.Location.Z));
 			}
-			
-			// ノード情報出力
+
+			int enabledLevels = Core.LodValues.GetEnabledLevelsBits();
+			data.Add(BitConverter.GetBytes((enabledLevels & (1 << 1)) > 0 ? Core.LodValues.Distance1 : 0F));
+			data.Add(BitConverter.GetBytes((enabledLevels & (1 << 2)) > 0 ? Core.LodValues.Distance2 : 0F));
+			data.Add(BitConverter.GetBytes((enabledLevels & (1 << 3)) > 0 ? Core.LodValues.Distance3 : 0F));
+
+
+			// export node informations
 			Action<Data.NodeRoot> outout_rootnode = null;
 			Action<Data.Node> outout_node = null;
 
@@ -932,7 +989,7 @@ namespace Effekseer.Binary
 				// render order
 				{
 					var s = snode2ind.FirstOrDefault(_ => _.Item1 == n);
-					if(s.Item1 != null)
+					if (s.Item1 != null)
 					{
 						node_data.Add(BitConverter.GetBytes(s.Item2));
 					}
@@ -943,15 +1000,15 @@ namespace Effekseer.Binary
 				}
 
 				node_data.Add(CommonValues.GetBytes(n.CommonValues));
-				node_data.Add(LocationValues.GetBytes(n.LocationValues, n.CommonValues.ScaleEffectType, curve_and_index, exporterVersion));
+				node_data.Add(LocationValues.GetBytes(n.LocationValues, n.CommonValues.ScaleEffectType, curve_and_index));
 
-				node_data.Add(LocationAbsValues.GetBytes(n.LocationAbsValues, n.CommonValues.ScaleEffectType, exporterVersion));
-				node_data.Add(RotationValues.GetBytes(n.RotationValues, exporterVersion));
-				node_data.Add(ScaleValues.GetBytes(n.ScalingValues, n.CommonValues.ScaleEffectType, exporterVersion));
-				node_data.Add(GenerationLocationValues.GetBytes(n.GenerationLocationValues, n.CommonValues.ScaleEffectType, model_and_index, procedural_mesh_and_index,exporterVersion));
+				node_data.Add(LocationAbsValues.GetBytes(n.LocationAbsValues, n.CommonValues.ScaleEffectType));
+				node_data.Add(RotationValues.GetBytes(n.RotationValues));
+				node_data.Add(ScaleValues.GetBytes(n.ScalingValues, n.CommonValues.ScaleEffectType));
+				node_data.Add(GenerationLocationValues.GetBytes(n.GenerationLocationValues, n.CommonValues.ScaleEffectType, model_and_index, procedural_mesh_and_index));
 
 				// Export depth
-                node_data.Add(n.DepthValues.DepthOffset.Value.GetBytes());
+				node_data.Add(n.DepthValues.DepthOffset.Value.GetBytes());
 				node_data.Add(BitConverter.GetBytes(n.DepthValues.IsScaleChangedDependingOnDepthOffset.Value ? 1 : 0));
 				node_data.Add(BitConverter.GetBytes(n.DepthValues.IsDepthOffsetChangedDependingOnParticleScale.Value ? 1 : 0));
 
@@ -965,40 +1022,76 @@ namespace Effekseer.Binary
 				{
 					node_data.Add(((float)n.DepthValues.DepthClipping.Value.Value).GetBytes());
 				}
-				
+
 				node_data.Add(((int)n.DepthValues.ZSort.Value).GetBytes());
 				node_data.Add(n.DepthValues.DrawingPriority.Value.GetBytes());
 
 				float compatibility = 1.0f;
 				node_data.Add(compatibility.GetBytes());
 
-#if DEBUG
+				// Export kill rules
 				{
-					var old = RendererCommonValues_Old.GetBytes(n.RendererCommonValues, n.AdvancedRendererCommonValuesValues, texture_and_index, normalTexture_and_index, distortionTexture_and_index, material_and_index, exporterVersion);
-					var @new = RendererCommonValues.GetBytes(n.RendererCommonValues, n.AdvancedRendererCommonValuesValues, texture_and_index, normalTexture_and_index, distortionTexture_and_index, material_and_index, exporterVersion);
-					if (!old.SequenceEqual(@new))
-					{
-						throw new Exception("RendererCommonValues.GetBytes returned unexpected data.");
-					}
+					node_data.Add(n.KillRulesValues.Type.GetValueAsInt().GetBytes());
+					node_data.Add(BitConverter.GetBytes(n.KillRulesValues.IsScaleAndRotationApplied ? 1 : 0));
 
-					node_data.Add(@new);
+					if (n.KillRulesValues.Type.Value == KillRulesValues.KillType.Box)
+					{
+						node_data.Add(BitConverter.GetBytes(n.KillRulesValues.BoxCenter.X));
+						node_data.Add(BitConverter.GetBytes(n.KillRulesValues.BoxCenter.Y));
+						node_data.Add(BitConverter.GetBytes(n.KillRulesValues.BoxCenter.Z));
+						node_data.Add(BitConverter.GetBytes(n.KillRulesValues.BoxSize.X));
+						node_data.Add(BitConverter.GetBytes(n.KillRulesValues.BoxSize.Y));
+						node_data.Add(BitConverter.GetBytes(n.KillRulesValues.BoxSize.Z));
+						node_data.Add(BitConverter.GetBytes(n.KillRulesValues.BoxIsKillInside ? 1 : 0));
+
+					}
+					else if (n.KillRulesValues.Type.Value == KillRulesValues.KillType.Height)
+					{
+						Data.Value.Vector3D normal = KillRulesValues.PlaneAxisNormal[n.KillRulesValues.PlaneAxis.Value].Normal;
+						node_data.Add(BitConverter.GetBytes(normal.X));
+						node_data.Add(BitConverter.GetBytes(normal.Y));
+						node_data.Add(BitConverter.GetBytes(normal.Z));
+						node_data.Add(BitConverter.GetBytes(n.KillRulesValues.PlaneOffset));
+					}
+					else if (n.KillRulesValues.Type.Value == KillRulesValues.KillType.Sphere)
+					{
+						node_data.Add(BitConverter.GetBytes(n.KillRulesValues.SphereCenter.X));
+						node_data.Add(BitConverter.GetBytes(n.KillRulesValues.SphereCenter.Y));
+						node_data.Add(BitConverter.GetBytes(n.KillRulesValues.SphereCenter.Z));
+						node_data.Add(BitConverter.GetBytes(n.KillRulesValues.SphereRadius));
+						node_data.Add(BitConverter.GetBytes(n.KillRulesValues.SphereIsKillInside ? 1 : 0));
+					}
 				}
-#else
-				node_data.Add(RendererCommonValues.GetBytes(n.RendererCommonValues, n.AdvancedRendererCommonValuesValues, texture_and_index, normalTexture_and_index, distortionTexture_and_index, material_and_index, exporterVersion));
-#endif
+
+				// Export collisions
+				{
+					int collisionEnabled = n.CollisionsValues.IsGroundCollisionEnabled.Value ? 1 : 0;
+					int sceneCollisionEnabled = n.CollisionsValues.IsSceneCollisionEnabled.Value ? 1 : 0;
+					node_data.Add(BitConverter.GetBytes(collisionEnabled));
+					node_data.Add(BitConverter.GetBytes(sceneCollisionEnabled));
+					node_data.Add(n.CollisionsValues.Bounce.GetBytes());
+					node_data.Add(n.CollisionsValues.Height.GetBytes());
+					node_data.Add(n.CollisionsValues.Friction.GetBytes());
+					node_data.Add(n.CollisionsValues.LifetimeReductionPerCollision.GetBytes());
+					node_data.Add(BitConverter.GetBytes((int)n.CollisionsValues.WorldCoordinateSyatem.Value));
+				}
+
+				node_data.Add(RendererCommonValues.GetBytes(n.RendererCommonValues, n.AdvancedRendererCommonValuesValues, texture_and_index, normalTexture_and_index, distortionTexture_and_index, material_and_index, ConvertLoadingFilePath));
 
 				if (isRenderParamExported)
 				{
-					node_data.Add(RendererValues.GetBytes(n.DrawingValues, texture_and_index, normalTexture_and_index, model_and_index, procedural_mesh_and_index, exporterVersion));
+					node_data.Add(RendererValues.GetBytes(n.DrawingValues, texture_and_index, normalTexture_and_index, model_and_index, procedural_mesh_and_index));
 				}
 				else
 				{
-					node_data.Add(RendererValues.GetBytes(null, texture_and_index, normalTexture_and_index, model_and_index, procedural_mesh_and_index, exporterVersion));
+					node_data.Add(RendererValues.GetBytes(null, texture_and_index, normalTexture_and_index, model_and_index, procedural_mesh_and_index));
 				}
 
 				data.Add(node_data.ToArray().ToArray());
 
 				data.Add(SoundValues.GetBytes(n.SoundValues, wave_and_index));
+
+				data.Add(GpuParticlesValues.GetBytes(n.GpuParticles, texture_and_index, normalTexture_and_index, model_and_index));
 
 				var children = n.Children.Internal.Where(_ => IsRenderedNodeGroup(_)).ToList();
 
@@ -1018,7 +1111,8 @@ namespace Effekseer.Binary
 		{
 			var rendered = node.IsRendered.Value && node.DrawingValues.Type.Value != Data.RendererValues.ParamaterType.None;
 			var hasSound = node.SoundValues.Type.GetValue() == Data.SoundValues.ParamaterType.Use;
-			return rendered || hasSound;
+			var hasGpuParticles = node.GpuParticles.Enabled;
+			return rendered || hasSound || hasGpuParticles;
 		}
 
 		bool IsRenderedNodeGroup(Data.Node node)
@@ -1026,7 +1120,7 @@ namespace Effekseer.Binary
 			if (IsRenderedNode(node))
 				return true;
 
-			foreach(var n in node.Children.Internal)
+			foreach (var n in node.Children.Internal)
 			{
 				if (IsRenderedNodeGroup(n))
 					return true;

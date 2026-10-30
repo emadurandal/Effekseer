@@ -24,6 +24,7 @@ if (BUILD_VIEWER OR BUILD_EDITOR)
     add_library(Boxer STATIC ${boxer_src})
 
     target_include_directories(Boxer PUBLIC Boxer/)
+    set_target_properties (Boxer PROPERTIES FOLDER Thirdparty)
 
     if(UNIX AND NOT APPLE)
         target_include_directories(Boxer 
@@ -49,11 +50,12 @@ if (BUILD_VIEWER OR BUILD_EDITOR)
         find_package(X11 REQUIRED)
         find_package(PkgConfig REQUIRED)
         pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
-        list(APPEND nfd_src nativefiledialog/src/nfd_gtk.c)
+        list(APPEND nfd_src nativefiledialog/src/nfd_zenity.c) # replaced from gtk because it doesn't run on Ubunutu 21.10 why...
     endif()
 
     add_library(nfd STATIC ${nfd_src})
     target_include_directories(nfd PUBLIC nativefiledialog/src/include/)
+    set_target_properties (nfd PROPERTIES FOLDER Thirdparty)
 
     if(UNIX AND NOT APPLE)
         target_include_directories(nfd 
@@ -73,6 +75,7 @@ if (BUILD_VIEWER OR BUILD_EDITOR)
         imgui/imgui_widgets.cpp)
     add_library(imgui STATIC ${imgui_src})
     target_include_directories(imgui PUBLIC imgui/)
+    set_target_properties (imgui PROPERTIES FOLDER Thirdparty)
 
     set(imgui-node-editor_src
         imgui-node-editor/crude_json.cpp
@@ -82,5 +85,17 @@ if (BUILD_VIEWER OR BUILD_EDITOR)
     add_library(imgui-node-editor STATIC ${imgui-node-editor_src})
     target_include_directories(imgui-node-editor PUBLIC imgui-node-editor/)
     target_link_libraries(imgui-node-editor PRIVATE imgui)
+    set_target_properties (imgui-node-editor PROPERTIES FOLDER Thirdparty)
+
+    set(ImGradientHDR_src
+        ImGradientHDR/src/ImGradientHDR.cpp
+        ImGradientHDR/src/ImGradientHDR.h)
+
+    add_library(ImGradientHDR STATIC ${ImGradientHDR_src})
+    target_include_directories(ImGradientHDR PUBLIC ImGradientHDR/src/)
+    target_link_libraries(ImGradientHDR PRIVATE imgui)
+    set_target_properties (ImGradientHDR PROPERTIES FOLDER Thirdparty)
+
+    add_subdirectory(imgui_platform)
 endif()
 

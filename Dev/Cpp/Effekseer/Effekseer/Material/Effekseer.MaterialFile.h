@@ -3,7 +3,8 @@
 #define __EFFEKSEER_MATERIAL_H__
 
 #include "../Effekseer.Base.Pre.h"
-#include "../Utils/BinaryVersion.h"
+#include "../Parameter/Effekseer.Parameters.h"
+#include "../Utils/Effekseer.BinaryVersion.h"
 #include <array>
 #include <assert.h>
 #include <map>
@@ -16,6 +17,23 @@ namespace Effekseer
 
 class MaterialFile
 {
+public:
+	enum class RequiredPredefinedMethodType : int32_t
+	{
+		Gradient = 0,
+		Noise = 1,
+		Light = 2,
+		LocalTime = 3,
+		Hsv = 4,
+		ParticleTime = 5,
+	};
+
+	struct GradientParameter
+	{
+		std::string Name;
+		Gradient Data;
+	};
+
 private:
 	const int32_t customDataMinCount_ = 2;
 
@@ -24,6 +42,7 @@ private:
 		std::string Name;
 		int32_t Index;
 		TextureWrapType Wrap;
+		TextureColorType ColorType;
 	};
 
 	struct Uniform
@@ -49,10 +68,16 @@ private:
 
 	std::vector<Uniform> uniforms_;
 
-	static const int32_t LatestSupportVersion = MaterialVersion16;
+	static const int32_t LatestSupportVersion = MaterialVersion18;
 	static const int32_t OldestSupportVersion = 0;
 
 public:
+	std::vector<GradientParameter> Gradients;
+
+	std::vector<GradientParameter> FixedGradients;
+
+	std::vector<RequiredPredefinedMethodType> RequiredMethods;
+
 	MaterialFile() = default;
 	virtual ~MaterialFile() = default;
 
@@ -77,6 +102,8 @@ public:
 	virtual uint64_t GetGUID() const;
 
 	virtual void SetGUID(uint64_t guid);
+
+	virtual TextureColorType GetTextureColorType(int32_t index) const;
 
 	virtual TextureWrapType GetTextureWrap(int32_t index) const;
 

@@ -30,11 +30,23 @@ Mat43f::Mat43f(const Matrix43& mat)
 //----------------------------------------------------------------------------------
 bool Mat43f::IsValid() const
 {
-	const Float4 nan{NAN};
-	const Float4 inf{INFINITY};
+	const Float4 nan{std::numeric_limits<float>::quiet_NaN()};
+	const Float4 inf{std::numeric_limits<float>::infinity()};
 	Float4 res = Float4::Equal(X, nan) | Float4::Equal(Y, nan) | Float4::Equal(Z, nan) | Float4::Equal(X, inf) | Float4::Equal(Y, inf) |
 				 Float4::Equal(Z, inf);
 	return Float4::MoveMask(res) == 0;
+}
+
+Mat43f Mat43f::Get3x3SubMatrix() const
+{
+	Mat43f ret;
+	ret.X = X;
+	ret.Y = Y;
+	ret.Z = Z;
+	ret.X.SetW(0.0f);
+	ret.Y.SetW(0.0f);
+	ret.Z.SetW(0.0f);
+	return ret;
 }
 
 //----------------------------------------------------------------------------------

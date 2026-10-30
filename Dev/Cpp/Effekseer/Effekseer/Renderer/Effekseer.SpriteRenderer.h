@@ -5,9 +5,11 @@
 //----------------------------------------------------------------------------------
 // Include
 //----------------------------------------------------------------------------------
-#include "../Effekseer.Base.h"
+#include "../Effekseer.Base.Pre.h"
 #include "../Effekseer.Color.h"
 #include "../Effekseer.Matrix43.h"
+#include "../Effekseer.RectF.h"
+#include "../Effekseer.RenderingTransform.h"
 #include "../Effekseer.Vector2D.h"
 #include "../SIMD/Mat43f.h"
 #include "../SIMD/Vec2f.h"
@@ -27,6 +29,7 @@ class SpriteRenderer : public ReferenceObject
 public:
 	struct NodeParameter
 	{
+		float LocalTime;
 		Effect* EffectPointer;
 		bool ZTest;
 		bool ZWrite;
@@ -42,6 +45,8 @@ public:
 		bool EnableViewOffset = false;
 
 		RefPtr<RenderingUserData> UserData;
+		EffectRenderingTransformParameter RenderingCoordinateTransform;
+		EffectRenderingTransformParameter RenderingTransform;
 	};
 
 	struct InstanceParameter
@@ -71,6 +76,10 @@ public:
 		float AlphaThreshold;
 
 		float ViewOffsetDistance;
+
+		SIMD::Vec3f Direction;
+
+		float ParticleTimes[2];
 
 		std::array<float, 4> CustomData1;
 		std::array<float, 4> CustomData2;

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Effekseer.Utl;
+using Effekseer.Utils;
 
 namespace Effekseer.Data.Value
 {
@@ -11,7 +11,7 @@ namespace Effekseer.Data.Value
 		float? _value = null;
 		float _max = float.MaxValue;
 		float _min = float.MinValue;
-		
+
 		public float Value
 		{
 			get
@@ -136,7 +136,14 @@ namespace Effekseer.Data.Value
 
 		public void ResetValue()
 		{
+			Command.CommandManager.StartCollection();
 			SetValue(DefaultValue);
+			if (CanSelectDynamicEquation)
+			{
+				IsDynamicEquationEnabled.ResetValue();
+				DynamicEquation.SetValue(null);
+			}
+			Command.CommandManager.EndCollection();
 		}
 
 		public static implicit operator float(Float value)
@@ -146,9 +153,7 @@ namespace Effekseer.Data.Value
 
 		public static explicit operator byte[](Float value)
 		{
-			byte[] values = new byte[sizeof(float) * 1];
-			BitConverter.GetBytes(value.Value).CopyTo(values, sizeof(float) * 0);
-			return values;
+			return value.GetBytes();
 		}
 
 		public byte[] GetBytes(float mul = 1.0f)

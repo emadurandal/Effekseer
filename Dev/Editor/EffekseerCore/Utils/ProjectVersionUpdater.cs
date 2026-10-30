@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
-using Effekseer.Utl;
+using Effekseer.Utils;
 
 namespace Effekseer.Utils
 {
@@ -88,7 +88,7 @@ namespace Effekseer.Utils
 				// Fcurve
 				var fcurves = Core.GetFCurveParameterNode(rootNode);
 
-				Action<Utl.ParameterTreeNode> convert = null;
+				Action<Utils.ParameterTreeNode> convert = null;
 				convert = (n) =>
 				{
 					foreach (var fcurve in n.Parameters)
@@ -602,7 +602,7 @@ namespace Effekseer.Utils
 		public override bool Update(System.Xml.XmlDocument document)
 		{
 			var proceduralElement = document["EffekseerProject"]["ProcedualModel"];
-			if(proceduralElement != null)
+			if (proceduralElement != null)
 			{
 				document["EffekseerProject"].RemoveChild(proceduralElement);
 				var newNode = document.CreateElement("ProceduralModel");
@@ -611,21 +611,21 @@ namespace Effekseer.Utils
 
 				List<XmlNode> children = new List<XmlNode>();
 
-				for(int i = 0; i < proceduralElement.FirstChild.ChildNodes.Count; i++)
+				for (int i = 0; i < proceduralElement.FirstChild.ChildNodes.Count; i++)
 				{
 					children.Add(proceduralElement.FirstChild.ChildNodes[i]);
 				}
 
-				foreach(var child in children)
+				foreach (var child in children)
 				{
-					Action<XmlNode,XmlNode, string> moveElement = (XmlNode dst, XmlNode src, string name) => 
-					{
-						var node = src[name];
-						if(node != null)
-						{
-							dst.AppendChild(node);
-						}
-					};
+					Action<XmlNode, XmlNode, string> moveElement = (XmlNode dst, XmlNode src, string name) =>
+					 {
+						 var node = src[name];
+						 if (node != null)
+						 {
+							 dst.AppendChild(node);
+						 }
+					 };
 
 					Action<XmlNode, XmlNode, string, string> moveAndRenameElement = (XmlNode dst, XmlNode src, string newName, string name) =>
 					{
@@ -635,7 +635,7 @@ namespace Effekseer.Utils
 							src.RemoveChild(node);
 
 							var nn = document.CreateElement(newName);
-							while(node.ChildNodes.Count > 0)
+							while (node.ChildNodes.Count > 0)
 							{
 								nn.AppendChild(node.FirstChild);
 							}
@@ -648,7 +648,7 @@ namespace Effekseer.Utils
 					var shape = document.CreateElement("Shape");
 					var shapeNoise = document.CreateElement("ShapeNoise");
 					var vertexColor = document.CreateElement("VertexColor");
-					
+
 					moveElement(mesh, child, "AngleBeginEnd");
 					moveElement(mesh, child, "Divisions");
 
@@ -701,6 +701,203 @@ namespace Effekseer.Utils
 
 				document["EffekseerProject"].AppendChild(newNode);
 			}
+			return true;
+		}
+	}
+
+	class ProjectVersionUpdator16xTo17Alpha1 : ProjectVersionUpdator
+	{
+		public override bool Update(NodeRoot rootNode)
+		{
+			Action<Data.NodeBase> convert = null;
+			convert = (n) =>
+			{
+				var n_ = n as Data.Node;
+
+				if (n_ != null && (n_.DrawingValues.Type.Value == Data.RendererValues.ParamaterType.Ribbon || n_.DrawingValues.Type.Value == Data.RendererValues.ParamaterType.Track))
+				{
+					var rp = n_.DrawingValues;
+					rp.TrailSmoothing.SetValueDirectly(TrailSmoothingType.Disabled);
+					rp.TrailTimeSource.SetValueDirectly(TrailTimeSourceType.FirstParticle);
+				}
+
+				if (n_ != null && n_.DrawingValues.Type.Value == RendererValues.ParamaterType.Sprite)
+				{
+					StandardColor sc = new StandardColor();
+					sc.Type = n_.DrawingValues.Sprite.ColorAll;
+					sc.Fixed = n_.DrawingValues.Sprite.ColorAll_Fixed;
+					sc.Random = n_.DrawingValues.Sprite.ColorAll_Random;
+					sc.Easing = n_.DrawingValues.Sprite.ColorAll_Easing;
+					sc.FCurve = n_.DrawingValues.Sprite.ColorAll_FCurve;
+					var text = Core.Copy("Temp", sc);
+					Core.Paste("Temp", n_.DrawingValues.ColorAll, text);
+				}
+
+				if (n_ != null && n_.DrawingValues.Type.Value == RendererValues.ParamaterType.Model)
+				{
+					StandardColor sc = new StandardColor();
+					sc.Type = n_.DrawingValues.Model.Color;
+					sc.Fixed = n_.DrawingValues.Model.Color_Fixed;
+					sc.Random = n_.DrawingValues.Model.Color_Random;
+					sc.Easing = n_.DrawingValues.Model.Color_Easing;
+					sc.FCurve = n_.DrawingValues.Model.Color_FCurve;
+
+					var text = Core.Copy("Temp", sc);
+					Core.Paste("Temp", n_.DrawingValues.ColorAll, text);
+				}
+
+				for (int i = 0; i < n.Children.Count; i++)
+				{
+					convert(n.Children[i]);
+				}
+			};
+
+			convert(rootNode);
+
+			return true;
+		}
+	}
+
+
+	class ProjectVersionUpdator17Alpha1To17Alpha2 : ProjectVersionUpdator
+	{
+		public override bool Update(NodeRoot rootNode)
+		{
+			Action<Data.NodeBase> convert = null;
+			convert = (n) =>
+			{
+				var n_ = n as Data.Node;
+
+				if (n_ != null && n_.DrawingValues.Type.Value == RendererValues.ParamaterType.Track)
+				{
+					{
+						StandardColor sc = new StandardColor();
+						sc.Type = n_.DrawingValues.Track.ColorLeft;
+						sc.Fixed = n_.DrawingValues.Track.ColorLeft_Fixed;
+						sc.Random = n_.DrawingValues.Track.ColorLeft_Random;
+						sc.Easing = n_.DrawingValues.Track.ColorLeft_Easing;
+						sc.FCurve = n_.DrawingValues.Track.ColorLeft_FCurve;
+						var text = Core.Copy("Temp", sc);
+						Core.Paste("Temp", n_.DrawingValues.TrailColorLeft, text);
+					}
+
+					{
+						StandardColor sc = new StandardColor();
+						sc.Type = n_.DrawingValues.Track.ColorLeftMiddle;
+						sc.Fixed = n_.DrawingValues.Track.ColorLeftMiddle_Fixed;
+						sc.Random = n_.DrawingValues.Track.ColorLeftMiddle_Random;
+						sc.Easing = n_.DrawingValues.Track.ColorLeftMiddle_Easing;
+						sc.FCurve = n_.DrawingValues.Track.ColorLeftMiddle_FCurve;
+						var text = Core.Copy("Temp", sc);
+						Core.Paste("Temp", n_.DrawingValues.TrailColorLeftMiddle, text);
+					}
+
+					{
+						StandardColor sc = new StandardColor();
+						sc.Type = n_.DrawingValues.Track.ColorCenter;
+						sc.Fixed = n_.DrawingValues.Track.ColorCenter_Fixed;
+						sc.Random = n_.DrawingValues.Track.ColorCenter_Random;
+						sc.Easing = n_.DrawingValues.Track.ColorCenter_Easing;
+						sc.FCurve = n_.DrawingValues.Track.ColorCenter_FCurve;
+						var text = Core.Copy("Temp", sc);
+						Core.Paste("Temp", n_.DrawingValues.TrailColorCenter, text);
+					}
+
+					{
+						StandardColor sc = new StandardColor();
+						sc.Type = n_.DrawingValues.Track.ColorCenterMiddle;
+						sc.Fixed = n_.DrawingValues.Track.ColorCenterMiddle_Fixed;
+						sc.Random = n_.DrawingValues.Track.ColorCenterMiddle_Random;
+						sc.Easing = n_.DrawingValues.Track.ColorCenterMiddle_Easing;
+						sc.FCurve = n_.DrawingValues.Track.ColorCenterMiddle_FCurve;
+						var text = Core.Copy("Temp", sc);
+						Core.Paste("Temp", n_.DrawingValues.TrailColorCenterMiddle, text);
+					}
+
+					{
+						StandardColor sc = new StandardColor();
+						sc.Type = n_.DrawingValues.Track.ColorRight;
+						sc.Fixed = n_.DrawingValues.Track.ColorRight_Fixed;
+						sc.Random = n_.DrawingValues.Track.ColorRight_Random;
+						sc.Easing = n_.DrawingValues.Track.ColorRight_Easing;
+						sc.FCurve = n_.DrawingValues.Track.ColorRight_FCurve;
+						var text = Core.Copy("Temp", sc);
+						Core.Paste("Temp", n_.DrawingValues.TrailColorRight, text);
+					}
+
+					{
+						StandardColor sc = new StandardColor();
+						sc.Type = n_.DrawingValues.Track.ColorRightMiddle;
+						sc.Fixed = n_.DrawingValues.Track.ColorRightMiddle_Fixed;
+						sc.Random = n_.DrawingValues.Track.ColorRightMiddle_Random;
+						sc.Easing = n_.DrawingValues.Track.ColorRightMiddle_Easing;
+						sc.FCurve = n_.DrawingValues.Track.ColorRightMiddle_FCurve;
+						var text = Core.Copy("Temp", sc);
+						Core.Paste("Temp", n_.DrawingValues.TrailColorRightMiddle, text);
+					}
+				}
+
+				for (int i = 0; i < n.Children.Count; i++)
+				{
+					convert(n.Children[i]);
+				}
+			};
+
+			convert(rootNode);
+
+			return true;
+		}
+	}
+
+	class ProjectVersionUpdator17To18Beta2 : ProjectVersionUpdator
+	{
+		public override bool Update(NodeRoot rootNode)
+		{
+			Action<Data.NodeBase> convert = null;
+			convert = (n) =>
+			{
+				var node = n as Data.Node;
+
+				if (node != null)
+				{
+					var common = node.CommonValues;
+
+					common.Generation.Timing.SetValueDirectly(Data.CommonValues.GenerationTimingType.Continuous);
+					common.Removal.WhenLifeIsExtinct.SetValueDirectly(common.RemoveWhenLifeIsExtinct.GetValue());
+					common.Removal.WhenParentIsRemoved.SetValueDirectly(common.RemoveWhenParentIsRemoved.GetValue());
+					common.Removal.WhenAllChildrenAreRemoved.SetValueDirectly(common.RemoveWhenAllChildrenAreRemoved.GetValue());
+
+					if (common.TriggerParam != null)
+					{
+						common.Removal.TriggerToRemove.SetValueDirectly(common.TriggerParam.ToRemove.GetValue());
+						common.Generation.ToStartGeneration.SetValueDirectly(common.TriggerParam.ToStartGeneration.GetValue());
+						common.Generation.ToStopGeneration.SetValueDirectly(common.TriggerParam.ToStopGeneration.GetValue());
+					}
+
+					common.Generation.GenerationTime.SetCenterDirectly(common.GenerationTime.Center);
+					common.Generation.GenerationTime.SetMaxDirectly(common.GenerationTime.Max);
+					common.Generation.GenerationTime.SetMinDirectly(common.GenerationTime.Min);
+					common.Generation.GenerationTime.DrawnAs = common.GenerationTime.DrawnAs;
+					common.Generation.GenerationTime.Step = common.GenerationTime.Step;
+					common.Generation.GenerationTime.DynamicEquationMax.SetValueWithIndex(common.GenerationTime.DynamicEquationMax.Index);
+					common.Generation.GenerationTime.DynamicEquationMin.SetValueWithIndex(common.GenerationTime.DynamicEquationMin.Index);
+
+					common.Generation.GenerationTimeOffset.SetCenterDirectly(common.GenerationTimeOffset.Center);
+					common.Generation.GenerationTimeOffset.SetMaxDirectly(common.GenerationTimeOffset.Max);
+					common.Generation.GenerationTimeOffset.SetMinDirectly(common.GenerationTimeOffset.Min);
+					common.Generation.GenerationTimeOffset.DrawnAs = common.GenerationTimeOffset.DrawnAs;
+					common.Generation.GenerationTimeOffset.Step = common.GenerationTimeOffset.Step;
+					common.Generation.GenerationTimeOffset.DynamicEquationMax.SetValueWithIndex(common.GenerationTimeOffset.DynamicEquationMax.Index);
+					common.Generation.GenerationTimeOffset.DynamicEquationMin.SetValueWithIndex(common.GenerationTimeOffset.DynamicEquationMin.Index);
+				}
+
+				for (int i = 0; i < n.Children.Count; i++)
+				{
+					convert(n.Children[i]);
+				}
+			};
+
+			convert(rootNode);
 			return true;
 		}
 	}

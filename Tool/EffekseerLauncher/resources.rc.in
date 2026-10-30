@@ -1,0 +1,35 @@
+#include <windows.h>
+
+IDI_ICON1 ICON DISCARDABLE "@CMAKE_CURRENT_SOURCE_DIR@/icon.ico"
+
+1 VERSIONINFO
+FILEVERSION @EFFEKSEER_VERSION_MAJOR@,@EFFEKSEER_VERSION_MINOR@,@EFFEKSEER_VERSION_PATCH@,0
+PRODUCTVERSION @EFFEKSEER_VERSION_MAJOR@,@EFFEKSEER_VERSION_MINOR@,@EFFEKSEER_VERSION_PATCH@,0
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+#ifdef _DEBUG
+FILEFLAGS VS_FF_DEBUG
+#else
+FILEFLAGS 0x0L
+#endif
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "Effekseer Project\0"
+            VALUE "FileDescription", "Effekseer Launcher\0"
+            VALUE "FileVersion", "@EFFEKSEER_VERSION@\0"
+            VALUE "InternalName", "EffekseerLauncher\0"
+            VALUE "OriginalFilename", "Effekseer.exe\0"
+            VALUE "ProductName", "Effekseer\0"
+            VALUE "ProductVersion", "@EFFEKSEER_VERSION@\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

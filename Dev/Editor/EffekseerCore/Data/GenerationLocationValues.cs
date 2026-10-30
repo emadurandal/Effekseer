@@ -20,6 +20,14 @@ namespace Effekseer.Data
 
 	public class GenerationLocationValues
 	{
+		public enum ModelCoordinateType
+		{
+			[Key(key = "SpawnMethod_ModelCoordinate_Local")]
+			Local = 0,
+			[Key(key = "SpawnMethod_ModelCoordinate_World")]
+			World = 1,
+		}
+
 		[Key(key = "SpawnMethod_EffectsRotation")]
 		public Value.Boolean EffectsRotation
 		{
@@ -205,6 +213,22 @@ namespace Effekseer.Data
 				private set;
 			} = new ProceduralModelReference();
 
+			[Selected(ID = ModelReferenceTypeID, Value = (int)ModelReferenceType.ExternalModel)]
+			[Key(key = "SpawnMethod_Model_ExternalIndex")]
+			public Value.Int ExternalModelIndex
+			{
+				get;
+				private set;
+			} = new Value.Int(0, ExternalModelValues.SlotCount - 1, 0);
+
+			[Selected(ID = ModelReferenceTypeID, Value = (int)ModelReferenceType.ExternalModel)]
+			[Key(key = "SpawnMethod_Model_Coordinate")]
+			public Value.Enum<ModelCoordinateType> Coordinate
+			{
+				get;
+				private set;
+			} = new Value.Enum<ModelCoordinateType>(ModelCoordinateType.Local);
+
 			[Key(key = "SpawnMethod_Model_Type")]
 			public Value.Enum<ModelType> Type
 			{
@@ -214,7 +238,7 @@ namespace Effekseer.Data
 
 			public ModelParameter(Path basepath)
 			{
-                Model = new Value.PathForModel(basepath, Resources.GetString("ModelFilter"), true, "");				
+				Model = new Value.PathForModel(basepath, new MultiLanguageString("ModelFilter"), true, "");
 				Type = new Value.Enum<ModelType>(ModelType.Random);
 			}
 		}

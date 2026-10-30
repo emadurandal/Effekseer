@@ -10,7 +10,6 @@ using System.Security.Cryptography;
 using Effekseer.Data;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
-using Effekseer.Utl;
 using Microsoft.Scripting.Utils;
 
 namespace Effekseer.IO
@@ -18,16 +17,6 @@ namespace Effekseer.IO
 	public class EfkPkg
 	{
 		public const string MetaFileName = "metafile.json";
-
-		public enum FileType
-		{
-			Effect,
-			Texture,
-			Sound,
-			Model,
-			Material,
-			Curve,
-		}
 
 		public class FileInfo
 		{
@@ -43,7 +32,7 @@ namespace Effekseer.IO
 		public List<FileInfo> ResourceFiles = new List<FileInfo>();
 
 		public IEnumerable<FileInfo> AllFiles
-		{ 
+		{
 			get { return Enumerable.Concat(EffectFiles, ResourceFiles); }
 		}
 
@@ -77,11 +66,31 @@ namespace Effekseer.IO
 				var resourcePaths = Utils.Misc.FindResourcePaths(rootNode, Binary.ExporterVersion.Latest);
 				var dependencies = AddEffectDependencies(resourcePaths);
 
-				var efkefc = new EfkEfc();
+				Func<string, string> convertLoadingFilePath = (string convertedPath) =>
+				{
+					foreach (var fileInfo in dependencies)
+					{
+						if (convertedPath.Contains(fileInfo.HashName))
+						{
+							return convertedPath.Replace(fileInfo.HashName, fileInfo.RelativePath);
+						}
+					}
+
+					return convertedPath;
+				};
+
 				FileInfo file = new FileInfo();
 				file.Type = FileType.Effect;
 				file.RelativePath = Path.GetFileName(path);
-				file.Data = efkefc.Save(rootNode, Core.SaveAsXmlDocument(rootNode));
+
+				var binaryExporter = new Binary.Exporter();
+				binaryExporter.ConvertLoadingFilePath = convertLoadingFilePath;
+
+				var efkefc = new EfkEfc();
+				efkefc.RootNode = rootNode;
+				efkefc.EditorData = Core.SaveAsXmlDocument(rootNode);
+
+				file.Data = efkefc.Save(binaryExporter);
 				file.HashName = ComputeHashName(file.Data);
 				file.LastWriteTime = lastWriteTime;
 				file.Dependencies = dependencies;
@@ -134,7 +143,7 @@ namespace Effekseer.IO
 
 				switch ((Utils.ResourcePaths.Type)i)
 				{
-					case Utils.ResourcePaths.Type.ColorTexture: type = FileType.Texture;  break;
+					case Utils.ResourcePaths.Type.ColorTexture: type = FileType.Texture; break;
 					case Utils.ResourcePaths.Type.NormalTexture: type = FileType.Texture; break;
 					case Utils.ResourcePaths.Type.DistortionTexture: type = FileType.Texture; break;
 					case Utils.ResourcePaths.Type.Model: type = FileType.Model; break;
@@ -195,14 +204,15 @@ namespace Effekseer.IO
 			}
 			else if (resource is Data.Value.PathForMaterial)
 			{
-				var material = new MaterialInformation();
+				var material = new Utils.MaterialInformation();
 				if (material.Load(file.Data))
 				{
 					HashSet<FileInfo> dependencies = new HashSet<FileInfo>();
 
-					bool result = ReplaceMaterialPaths(material, (path) => {
+					bool result = ReplaceMaterialPaths(material, (path) =>
+					{
 						FileInfo subfile = AddResource(
-							Utils.Misc.GetAbsolutePath(resource.AbsolutePath, path), 
+							Utils.Misc.GetAbsolutePath(resource.AbsolutePath, path),
 							path, FileType.Texture);
 
 						if (subfile != null)
@@ -413,9 +423,16 @@ namespace Effekseer.IO
 					}
 
 					string filePath = Path.Combine(dirPath, file.RelativePath);
+					string resourceDirPath = Path.GetDirectoryName(filePath);
+					if (!Directory.Exists(resourceDirPath))
+					{
+						Directory.CreateDirectory(resourceDirPath);
+					}
 
-					EfkEfc efkefc = new EfkEfc();
-					var doc = efkefc.Load(file.Data);
+					var efkefc = new IO.EfkEfc();
+					efkefc.Load(file.Data);
+
+					var doc = efkefc.EditorData;
 					if (doc == null) return false;
 
 					Core.OnFileLoaded = (path) =>
@@ -425,19 +442,25 @@ namespace Effekseer.IO
 						return (entry != null) ? entry.Data : null;
 					};
 
-					NodeRoot root = Core.LoadFromXml(doc, filePath);
-					if (root == null) return false;
+					NodeRoot nodeRoot = Core.LoadFromXml(doc, filePath);
+					if (nodeRoot == null) return false;
 
 					// Resolve the path of dependent resources
-					var resourcePaths = Utils.Misc.FindResourcePaths(root, Binary.ExporterVersion.Latest);
+					var resourcePaths = Utils.Misc.FindResourcePaths(nodeRoot, Binary.ExporterVersion.Latest);
 					foreach (var list in resourcePaths.All)
 					{
-						ApplyEffectDependencies(list);
+						ApplyEffectDependencies(list, dirPath, filePath);
 					}
 
 					// Write effect file
 					Core.OnFileLoaded = backedupDelegate;
-					byte[] data = efkefc.Save(root, Core.SaveAsXmlDocument(root));
+
+					var efkefcSave = new EfkEfc();
+					efkefcSave.RootNode = nodeRoot;
+					efkefcSave.EditorData = Core.SaveAsXmlDocument(nodeRoot);
+
+					var binaryExporter = new Binary.Exporter();
+					byte[] data = efkefcSave.Save(binaryExporter);
 					File.WriteAllBytes(filePath, data);
 					File.SetLastWriteTime(filePath, file.LastWriteTime);
 				}
@@ -450,15 +473,18 @@ namespace Effekseer.IO
 			return true;
 		}
 
-		private void ApplyEffectDependencies(List<Data.Value.Path> resourceList)
+		private void ApplyEffectDependencies(List<Data.Value.Path> resourceList, string exportDirPath, string effectPath)
 		{
 			foreach (var resource in resourceList)
 			{
 				string hashName = resource.GetRelativePath();
-				var entry = ResourceFiles.Find(r => r.HashName == hashName);
-				if (entry != null)
+				var resfile = ResourceFiles.Find(r => r.HashName == hashName);
+				if (resfile != null)
 				{
-					resource.SetRelativePathDirectly(entry.RelativePath, true);
+					var fullPath = Path.Combine(exportDirPath, resfile.RelativePath);
+					fullPath = Utils.Misc.BackSlashToSlash(fullPath);
+					var path = Utils.Misc.GetRelativePath(effectPath, fullPath);
+					resource.SetRelativePathDirectly(path, true);
 				}
 			}
 		}
@@ -467,12 +493,17 @@ namespace Effekseer.IO
 		{
 			if (file.Type == FileType.Material)
 			{
-				var material = new MaterialInformation();
+				var material = new Utils.MaterialInformation();
 				if (material.Load(file.Data))
 				{
 					bool result = ReplaceMaterialPaths(material, (path) =>
 					{
-						var resfile = AllFiles.First(f => f.HashName == path);
+						var resfile = AllFiles.FirstOrDefault(f => f.HashName == path);
+						if (resfile == null)
+						{
+							return path;
+						}
+
 						var fullPath = Path.Combine(exportDirPath, resfile.RelativePath);
 						fullPath = Utils.Misc.BackSlashToSlash(fullPath);
 						path = Utils.Misc.GetRelativePath(resourcePath, fullPath);
@@ -498,7 +529,7 @@ namespace Effekseer.IO
 			return hashStr;
 		}
 
-		private bool ReplaceMaterialPaths(MaterialInformation material, Func<string, string> callback)
+		private bool ReplaceMaterialPaths(Utils.MaterialInformation material, Func<string, string> callback)
 		{
 			foreach (var texture in material.Textures)
 			{
@@ -525,6 +556,14 @@ namespace Effekseer.IO
 				{
 					string type = (string)node["Type"];
 					if (type == "SampleTexture")
+					{
+						string path = (string)node["Props"][0]["Value"];
+						if (!string.IsNullOrEmpty(path))
+						{
+							node["Props"][0]["Value"] = callback(path);
+						}
+					}
+					else if (type == "TextureObject")
 					{
 						string path = (string)node["Props"][0]["Value"];
 						if (!string.IsNullOrEmpty(path))

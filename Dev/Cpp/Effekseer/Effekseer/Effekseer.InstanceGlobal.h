@@ -7,8 +7,11 @@
 //----------------------------------------------------------------------------------
 #include "Effekseer.Base.h"
 #include "Effekseer.Color.h"
+#include "Effekseer.ExternalModel.h"
 #include "Effekseer.Random.h"
+#include "Effekseer.RenderingTransform.h"
 #include "SIMD/Mat43f.h"
+#include "SIMD/Mat44f.h"
 #include "SIMD/Vec3f.h"
 
 //----------------------------------------------------------------------------------
@@ -16,9 +19,6 @@
 //----------------------------------------------------------------------------------
 namespace Effekseer
 {
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 
 /**
 	@brief	インスタンス共通部分
@@ -32,20 +32,21 @@ class InstanceGlobal
 
 private:
 	/* このエフェクトで使用しているインスタンス数 */
-	int m_instanceCount;
+	int instanceCount_;
 
 	/* 更新されたフレーム数 */
-	float m_updatedFrame;
+	float updatedFrame_;
 
-	InstanceContainer* m_rootContainer;
-	SIMD::Vec3f m_targetLocation = SIMD::Vec3f(0.0f, 0.0f, 0.0f);
+	InstanceContainer* rootContainer_;
+	SIMD::Vec3f targetLocation_ = SIMD::Vec3f(0.0f, 0.0f, 0.0f);
 
-	RandObject m_randObjects;
-	std::array<float, 4> dynamicInputParameters;
+	RandObject randObjects_;
+	std::array<float, 4> dynamicInputParameters_;
+	std::array<uint8_t, 4> inputTriggerCounts_;
 
 	float nextDeltaFrame_ = 0.0f;
-
-	void* m_userData = nullptr;
+	int32_t layer_ = 0;
+	void* userData_ = nullptr;
 
 	//! placement new
 	static void* operator new(size_t size);
@@ -65,23 +66,40 @@ public:
 
 	void EndDeltaFrame();
 
+	bool IsSpawnDisabled = false;
+	int CurrentLevelOfDetails = 0;
+
+	SIMD::Mat44f EffectGlobalMatrix;
+	// Used for collision detection by kill rules
+	SIMD::Mat44f InvertedEffectGlobalMatrix;
+	EffectRenderingTransformParameter EffectRenderingTransform;
+	EffectRenderingTransformParameter RenderingCoordinateTransform;
+	EffectRenderingTransformParameter RenderingTransform;
+
+	bool IsUsingGpuParticles = false;
+
 	bool IsGlobalColorSet = false;
 	Color GlobalColor = Color(255, 255, 255, 255);
 
 	std::array<std::array<float, 4>, 16> dynamicEqResults;
 
 	std::vector<InstanceContainer*> RenderedInstanceContainers;
+	std::vector<ExternalModel> externalModels_;
 
 	std::array<float, 4> GetDynamicEquationResult(int32_t index);
 
 	const std::array<float, 4>& GetDynamicInputParameters() const
 	{
-		return dynamicInputParameters;
+		return dynamicInputParameters_;
 	}
+
+	uint32_t GetInputTriggerCount(uint32_t index) const;
+
+	void AddInputTriggerCount(uint32_t index);
 
 	RandObject& GetRandObject()
 	{
-		return m_randObjects;
+		return randObjects_;
 	}
 
 	void IncInstanceCount();
@@ -90,7 +108,7 @@ public:
 
 	int GetInstanceCount();
 
-	float GetUpdatedFrame();
+	float GetUpdatedFrame() const;
 
 	void ResetUpdatedFrame();
 
@@ -100,13 +118,36 @@ public:
 	const SIMD::Vec3f& GetTargetLocation() const;
 	void SetTargetLocation(const Vector3D& location);
 
+	void SetLayer(int32_t layer)
+	{
+		layer_ = layer;
+	}
+	int32_t GetLayer() const
+	{
+		return layer_;
+	}
+	int32_t GetLayerBits() const
+	{
+		return 1 << layer_;
+	}
+
 	void SetUserData(void* userData)
 	{
-		m_userData = userData;
+		userData_ = userData;
 	}
 	void* GetUserData() const
 	{
-		return m_userData;
+		return userData_;
+	}
+
+	void SetExternalModels(const std::vector<ExternalModel>& models)
+	{
+		externalModels_ = models;
+	}
+
+	const std::vector<ExternalModel>& GetExternalModels() const
+	{
+		return externalModels_;
 	}
 };
 //----------------------------------------------------------------------------------

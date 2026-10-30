@@ -2,21 +2,16 @@
 using System.Linq;
 using Effekseer.Data;
 using Effekseer.Data.Value;
-using Effekseer.Utl;
+using Effekseer.Utils;
 
 namespace Effekseer.Binary.RenderData
 {
 	internal sealed class MaterialSerializer
 	{
-		private void AddTextureInfo(ExporterVersion version,
+		private void AddTextureInfo(
 			SortedDictionary<string, int> texAndInd,
 			TextureValuesAggregator aggregator)
 		{
-			if (version < ExporterVersion.Ver16Alpha1)
-			{
-				return;
-			}
-
 			aggregator.AddAlphaTexture(texAndInd);
 			aggregator.AddUvDistortionTexture(texAndInd);
 
@@ -34,27 +29,27 @@ namespace Effekseer.Binary.RenderData
 			}
 		}
 
-		private void AddAsDefaultMaterial(ExporterVersion version,
+		private void AddAsDefaultMaterial(
 			SortedDictionary<string, int> texToIndex,
 			Data.RendererCommonValues value,
 			TextureValuesAggregator aggregator)
 		{
 			aggregator.AddTexIdAndStoreSize(value.ColorTexture, 1, texToIndex);
 			aggregator.AddInt(-1);
-			AddTextureInfo(version, texToIndex, aggregator);
+			AddTextureInfo(texToIndex, aggregator);
 		}
 
-		private void AddAsBackDistortion(ExporterVersion version,
+		private void AddAsBackDistortion(
 			SortedDictionary<string, int> distortionToIndex,
 			Data.RendererCommonValues value,
 			TextureValuesAggregator aggregator)
 		{
 			aggregator.AddTexIdAndStoreSize(value.ColorTexture, 1, distortionToIndex);
 			aggregator.AddInt(-1);
-			AddTextureInfo(version, distortionToIndex, aggregator);
+			AddTextureInfo(distortionToIndex, aggregator);
 		}
 
-		private void AddAsLighting(ExporterVersion version,
+		private void AddAsLighting(
 			SortedDictionary<string, int> texToIndex,
 			SortedDictionary<string, int> normalTexToIndex,
 			Data.RendererCommonValues value,
@@ -62,10 +57,11 @@ namespace Effekseer.Binary.RenderData
 		{
 			aggregator.AddTexIdAndStoreSize(value.ColorTexture, 1, texToIndex);
 			aggregator.AddTexIdAndStoreSize(value.NormalTexture, 2, normalTexToIndex);
-			AddTextureInfo(version, texToIndex, aggregator);
+			AddTextureInfo(texToIndex, aggregator);
 		}
 
-		private void AddAsFile(TextureValuesAggregator aggregator,
+		private void AddAsFile(
+			TextureValuesAggregator aggregator,
 			Data.RendererCommonValues value,
 			SortedDictionary<string, int> texToIndex,
 			SortedDictionary<string, int> normalToIndex,
@@ -114,10 +110,21 @@ namespace Effekseer.Binary.RenderData
 				aggregator.AddFloat(floats[2]);
 				aggregator.AddFloat(floats[3]);
 			}
+
+			{
+				var gradients = value.MaterialFile.GetGradients(materialInfo);
+
+				aggregator.AddInt(gradients.Count);
+
+				foreach (var gradient in gradients)
+				{
+					var gradientValue = gradient.Item1.Value as Data.Value.Gradient;
+					aggregator.AddData(gradientValue.ToBinary());
+				}
+			}
 		}
 
-		public void AddMaterialData(ExporterVersion version,
-			Data.RendererCommonValues value,
+		public void AddMaterialData(Data.RendererCommonValues value,
 			TextureValuesAggregator aggregator,
 			SortedDictionary<string, int> texToIndex,
 			SortedDictionary<string, int> distortionToIndex,
@@ -127,20 +134,20 @@ namespace Effekseer.Binary.RenderData
 			switch (value.Material.Value)
 			{
 				case Data.RendererCommonValues.MaterialType.Default:
-					AddAsDefaultMaterial(version, texToIndex, value, aggregator);
+					AddAsDefaultMaterial(texToIndex, value, aggregator);
 					break;
 				case Data.RendererCommonValues.MaterialType.BackDistortion:
-					AddAsBackDistortion(version, distortionToIndex, value, aggregator);
+					AddAsBackDistortion(distortionToIndex, value, aggregator);
 					break;
 				case Data.RendererCommonValues.MaterialType.Lighting:
-					AddAsLighting(version, texToIndex, normalToIndex, value, aggregator);
+					AddAsLighting(texToIndex, normalToIndex, value, aggregator);
 					break;
 				default:
 					AddAsFile(aggregator, value, texToIndex, normalToIndex, materialToIndex);
 					break;
 			}
 		}
-		
+
 		static float[] GetUniformsVertexes(Tuple35<MaterialFileParameter.ValueStatus, MaterialInformation.UniformInformation> tuple35)
 		{
 			float[] floats1 = new float[4];

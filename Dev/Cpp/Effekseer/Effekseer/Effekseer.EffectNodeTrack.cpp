@@ -1,4 +1,5 @@
 ﻿#include "Effekseer.EffectNodeTrack.h"
+#include "Utils/Effekseer.BinaryReader.h"
 #include "Effekseer.Effect.h"
 #include "Effekseer.EffectNode.h"
 #include "Effekseer.Manager.h"
@@ -13,20 +14,21 @@
 
 #include "Effekseer.Setting.h"
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 namespace Effekseer
 {
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
-void EffectNodeTrack::LoadRendererParameter(unsigned char*& pos, const SettingRef& setting)
+
+void EffectNodeTrack::LoadRendererParameter(BinaryReader<true>& pos, const SettingRef& setting)
 {
-	int32_t type = 0;
-	memcpy(&type, pos, sizeof(int));
-	pos += sizeof(int);
-	assert(type == GetType());
+	EffectNodeType type = EffectNodeType::NoneType;
+	if (!pos.Peek(&type, sizeof(int)))
+	{
+		return pos.MarkFailed();
+	}
+	pos.Skip(sizeof(int));
+	if (type != GetType())
+	{
+		return pos.MarkFailed();
+	}
 	EffekseerPrintDebug("Renderer : Track\n");
 
 	if (m_effect->GetVersion() >= 15)
@@ -40,8 +42,26 @@ void EffectNodeTrack::LoadRendererParameter(unsigned char*& pos, const SettingRe
 
 	if (m_effect->GetVersion() >= 13)
 	{
-		memcpy(&SplineDivision, pos, sizeof(int32_t));
-		pos += sizeof(int32_t);
+		if (!pos.Peek(&SplineDivision, sizeof(int32_t)))
+		{
+			return pos.MarkFailed();
+		}
+		pos.Skip(sizeof(int32_t));
+	}
+
+	if (m_effect->GetVersion() >= Version17Alpha1)
+	{
+		if (!pos.Peek(&SmoothingType, sizeof(int32_t)))
+		{
+			return pos.MarkFailed();
+		}
+		pos.Skip(sizeof(int32_t));
+
+		if (!pos.Peek(&TimeType, sizeof(int32_t)))
+		{
+			return pos.MarkFailed();
+		}
+		pos.Skip(sizeof(int32_t));
 	}
 
 	TrackColorLeft.load(pos, m_effect->GetVersion());
@@ -52,9 +72,6 @@ void EffectNodeTrack::LoadRendererParameter(unsigned char*& pos, const SettingRe
 
 	TrackColorRight.load(pos, m_effect->GetVersion());
 	TrackColorRightMiddle.load(pos, m_effect->GetVersion());
-
-	AlphaBlend = RendererCommon.AlphaBlend;
-	TrackTexture = RendererCommon.ColorTextureIndex;
 
 	EffekseerPrintDebug("TrackColorLeft : %d\n", TrackColorLeft.type);
 	EffekseerPrintDebug("TrackColorLeftMiddle : %d\n", TrackColorLeftMiddle.type);
@@ -77,43 +94,43 @@ void EffectNodeTrack::LoadRendererParameter(unsigned char*& pos, const SettingRe
 	}
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
-void EffectNodeTrack::BeginRendering(int32_t count, Manager* manager, void* userData)
+void EffectNodeTrack::BeginRendering(int32_t count, Manager* manager, const InstanceGlobal* global, void* userData)
 {
 	TrackRendererRef renderer = manager->GetTrackRenderer();
 	if (renderer != nullptr)
 	{
-		// m_nodeParameter.TextureFilter = RendererCommon.FilterType;
-		// m_nodeParameter.TextureWrap = RendererCommon.WrapType;
 		m_nodeParameter.ZTest = RendererCommon.ZTest;
 		m_nodeParameter.ZWrite = RendererCommon.ZWrite;
 		m_nodeParameter.EffectPointer = GetEffect();
+		m_nodeParameter.LocalTime = global->GetUpdatedFrame() / 60.0f;
 
 		m_nodeParameter.DepthParameterPtr = &DepthValues.DepthParameter;
 
 		m_nodeParameter.SplineDivision = SplineDivision;
 		m_nodeParameter.BasicParameterPtr = &RendererCommon.BasicParameter;
 		m_nodeParameter.TextureUVTypeParameterPtr = &TextureUVType;
-		m_nodeParameter.IsRightHand = manager->GetCoordinateSystem() == CoordinateSystem::RH;
+		m_nodeParameter.IsRightHand = manager->GetSetting()->GetCoordinateSystem() == CoordinateSystem::RH;
+
+		auto scale = global->EffectGlobalMatrix.GetScale();
+		m_nodeParameter.GlobalScale = (scale.GetX() + scale.GetY() + scale.GetZ()) / 3.0f;
 		m_nodeParameter.Maginification = GetEffect()->GetMaginification();
 
-		m_nodeParameter.EnableViewOffset = (TranslationType == ParameterTranslationType_ViewOffset);
+		m_nodeParameter.EnableViewOffset = (TranslationParam.TranslationType == ParameterTranslationType_ViewOffset);
+		m_nodeParameter.SmoothingType = SmoothingType;
 		m_nodeParameter.UserData = GetRenderingUserData();
+		m_nodeParameter.RenderingCoordinateTransform = global->RenderingCoordinateTransform;
+		m_nodeParameter.RenderingTransform = global->RenderingTransform;
 		renderer->BeginRendering(m_nodeParameter, count, userData);
 	}
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 void EffectNodeTrack::BeginRenderingGroup(InstanceGroup* group, Manager* manager, void* userData)
 {
 	TrackRendererRef renderer = manager->GetTrackRenderer();
 	if (renderer != nullptr)
 	{
-		m_currentGroupValues = group->rendererValues.track;
+		auto& groupValues = group->rendererValues.track;
+		m_currentGroupValues = groupValues;
 
 		m_instanceParameter.InstanceCount = group->GetInstanceCount();
 		m_instanceParameter.InstanceIndex = 0;
@@ -121,20 +138,41 @@ void EffectNodeTrack::BeginRenderingGroup(InstanceGroup* group, Manager* manager
 		if (group->GetFirst() != nullptr)
 		{
 			Instance* groupFirst = group->GetFirst();
-			m_instanceParameter.UV = groupFirst->GetUV(0);
-			m_instanceParameter.AlphaUV = groupFirst->GetUV(1);
-			m_instanceParameter.UVDistortionUV = groupFirst->GetUV(2);
-			m_instanceParameter.BlendUV = groupFirst->GetUV(3);
-			m_instanceParameter.BlendAlphaUV = groupFirst->GetUV(4);
-			m_instanceParameter.BlendUVDistortionUV = groupFirst->GetUV(5);
 
-			m_instanceParameter.FlipbookIndexAndNextRate = groupFirst->m_flipbookIndexAndNextRate;
+			int livingTime{};
+			int livedTime{};
 
-			m_instanceParameter.AlphaThreshold = groupFirst->m_AlphaThreshold;
-
-			if (m_nodeParameter.EnableViewOffset == true)
+			if (TimeType == TrailTimeType::FirstParticle)
 			{
-				m_instanceParameter.ViewOffsetDistance = groupFirst->translation_values.view_offset.distance;
+				livingTime = groupFirst->livingTime_;
+				livedTime = groupFirst->livedTime_;
+			}
+			else if (TimeType == TrailTimeType::ParticleGroup)
+			{
+				livingTime = group->GetTime();
+				livedTime = 100;
+			}
+			else
+			{
+				assert(false);
+			}
+			bool isParentAlived = true;
+
+			auto& uvAnimationCache = groupValues.UVAnimationCache;
+			m_instanceParameter.UV = GetTrailUV(uvAnimationCache, groupFirst, RendererCommon, 0, livingTime, livedTime);
+			m_instanceParameter.AlphaUV = GetTrailUV(uvAnimationCache, groupFirst, RendererCommon, 1, livingTime, livedTime);
+			m_instanceParameter.UVDistortionUV = GetTrailUV(uvAnimationCache, groupFirst, RendererCommon, 2, livingTime, livedTime);
+			m_instanceParameter.BlendUV = GetTrailUV(uvAnimationCache, groupFirst, RendererCommon, 3, livingTime, livedTime);
+			m_instanceParameter.BlendAlphaUV = GetTrailUV(uvAnimationCache, groupFirst, RendererCommon, 4, livingTime, livedTime);
+			m_instanceParameter.BlendUVDistortionUV = GetTrailUV(uvAnimationCache, groupFirst, RendererCommon, 5, livingTime, livedTime);
+
+			m_instanceParameter.FlipbookIndexAndNextRate = GetTrailFlipbookIndexAndNextRate(uvAnimationCache, groupFirst, RendererCommon);
+
+			m_instanceParameter.AlphaThreshold = groupFirst->alphaThreshold_;
+
+			if (m_nodeParameter.EnableViewOffset)
+			{
+				m_instanceParameter.ViewOffsetDistance = groupFirst->translation_state_.view_offset.distance;
 			}
 
 			CalcCustomData(group->GetFirst(), m_instanceParameter.CustomData1, m_instanceParameter.CustomData2);
@@ -153,14 +191,14 @@ void EffectNodeTrack::EndRenderingGroup(InstanceGroup* group, Manager* manager, 
 	}
 }
 
-void EffectNodeTrack::Rendering(const Instance& instance, const Instance* next_instance, Manager* manager, void* userData)
+void EffectNodeTrack::Rendering(const Instance& instance, const Instance* next_instance, int index, Manager* manager, void* userData)
 {
 	TrackRendererRef renderer = manager->GetTrackRenderer();
 	if (renderer != nullptr)
 	{
-		float t = (float)instance.m_LivingTime / (float)instance.m_LivedTime;
-		int32_t time = (int32_t)instance.m_LivingTime;
-		int32_t livedTime = (int32_t)instance.m_LivedTime;
+		float t = instance.GetNormalizedLivetime();
+		int32_t time = (int32_t)instance.livingTime_;
+		int32_t livedTime = (int32_t)instance.livedTime_;
 
 		SetValues(m_instanceParameter.ColorLeft, instance, m_currentGroupValues.ColorLeft, TrackColorLeft, time, livedTime);
 		SetValues(m_instanceParameter.ColorCenter, instance, m_currentGroupValues.ColorCenter, TrackColorCenter, time, livedTime);
@@ -181,16 +219,15 @@ void EffectNodeTrack::Rendering(const Instance& instance, const Instance* next_i
 		SetValues(m_instanceParameter.SizeMiddle, m_currentGroupValues.SizeMiddle, TrackSizeMiddle, t);
 		SetValues(m_instanceParameter.SizeBack, m_currentGroupValues.SizeBack, TrackSizeBack, t);
 
-		m_instanceParameter.SRTMatrix43 = instance.GetGlobalMatrix43();
+		m_instanceParameter.SRTMatrix43 = instance.GetRenderedGlobalMatrix();
 
+		m_instanceParameter.InstanceIndex = index;
+		m_instanceParameter.ParticleTimes[0] = t;
+		m_instanceParameter.ParticleTimes[1] = instance.livingTime_ / 60.0f;
 		renderer->Rendering(m_nodeParameter, m_instanceParameter, userData);
-		m_instanceParameter.InstanceIndex++;
 	}
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 void EffectNodeTrack::EndRendering(Manager* manager, void* userData)
 {
 	TrackRendererRef renderer = manager->GetTrackRenderer();
@@ -200,38 +237,37 @@ void EffectNodeTrack::EndRendering(Manager* manager, void* userData)
 	}
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 void EffectNodeTrack::InitializeRenderedInstanceGroup(InstanceGroup& instanceGroup, Manager* manager)
 {
 	InstanceGroupValues& instValues = instanceGroup.rendererValues.track;
 	auto instanceGlobal = instanceGroup.GetRootInstance();
 	IRandObject* rand = &instanceGlobal->GetRandObject();
 
-	InitializeValues(instValues.ColorLeft, TrackColorLeft, rand);
-	InitializeValues(instValues.ColorCenter, TrackColorCenter, rand);
-	InitializeValues(instValues.ColorRight, TrackColorRight, rand);
+	AllTypeColorFunctions::Init(instValues.ColorLeft, *rand, TrackColorLeft);
+	AllTypeColorFunctions::Init(instValues.ColorCenter, *rand, TrackColorCenter);
+	AllTypeColorFunctions::Init(instValues.ColorRight, *rand, TrackColorRight);
 
-	InitializeValues(instValues.ColorLeftMiddle, TrackColorLeftMiddle, rand);
-	InitializeValues(instValues.ColorCenterMiddle, TrackColorCenterMiddle, rand);
-	InitializeValues(instValues.ColorRightMiddle, TrackColorRightMiddle, rand);
+	AllTypeColorFunctions::Init(instValues.ColorLeftMiddle, *rand, TrackColorLeftMiddle);
+	AllTypeColorFunctions::Init(instValues.ColorCenterMiddle, *rand, TrackColorCenterMiddle);
+	AllTypeColorFunctions::Init(instValues.ColorRightMiddle, *rand, TrackColorRightMiddle);
 
 	InitializeValues(instValues.SizeFor, TrackSizeFor, manager);
 	InitializeValues(instValues.SizeBack, TrackSizeBack, manager);
 	InitializeValues(instValues.SizeMiddle, TrackSizeMiddle, manager);
+
+	InitializeTrailUVAnimationCache(instValues.UVAnimationCache);
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 void EffectNodeTrack::InitializeRenderedInstance(Instance& instance, InstanceGroup& instanceGroup, Manager* manager)
 {
 	auto& instValues = instanceGroup.rendererValues.track;
 
+	IRandObject& rand = instance.GetRandObject();
+	ApplyRendererCommonUVHorizontalFlip(instance, rand);
+
 	// Calculate only center
-	int32_t time = (int32_t)instance.m_LivingTime;
-	int32_t livedTime = (int32_t)instance.m_LivedTime;
+	int32_t time = (int32_t)instance.livingTime_;
+	int32_t livedTime = (int32_t)instance.livedTime_;
 
 	Color c;
 	SetValues(c, instance, instValues.ColorCenterMiddle, TrackColorCenterMiddle, time, livedTime);
@@ -244,15 +280,12 @@ void EffectNodeTrack::InitializeRenderedInstance(Instance& instance, InstanceGro
 	instance.ColorInheritance = c;
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 void EffectNodeTrack::UpdateRenderedInstance(Instance& instance, InstanceGroup& instanceGroup, Manager* manager)
 {
 	auto& instValues = instanceGroup.rendererValues.track;
 	// Calculate only center
-	int32_t time = (int32_t)instance.m_LivingTime;
-	int32_t livedTime = (int32_t)instance.m_LivedTime;
+	int32_t time = (int32_t)instance.livingTime_;
+	int32_t livedTime = (int32_t)instance.livedTime_;
 
 	Color c;
 	SetValues(c, instance, instValues.ColorCenterMiddle, TrackColorCenterMiddle, time, livedTime);
@@ -260,33 +293,6 @@ void EffectNodeTrack::UpdateRenderedInstance(Instance& instance, InstanceGroup& 
 	instance.ColorInheritance = c;
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
-void EffectNodeTrack::InitializeValues(InstanceGroupValues::Color& value, StandardColorParameter& param, IRandObject* rand)
-{
-	if (param.type == StandardColorParameter::Fixed)
-	{
-		value.color.fixed.color_ = param.fixed.all;
-	}
-	else if (param.type == StandardColorParameter::Random)
-	{
-		value.color.random.color_ = param.random.all.getValue(*rand);
-	}
-	else if (param.type == StandardColorParameter::Easing)
-	{
-		value.color.easing.start = param.easing.all.getStartValue(*rand);
-		value.color.easing.end = param.easing.all.getEndValue(*rand);
-	}
-	else if (param.type == StandardColorParameter::FCurve_RGBA)
-	{
-		value.color.fcurve_rgba.offset = param.fcurve_rgba.FCurve->GetOffsets(*rand);
-	}
-}
-
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 void EffectNodeTrack::InitializeValues(InstanceGroupValues::Size& value, TrackSizeParameter& param, Manager* manager)
 {
 	if (param.type == TrackSizeParameter::Fixed)
@@ -295,33 +301,10 @@ void EffectNodeTrack::InitializeValues(InstanceGroupValues::Size& value, TrackSi
 	}
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 void EffectNodeTrack::SetValues(
-	Color& c, const Instance& instance, InstanceGroupValues::Color& value, StandardColorParameter& param, int32_t time, int32_t livedTime)
+	Color& c, const Instance& instance, InstanceAllTypeColorState& value, AllTypeColorParameter& param, int32_t time, int32_t livedTime)
 {
-	if (param.type == StandardColorParameter::Fixed)
-	{
-		c = value.color.fixed.color_;
-	}
-	else if (param.type == StandardColorParameter::Random)
-	{
-		c = value.color.random.color_;
-	}
-	else if (param.type == StandardColorParameter::Easing)
-	{
-		float t = (float)time / (float)livedTime;
-		param.easing.all.setValueToArg(c, value.color.easing.start, value.color.easing.end, t);
-	}
-	else if (param.type == StandardColorParameter::FCurve_RGBA)
-	{
-		auto fcurveColors = param.fcurve_rgba.FCurve->GetValues(static_cast<float>(time), static_cast<float>(livedTime));
-		c.R = (uint8_t)Clamp((value.color.fcurve_rgba.offset[0] + fcurveColors[0]), 255, 0);
-		c.G = (uint8_t)Clamp((value.color.fcurve_rgba.offset[1] + fcurveColors[1]), 255, 0);
-		c.B = (uint8_t)Clamp((value.color.fcurve_rgba.offset[2] + fcurveColors[2]), 255, 0);
-		c.A = (uint8_t)Clamp((value.color.fcurve_rgba.offset[3] + fcurveColors[3]), 255, 0);
-	}
+	c = AllTypeColorFunctions::Calculate(value, param, time, livedTime);
 
 	if (RendererCommon.ColorBindType == BindType::Always || RendererCommon.ColorBindType == BindType::WhenCreating)
 	{
@@ -341,9 +324,6 @@ void EffectNodeTrack::SetValues(
 	}
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 void EffectNodeTrack::SetValues(float& s, InstanceGroupValues::Size& value, TrackSizeParameter& param, float time)
 {
 	if (param.type == TrackSizeParameter::Fixed)
@@ -352,26 +332,22 @@ void EffectNodeTrack::SetValues(float& s, InstanceGroupValues::Size& value, Trac
 	}
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
-void EffectNodeTrack::LoadValues(TrackSizeParameter& param, unsigned char*& pos)
+void EffectNodeTrack::LoadValues(TrackSizeParameter& param, BinaryReader<true>& pos)
 {
-	memcpy(&param.type, pos, sizeof(int));
-	pos += sizeof(int);
+	if (!pos.Peek(&param.type, sizeof(int)))
+	{
+		return pos.MarkFailed();
+	}
+	pos.Skip(sizeof(int));
 
 	if (param.type == TrackSizeParameter::Fixed)
 	{
-		memcpy(&param.fixed, pos, sizeof(param.fixed));
-		pos += sizeof(param.fixed);
+		if (!pos.Peek(&param.fixed, sizeof(param.fixed)))
+		{
+			return pos.MarkFailed();
+		}
+		pos.Skip(sizeof(param.fixed));
 	}
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 } // namespace Effekseer
-
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------

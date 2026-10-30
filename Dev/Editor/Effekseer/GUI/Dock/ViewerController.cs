@@ -10,7 +10,7 @@ namespace Effekseer.GUI.Dock
 	{
 		public ViewerController()
 		{
-			Label = Icons.PanelViewerCtrl + Resources.GetString("ViewerControls") + "###ViewerControls";
+			Label = Icons.PanelViewerCtrl + MultiLanguageTextProvider.GetText("ViewerControls") + "###ViewerControls";
 		}
 
 		protected override void UpdateInternal()
@@ -44,25 +44,25 @@ namespace Effekseer.GUI.Dock
 			Manager.NativeManager.PopItemWidth();
 
 			Manager.NativeManager.SameLine();
-			
+
 			float buttonSizeY = Manager.NativeManager.GetFrameHeight();
 			float buttonSizeX = buttonSizeY * 2.2f;
-			
-			if(Manager.NativeManager.ImageButton(Images.BackStep, buttonSizeX, buttonSizeY))
+
+			if (Manager.NativeManager.ImageButton(Images.BackStep, buttonSizeX, buttonSizeY))
 			{
 				Commands.BackStep();
 			}
 
 			Manager.NativeManager.SameLine();
-			if(Manager.NativeManager.ImageButton(Images.Step, buttonSizeX, buttonSizeY))
+			if (Manager.NativeManager.ImageButton(Images.Step, buttonSizeX, buttonSizeY))
 			{
 				Commands.Step();
 			}
 
 			Manager.NativeManager.SameLine();
-			if(Manager.NativeManager.ImageButton(Images.Stop, buttonSizeX, buttonSizeY))
+			if (Manager.NativeManager.ImageButton(Images.Stop, buttonSizeX, buttonSizeY))
 			{
-				if(Manager.Viewer.IsPlaying && !Manager.Viewer.IsPaused)
+				if (Manager.Viewer.IsPlaying && !Manager.Viewer.IsPaused)
 				{
 					Commands.Stop();
 					Commands.Play();
@@ -97,6 +97,42 @@ namespace Effekseer.GUI.Dock
 					{
 						Manager.Viewer.PlayViewer();
 					}
+				}
+			}
+
+			{
+				float spacing = Manager.NativeManager.GetStyleVar2(swig.ImGuiStyleVarFlags.ItemSpacing).X;
+				float buttonWidth = Manager.NativeManager.GetTextLineHeightWithSpacing();
+
+				for (int i = 0; i < 4; i++)
+				{
+					Manager.NativeManager.SameLine(0.0f, i == 0 ? spacing * 1.5f : spacing * 0.5f);
+
+					if (Manager.NativeManager.Button(i.ToString(), buttonWidth))
+					{
+						Manager.Viewer.SendTrigger(i);
+					}
+
+					if (BindableComponent.Functions.CanShowTip())
+					{
+						Manager.NativeManager.SetTooltip(MultiLanguageTextProvider.GetText("SendTrigger_Desc"));
+					}
+				}
+			}
+
+			Manager.NativeManager.SameLine();
+			{
+				
+				float[] bias = { Manager.Viewer.LODDistanceBias };
+				Manager.NativeManager.SetNextItemWidth(120F);
+				if (Manager.NativeManager.DragFloat(MultiLanguageTextProvider.GetText("LOD_Bias_Name"), bias))
+				{
+					Manager.Viewer.LODDistanceBias = bias[0];
+				}
+
+				if (Manager.NativeManager.IsItemHovered())
+				{
+					Manager.NativeManager.SetTooltip(MultiLanguageTextProvider.GetText("LOD_Bias_Description"));
 				}
 			}
 		}

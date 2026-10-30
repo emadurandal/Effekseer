@@ -1,11 +1,22 @@
 %module(directors="1") EffekseerNative
 
 %{
-#include "efk.Base.h"
-#include "GUI/efk.ImageResource.h"
-#include "dll.h"
+#include "Parameters.h"
+#include "ProcessConnector.h"
+#include "Recorder/EffectRecorder.h"
+#include "3D/ViewPointController.h"
+#include "3D/Effect.h"
+#include "3D/EffectSetting.h"
+#include "3D/EffectFactory.h"
+#include "3D/MainScreenEffectRenderer.h"
+#include "Network/Network.h"
+#include "Sound/SoundDevice.h"
 #include "GUI/efk.GUIManager.h"
 #include "GUI/efk.FileDialog.h"
+#include "GUI/ReloadableImage.h"
+#include "GUI/GradientHDRState.h"
+#include <EffekseerToolRuntime/RenderImage.h>
+#include "Utils/Logger.h"
 #include "CompiledMaterialGenerator.h"
 #include "../EditorCommon/Platform/PlatformMisc.h"
 #include "../EditorCommon/GUI/MainWindow.h"
@@ -25,6 +36,7 @@
 %include "typemaps.i"
 %include "arrays_csharp.i"
 %include <std_shared_ptr.i>
+%include <std_vector.i>
 
 %pragma(csharp) imclassclassmodifiers="
 [System.Security.SuppressUnmanagedCodeSecurity]
@@ -40,6 +52,10 @@ class"
 %typemap(csout) void * { return $imcall; }
 %typemap(csvarin) void * { set { $imcall; } }
 %typemap(csvarout) void * { get { return $imcall; } } 
+
+%template(ProfileSampleManagerVector) std::vector<Effekseer::Tool::ProfileSample::Manager>;
+%template(ProfileSampleEffectVector) std::vector<Effekseer::Tool::ProfileSample::Effect>;
+%template(ViewerExternalModelVector) std::vector<Effekseer::Tool::ViewerExternalModel>;
 
 //-----------------------------------------------------------------------------------
 //
@@ -87,13 +103,28 @@ class"
 %apply uint8_t INOUT[] { uint8_t* data }
 %apply uint8_t INOUT[] { uint8_t* data_output }
 
+// Plot
+%apply double INPUT[] { const double* xValues }
+%apply double INPUT[] { const double* yValues }
+
 %feature("director") GUIManagerCallback;
 %feature("director") IOCallback;
+%feature("director") EffectRendererCallback;
 
 %shared_ptr(Effekseer::MainWindow);
 %shared_ptr(Effekseer::StaticFile);
 %shared_ptr(Effekseer::IO);
 %shared_ptr(Effekseer::IOCallback);
+%shared_ptr(Effekseer::ToolRuntime::Image);
+%shared_ptr(Effekseer::ToolRuntime::RenderImage);
+%shared_ptr(Effekseer::Tool::EffectRecorder);
+%shared_ptr(Effekseer::Tool::ReloadableImage);
+%shared_ptr(Effekseer::Tool::ViewPointController);
+%shared_ptr(Effekseer::Tool::Effect);
+%shared_ptr(Effekseer::Tool::EffectFactory);
+%shared_ptr(Effekseer::Tool::EffectSetting);
+%shared_ptr(Effekseer::Tool::GraphicsDevice);
+%shared_ptr(Effekseer::Tool::SoundDevice);
 
 // Timeline
 %apply int *INOUT { int* frameMin }
@@ -105,13 +136,49 @@ class"
 //-----------------------------------------------------------------------------------
 //
 //-----------------------------------------------------------------------------------
-%include "Cpp/Viewer/efk.Base.h"
+%include "Cpp/Viewer/Math/Matrix44F.h"
+%include "Cpp/Viewer/Math/Vector2I.h"
+%include "Cpp/Viewer/Math/Vector3F.h"
+
+%include "Cpp/Viewer/Parameters.h"
+%include "Cpp/Viewer/ProcessConnector.h"
 %include "Cpp/Viewer/GUI/efk.Vec2.h"
-%include "Cpp/Viewer/GUI/efk.ImageResource.h"
-%include "Cpp/Viewer/ViewerEffectBehavior.h"
-%include "Cpp/Viewer/dll.h"
+%include "Cpp/Viewer/GUI/efk.Vec4.h"
+%include "Cpp/Viewer/Recorder/RecordingParameter.h"
+%include "Cpp/Viewer/Recorder/EffectRecorder.h"
+
+%include "Cpp/Viewer/Graphics/Color.h"
+%include "Cpp/Viewer/Graphics/GraphicsDevice.h"
+%include "Cpp/Viewer/Sound/SoundDevice.h"
+
+%include "Cpp/EffekseerToolRuntime/EffekseerToolRuntime/Image.h"
+%ignore Effekseer::ToolRuntime::RenderImage::RenderImage;
+%include "Cpp/EffekseerToolRuntime/EffekseerToolRuntime/RenderImage.h"
+
+%extend Effekseer::ToolRuntime::RenderImage
+{
+	static std::shared_ptr<Effekseer::ToolRuntime::RenderImage> Create(std::shared_ptr<Effekseer::Tool::GraphicsDevice> graphicsDevice)
+	{
+		return Effekseer::ToolRuntime::RenderImage::Create(graphicsDevice->GetGraphics()->GetGraphicsDevice());
+	}
+}
+
+%include "Cpp/Viewer/3D/ViewPointController.h"
+%include "Cpp/Viewer/3D/Effect.h"
+%include "Cpp/Viewer/3D/EffectSetting.h"
+%include "Cpp/Viewer/3D/EffectFactory.h"
+%include "Cpp/Viewer/3D/EffectRenderer.h"
+%include "Cpp/Viewer/3D/MainScreenEffectRenderer.h"
+
+%include "Cpp/Viewer/Network/ProfileSample.h"
+%include "Cpp/Viewer/Network/Network.h"
+
+%include "Cpp/Viewer/Utils/Logger.h"
+
 %include "Cpp/Viewer/GUI/efk.GUIManager.h"
 %include "Cpp/Viewer/GUI/efk.FileDialog.h"
+%include "Cpp/Viewer/GUI/GradientHDRState.h"
+%include "Cpp/Viewer/GUI/ReloadableImage.h"
 %include "Cpp/Viewer/CompiledMaterialGenerator.h"
 
 %include "Cpp/EditorCommon/Platform/PlatformMisc.h"

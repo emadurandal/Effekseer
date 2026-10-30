@@ -1,5 +1,8 @@
 ﻿Effekseer
 =========
+
+![Effekseer](docs/Images/EpicMegaGrants_Effekseer.png)
+
 This software is a particle effect editing tool. 
 By incorporating runtimes and plug-ins, effects created in Effekseer can be played back in your application. 
 Effekseer is intended to be used primarily for games, allowing the designer, not the programmer, to be in charge of editing particle effects.
@@ -22,6 +25,8 @@ Effekseer主要用作遊戲開發,不僅是程序員而且設計師也可進行�
 
 [![](http://img.youtube.com/vi/WwNX9TO7guA/0.jpg)](https://www.youtube.com/watch?v=WwNX9TO7guA)
 
+**master branch is the development branch. Please don't use master branch for production.**
+
 Supported platforms
 =========
 
@@ -29,19 +34,25 @@ Supported platforms
 - WebGL
 - Unity
 - GodotEngine
-- UnrealEngine4
+- UnrealEngine
 - DX Library
 - Cocos2d-x
 - Console games (Please mail to effekseer(at)gmail.com)
 
-GodotEngine is planned in 1.6.
-
-Repositories
+Sponsors
 =========
+
+- [Epic Games (Epic MegaGrants)](https://www.unrealengine.com/en-US/megagrants)
+- [EXBO](https://exbo.net/)
+
+Development
+=========
+
+### Repositories
 
 * [ForUnity](https://github.com/effekseer/EffekseerForUnity)
 
-* [ForUE4](https://github.com/effekseer/EffekseerForUE4)
+* [ForUE](https://github.com/effekseer/EffekseerForUE)
 
 * [ForGodotEngine](https://github.com/effekseer/EffekseerForGodot3)
 
@@ -59,7 +70,9 @@ Repositories
 
 ### Branch
 
-* master 1.7(WIP)
+* master 1.8(WIP)
+
+* [1.7x](https://github.com/effekseer/Effekseer/tree/17x)
 
 * [1.6x](https://github.com/effekseer/Effekseer/tree/16x)
 
@@ -77,24 +90,20 @@ Repositories
 
 [Profiling](docs/Development/Profiling.md)
 
+[Design](docs/Development/Design.md)
+
 [CodeOverview](docs/Development/CodeOverview.md)
+
+[Easing implementation](docs/Development/Implementation/Easing.md)
 
 [CodingRule](docs/Development/CodingRule_En.md)
 
 [コーディングルール](docs/Development/CodingRule_Ja.md)
 
-# For contributors
+### For contributors
 
 Please read issues. We always welcome pull requests for improvements, bug fixes, and so on.
 
 issuesを読んでください。常時、機能追加、バグ修正といったプルリクエストを募集しております。
 
 [Issues](https://github.com/effekseer/Effekseer/issues)
-
-These are not on issue. But it is welcome.
-
-- Add samples (サンプルの追加)
-- Add tutorial documents (チュートリアルのドキュメントの追加)
-- Add tests for a runtime (ランタイムのテストの追加)
-- Translate documents from Japanese into English (ドキュメントの日本語から英語への翻訳)
-

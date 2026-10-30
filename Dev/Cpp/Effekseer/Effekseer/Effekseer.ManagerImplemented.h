@@ -2,7 +2,6 @@
 #ifndef __EFFEKSEER_MANAGER_IMPLEMENTED_H__
 #define __EFFEKSEER_MANAGER_IMPLEMENTED_H__
 
-#include "Culling/Culling3D.h"
 #include "Effekseer.Base.h"
 #include "Effekseer.InstanceChunk.h"
 #include "Effekseer.IntrusiveList.h"
@@ -10,7 +9,9 @@
 #include "Effekseer.Matrix43.h"
 #include "Effekseer.Matrix44.h"
 #include "Effekseer.WorkerThread.h"
+#include "Geometry/Effekseer.GeometryUtility.h"
 #include "Utils/Effekseer.CustomAllocator.h"
+#include "Utils/Effekseer.InstancePool.h"
 
 namespace Effekseer
 {
@@ -22,14 +23,13 @@ class ManagerImplemented : public Manager, public ReferenceObject
 	friend class InstanceContainer;
 	friend class InstanceGroup;
 
-private:
+public:
 	class alignas(32) DrawSet
 	{
 	public:
 		EffectRef ParameterPointer;
 		InstanceContainer* InstanceContainerPointer;
 		InstanceGlobal* GlobalPointer;
-		Culling3D::Object* CullingObjectPointer;
 		int RandomSeed = 0;
 		bool IsPaused;
 		bool IsShown;
@@ -39,13 +39,14 @@ private:
 		bool DoUseBaseMatrix;
 		bool GoingToStop;
 		bool GoingToStopRoot;
+		bool AreChildrenOfRootGenerated = false;
 		EffectInstanceRemovingCallback RemovingCallback;
 
 		Matrix43 Rotation;
-		Vector3D Scaling = { 1.f, 1.f, 1.f };
+		Vector3D Scaling = {1.f, 1.f, 1.f};
+		EffectFlipParameter EffectFlip;
 
 		SIMD::Mat43f BaseMatrix;
-		SIMD::Mat43f GlobalMatrix;
 
 		float Speed;
 
@@ -53,8 +54,6 @@ private:
 
 		bool IsPreupdated = false;
 		int32_t StartFrame = 0;
-
-		int32_t Layer = 0;
 
 		//! a time (by 1/60) to progress an effect when Update is called
 		float NextUpdateFrame = 0.0f;
@@ -69,11 +68,13 @@ private:
 		//! a bit mask for group
 		int64_t GroupMask = 0;
 
+		Vector3D CullingPosition{};
+		float CullingRadius{};
+
 		DrawSet(const EffectRef& effect, InstanceContainer* pContainer, InstanceGlobal* pGlobal)
 			: ParameterPointer(effect)
 			, InstanceContainerPointer(pContainer)
 			, GlobalPointer(pGlobal)
-			, CullingObjectPointer(nullptr)
 			, IsPaused(false)
 			, IsShown(true)
 			, IsAutoDrawing(true)
@@ -93,7 +94,6 @@ private:
 			: ParameterPointer(nullptr)
 			, InstanceContainerPointer(nullptr)
 			, GlobalPointer(nullptr)
-			, CullingObjectPointer(nullptr)
 			, IsPaused(false)
 			, IsShown(true)
 			, IsRemoving(false)
@@ -106,51 +106,38 @@ private:
 			Rotation.Indentity();
 		}
 
-		SIMD::Mat43f* GetEnabledGlobalMatrix();
+		SIMD::Mat43f GetGlobalMatrix() const;
 
-		void CopyMatrixFromInstanceToRoot();
+		void SetGlobalMatrix(const SIMD::Mat43f& mat);
+
+		void UpdateLevelOfDetails(const LayerParameter& loadParameter);
+
+	private:
+		SIMD::Mat43f GlobalMatrix;
 	};
 
-	struct CullingParameter
-	{
-		float SizeX;
-		float SizeY;
-		float SizeZ;
-		int32_t LayerCount;
-
-		CullingParameter()
-		{
-			SizeX = 0.0f;
-			SizeY = 0.0f;
-			SizeZ = 0.0f;
-			LayerCount = 0;
-		}
-
-	} cullingCurrent, cullingNext;
-
 private:
-	CustomVector<WorkerThread> m_WorkerThreads;
+	CustomVector<WorkerThread> workerThreads_;
 
 	//! whether does rendering and update handle flipped automatically
-	bool m_autoFlip = true;
+	bool autoFlip_ = true;
 
 	//! next handle
-	Handle m_NextHandle = 0;
+	Handle nextHandle_ = 0;
 
 	// 確保済みインスタンス数
-	int m_instance_max;
+	int instanceMax_;
 
-	// buffers which is allocated while initializing
-	// 初期化中に確保されたバッファ
-	CustomAlignedVector<InstanceChunk> reservedChunksBuffer_;
-	CustomAlignedVector<uint8_t> reservedGroupBuffer_;
-	CustomAlignedVector<uint8_t> reservedContainerBuffer_;
+	int nextComputeCount_;
 
-	// pooled instances. Thease are not used and waiting to be used.
-	// プールされたインスタンス。使用されておらず、使用されてるのを待っている。
-	std::queue<InstanceChunk*> pooledChunks_;
-	std::queue<InstanceGroup*> pooledGroups_;
-	std::queue<InstanceContainer*> pooledContainers_;
+	/**
+		@note
+		An user can specify only the maximum number of instance.
+		But the number of instance container is larger than one of instance.
+	*/
+	InstancePool<InstanceChunk> pooledInstanceChunks_;
+	InstancePool<InstanceGroup> pooledInstanceGroup_;
+	InstancePool<InstanceContainer> pooledInstanceContainers_;
 
 	// instance chunks by generations
 	// 世代ごとのインスタンスチャンク
@@ -159,59 +146,63 @@ private:
 	std::array<int32_t, GenerationsMax> creatableChunkOffsets_;
 
 	// playing objects
-	CustomAlignedMap<Handle, DrawSet> m_DrawSets;
+	CustomAlignedMap<Handle, DrawSet> drawSets_;
 
 	//! objects which are waiting to be disposed
-	std::array<CustomAlignedMap<Handle, DrawSet>, 2> m_RemovingDrawSets;
+	std::array<CustomAlignedMap<Handle, DrawSet>, 2> removingDrawSets_;
 
 	//! objects on rendering
-	CustomAlignedVector<DrawSet> m_renderingDrawSets;
+	CustomAlignedVector<DrawSet> renderingDrawSets_;
 
 	//! objects on rendering temporaly (sorted)
 	CustomAlignedVector<DrawSet> sortedRenderingDrawSets_;
 
 	//! objects on rendering
-	CustomAlignedMap<Handle, DrawSet> m_renderingDrawSetMaps;
+	CustomAlignedMap<Handle, DrawSet> renderingDrawSetMaps_;
 
 	// mutex for rendering
-	std::recursive_mutex m_renderingMutex;
-	bool m_isLockedWithRenderingMutex = false;
+	std::recursive_mutex renderingMutex_;
+	bool isLockedWithRenderingMutex_ = false;
 
-	SettingRef m_setting;
+	SettingRef setting_;
+	CoordinateSystemMode coordinateSystemMode_ = CoordinateSystemMode::LegacySimulation;
+	CoordinateSystem externalCoordinateSystem_ = CoordinateSystem::RH;
+	CoordinateSystemTransform coordinateSystemTransform_;
+	CoordinateSystemConverter coordinateSystemConverter_;
+	bool hasCustomCoordinateSystemTransform_ = false;
 
-	int m_updateTime;
-	int m_drawTime;
+	int updateTime_;
+	int computeTime_;
+	int drawTime_;
+	Manager::DrawTime drawTimeBreakdown_;
 
-	uint32_t m_sequenceNumber;
+	uint32_t sequenceNumber_;
 
-	Culling3D::World* m_cullingWorld;
+	SpriteRendererRef spriteRenderer_;
 
-	std::vector<DrawSet*> m_culledObjects;
-	std::set<Handle> m_culledObjectSets;
-	bool m_culled;
+	RibbonRendererRef ribbonRenderer_;
 
-	SpriteRendererRef m_spriteRenderer;
+	RingRendererRef ringRenderer_;
 
-	RibbonRendererRef m_ribbonRenderer;
+	ModelRendererRef modelRenderer_;
 
-	RingRendererRef m_ringRenderer;
+	TrackRendererRef trackRenderer_;
 
-	ModelRendererRef m_modelRenderer;
+	GpuParticleSystemRef gpuParticleSystem_;
 
-	TrackRendererRef m_trackRenderer;
+	GpuTimerRef gpuTimer_;
 
-	SoundPlayerRef m_soundPlayer;
+	SoundPlayerRef soundPlayer_;
 
-	MallocFunc m_MallocFunc;
+	RandFunc randFunc_;
+	CollisionCallback collisionCallback_;
+	CollisionCallback internalCollisionCallback_;
 
-	FreeFunc m_FreeFunc;
+	std::array<LayerParameter, LayerCount> layerParameters_;
+	std::array<LayerParameter, LayerCount> externalLayerParameters_;
 
-	RandFunc m_randFunc;
-
-	int m_randMax;
-
-	std::queue<std::pair<SoundTag, SoundPlayer::InstanceParameter>> m_requestedSounds;
-	std::mutex m_soundMutex;
+	std::queue<std::pair<SoundTag, SoundPlayer::InstanceParameter>> requestedSounds_;
+	std::mutex soundMutex_;
 
 	Handle AddDrawSet(const EffectRef& effect, InstanceContainer* pInstanceContainer, InstanceGlobal* pGlobalPointer);
 
@@ -220,17 +211,43 @@ private:
 	//! GC Draw sets
 	void GCDrawSet(bool isRemovingManager);
 
-	static void* EFK_STDCALL Malloc(unsigned int size);
-
-	static void EFK_STDCALL Free(void* p, unsigned int size);
-
-	static int EFK_STDCALL Rand();
+	static int Rand();
 
 	void ExecuteEvents();
 
 	void ExecuteSounds();
 
-	void StoreSortingDrawSets(const Manager::DrawParameter& drawParameter);
+	void StoreSortingDrawSets(
+		const Manager::DrawParameter& drawParameter,
+		const EffectRenderingTransformParameter& renderingCoordinateTransform);
+
+	static bool CanDraw(
+		const DrawSet& drawSet,
+		const Manager::DrawParameter& drawParameter,
+		const std::array<Plane, 6>& planes,
+		const EffectRenderingTransformParameter& renderingCoordinateTransform);
+
+	static void ApplyRenderingCoordinateTransform(
+		DrawSet& drawSet,
+		const EffectRenderingTransformParameter& renderingCoordinateTransform);
+
+	void RefreshCoordinateSystemBoundaryState();
+
+	EffectRenderingTransformParameter CalculateDrawRenderingCoordinateTransform(const Matrix44& drawCoordinateMatrix) const;
+
+	void SetMatrixInternal(Handle handle, const Matrix43& mat);
+
+	void SetLocationInternal(Handle handle, const Vector3D& location);
+
+	void AddLocationInternal(Handle handle, const Vector3D& location);
+
+	void SetRotationInternal(Handle handle, const Matrix43& rotation);
+
+	void SetScaleInternal(Handle handle, const Vector3D& scale);
+
+	void SetTargetLocationInternal(Handle handle, const Vector3D& location);
+
+	Handle PlayInternal(const EffectRef& effect, const Vector3D& position, int32_t startFrame);
 
 public:
 	ManagerImplemented(int instance_max, bool autoFlip);
@@ -252,25 +269,27 @@ public:
 
 	uint32_t GetSequenceNumber() const;
 
-	MallocFunc GetMallocFunc() const override;
-
-	void SetMallocFunc(MallocFunc func) override;
-
-	FreeFunc GetFreeFunc() const override;
-
-	void SetFreeFunc(FreeFunc func) override;
-
 	RandFunc GetRandFunc() const override;
 
 	void SetRandFunc(RandFunc func) override;
 
-	int GetRandMax() const override;
-
-	void SetRandMax(int max_) override;
-
 	CoordinateSystem GetCoordinateSystem() const override;
 
 	void SetCoordinateSystem(CoordinateSystem coordinateSystem) override;
+
+	CoordinateSystemMode GetCoordinateSystemMode() const override;
+
+	void SetCoordinateSystemMode(CoordinateSystemMode mode) override;
+
+	CoordinateSystemTransform GetCoordinateSystemTransform() const override;
+
+	bool SetCoordinateSystemTransform(const CoordinateSystemTransform& transform) override;
+
+	void SetCollisionCallback(CollisionCallback callback) override;
+
+	CollisionCallback GetCollisionCallback() const override;
+
+	CollisionCallback GetInternalCollisionCallback() const;
 
 	SpriteRendererRef GetSpriteRenderer() override;
 
@@ -291,6 +310,18 @@ public:
 	TrackRendererRef GetTrackRenderer() override;
 
 	void SetTrackRenderer(TrackRendererRef renderer) override;
+
+	GpuTimerRef GetGpuTimer() override;
+
+	void SetGpuTimer(GpuTimerRef gpuTimer) override;
+
+	GpuParticleSystemRef GetGpuParticleSystem() override;
+
+	void SetGpuParticleSystem(GpuParticleSystemRef system) override;
+
+	GpuParticleFactoryRef GetGpuParticleFactory() override;
+
+	void SetGpuParticleFactory(GpuParticleFactoryRef factory) override;
 
 	const SettingRef& GetSetting() const override;
 
@@ -334,9 +365,19 @@ public:
 
 	bool Exists(Handle handle) override;
 
+	EffectRef GetEffect(Handle handle) override;
+
 	int32_t GetInstanceCount(Handle handle) override;
 
 	int32_t GetTotalInstanceCount() const override;
+
+	int GetCurrentLOD(Handle handle) override;
+
+	const LayerParameter& GetLayerParameter(int32_t layer) const override;
+
+	const LayerParameter& GetInternalLayerParameter(int32_t layer) const;
+
+	void SetLayerParameter(int32_t layer, const LayerParameter& layerParameter) override;
 
 	Matrix43 GetMatrix(Handle handle) override;
 
@@ -353,6 +394,10 @@ public:
 
 	void SetScale(Handle handle, float x, float y, float z) override;
 
+	EffectFlipParameter GetEffectFlip(Handle handle) const override;
+
+	void SetEffectFlip(Handle handle, const EffectFlipParameter& flip) override;
+
 	void SetAllColor(Handle handle, Color color) override;
 
 	void SetTargetLocation(Handle handle, float x, float y, float z) override;
@@ -361,6 +406,8 @@ public:
 	float GetDynamicInput(Handle handle, int32_t index) override;
 
 	void SetDynamicInput(Handle handle, int32_t index, float value) override;
+
+	void SendTrigger(Handle handle, int32_t index) override;
 
 	Matrix43 GetBaseMatrix(Handle handle) override;
 
@@ -378,7 +425,11 @@ public:
 
 	void SetPausedToAllEffects(bool paused) override;
 
-	int GetLayer(Handle handle) override;
+	void SetSpawnDisabled(Handle handle, bool spawnDisabled) override;
+
+	bool GetSpawnDisabled(Handle handle) override;
+
+	int32_t GetLayer(Handle handle) override;
 
 	void SetLayer(Handle handle, int32_t layer) override;
 
@@ -396,6 +447,8 @@ public:
 
 	void SetAutoDrawing(Handle handle, bool autoDraw) override;
 
+	void* GetUserData(Handle handle) override;
+
 	void SetUserData(Handle handle, void* userData) override;
 
 	void Flip() override;
@@ -404,7 +457,7 @@ public:
 
 	void Update(const UpdateParameter& parameter) override;
 
-	void DoUpdate(const UpdateParameter& parameter);
+	void DoUpdate(const UpdateParameter& parameter, int times);
 
 	void BeginUpdate() override;
 
@@ -425,13 +478,19 @@ private:
 	void Preupdate(DrawSet& drawSet);
 
 	//! whether container is disabled while rendering because of a distance between the effect and a camera
-	bool IsClippedWithDepth(DrawSet& drawSet, InstanceContainer* container, const Manager::DrawParameter& drawParameter);
+	bool IsClippedWithDepth(
+		DrawSet& drawSet,
+		InstanceContainer* container,
+		const Manager::DrawParameter& drawParameter,
+		const EffectRenderingTransformParameter& renderingCoordinateTransform);
 
 	void StopWithoutRemoveDrawSet(DrawSet& drawSet);
 
 	void ResetAndPlayWithDataSet(DrawSet& drawSet, float frame);
 
 public:
+	void Compute() override;
+
 	void Draw(const Manager::DrawParameter& drawParameter) override;
 
 	void DrawBack(const Manager::DrawParameter& drawParameter) override;
@@ -444,9 +503,13 @@ public:
 
 	void DrawHandleFront(Handle handle, const Manager::DrawParameter& drawParameter) override;
 
+	bool GetIsCulled(Handle handle, const Manager::DrawParameter& drawParameter) override;
+
 	Handle Play(const EffectRef& effect, float x, float y, float z) override;
 
 	Handle Play(const EffectRef& effect, const Vector3D& position, int32_t startFrame) override;
+
+	Handle Play(const PlayParameter& parameter) override;
 
 	int GetCameraCullingMaskToShowAllEffects() override;
 
@@ -454,17 +517,22 @@ public:
 
 	int GetDrawTime() const override;
 
+	Manager::DrawTime GetDrawTimeBreakdown() const override;
+
+	int32_t GetGpuTime() const override;
+
+	int32_t GetGpuTime(Handle handle) const override;
+
 	int32_t GetRestInstancesCount() const override;
 
 	void BeginReloadEffect(const EffectRef& effect, bool doLockThread);
 
 	void EndReloadEffect(const EffectRef& effect, bool doLockThread);
 
-	void CreateCullingWorld(float xsize, float ysize, float zsize, int32_t layerCount) override;
-
-	void CalcCulling(const Matrix44& cameraProjMat, bool isOpenGL) override;
-
-	void RessignCulling() override;
+	const CustomAlignedMap<Handle, DrawSet>& GetPlayingDrawSets() const
+	{
+		return drawSets_;
+	}
 
 	virtual int GetRef() override
 	{

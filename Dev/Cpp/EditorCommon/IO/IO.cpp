@@ -51,7 +51,8 @@ IO::IO(int checkFileInterval)
 
 	if (checkFileInterval > 0)
 	{
-		checkFileThread = std::thread([this] { CheckFile(checkFileInterval_); });
+		checkFileThread = std::thread([this]
+									  { CheckFile(checkFileInterval_); });
 		isThreadRunning_ = true;
 	}
 }
@@ -160,7 +161,7 @@ uint64_t IO::GetFileLastWriteTime(const FileInfo& fileInfo)
 	case StaticFileType::IPC:
 		char data;
 		ipcStorage_->Lock();
-		if (ipcStorage_->GetFile(utf16_to_utf8(fileInfo.path_).c_str(), &data, 1, time) == 0)
+		if (ipcStorage_->GetFile(Effekseer::Tool::StringHelper::ConvertUtf16ToUtf8(fileInfo.path_).c_str(), &data, 1, time) == 0)
 			time = 0;
 		ipcStorage_->Unlock();
 		break;
@@ -196,7 +197,7 @@ void IO::CheckFile(int interval)
 					{
 						ipcStorage_->Lock();
 						char data = 0;
-						if (ipcStorage_->GetFile(utf16_to_utf8(temp.path_).c_str(), &data, 1, time) > 0)
+						if (ipcStorage_->GetFile(Effekseer::Tool::StringHelper::ConvertUtf16ToUtf8(temp.path_).c_str(), &data, 1, time) > 0)
 						{
 							changedFileInfos_.insert(i.first);
 						}

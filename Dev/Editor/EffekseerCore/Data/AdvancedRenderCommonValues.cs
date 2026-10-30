@@ -51,7 +51,7 @@ namespace Effekseer.Data
 
 		public AlphaTextureParameter(Value.Path basepath)
 		{
-			Texture = new Value.PathForImage(basepath, Resources.GetString("ImageFilter"), true, "");
+			Texture = new Value.PathForImage(basepath, new MultiLanguageString("ImageFilter"), true, "");
 			Filter = new Value.Enum<RendererCommonValues.FilterType>(RendererCommonValues.FilterType.Linear);
 			Wrap = new Value.Enum<RendererCommonValues.WrapType>(RendererCommonValues.WrapType.Repeat);
 			UV = new Value.Enum<RendererCommonValues.UVType>();
@@ -112,7 +112,7 @@ namespace Effekseer.Data
 
 		public UVDistortionTextureParameter(Value.Path basepath)
 		{
-			Texture = new Value.PathForImage(basepath, Resources.GetString("ImageFilter"), true, "");
+			Texture = new Value.PathForImage(basepath, new MultiLanguageString("ImageFilter"), true, "");
 			UVDistortionIntensity = new Value.Float(0.01f, 100.0f, -100.0f, 0.01f);
 			Filter = new Value.Enum<RendererCommonValues.FilterType>(RendererCommonValues.FilterType.Linear);
 			Wrap = new Value.Enum<RendererCommonValues.WrapType>(RendererCommonValues.WrapType.Repeat);
@@ -258,6 +258,7 @@ namespace Effekseer.Data
 
 			Fixed.Threshold.CanSelectDynamicEquation = true;
 			Easing.Start.CanSelectDynamicEquation = true;
+			Easing.Middle.CanSelectDynamicEquation = true;
 			Easing.End.CanSelectDynamicEquation = true;
 
 			EdgeParam = new EdgeParameter();
@@ -365,7 +366,7 @@ namespace Effekseer.Data
 
 		public BlendTextureParameter(Value.Path basepath)
 		{
-			Texture = new Value.PathForImage(basepath, Resources.GetString("ImageFilter"), true, "");
+			Texture = new Value.PathForImage(basepath, new MultiLanguageString("ImageFilter"), true, "");
 			BlendType = new Value.Enum<AdvancedAlphaBlendType>(AdvancedAlphaBlendType.Blend);
 			Filter = new Value.Enum<RendererCommonValues.FilterType>(RendererCommonValues.FilterType.Linear);
 			Wrap = new Value.Enum<RendererCommonValues.WrapType>(RendererCommonValues.WrapType.Repeat);
@@ -419,7 +420,7 @@ namespace Effekseer.Data
 
 		public BlendAlphaTextureParameter(Value.Path basepath)
 		{
-			Texture = new Value.PathForImage(basepath, Resources.GetString("ImageFilter"), true, "");
+			Texture = new Value.PathForImage(basepath, new MultiLanguageString("ImageFilter"), true, "");
 			Filter = new Value.Enum<RendererCommonValues.FilterType>(RendererCommonValues.FilterType.Linear);
 			Wrap = new Value.Enum<RendererCommonValues.WrapType>(RendererCommonValues.WrapType.Repeat);
 			UV = new Value.Enum<RendererCommonValues.UVType>();
@@ -476,7 +477,7 @@ namespace Effekseer.Data
 
 		public BlendUVDistortionTextureParameter(Value.Path basepath)
 		{
-			Texture = new Value.PathForImage(basepath, Resources.GetString("ImageFilter"), true, "");
+			Texture = new Value.PathForImage(basepath, new MultiLanguageString("ImageFilter"), true, "");
 			UVDistortionIntensity = new Value.Float(0.01f, 100.0f, -100.0f, 0.01f);
 			Filter = new Value.Enum<RendererCommonValues.FilterType>(RendererCommonValues.FilterType.Linear);
 			Wrap = new Value.Enum<RendererCommonValues.WrapType>(RendererCommonValues.WrapType.Repeat);
@@ -576,12 +577,12 @@ namespace Effekseer.Data
 		public SoftParticleParameters SoftParticleParams { get; private set; }
 
 		public AdvancedRenderCommonValues(Value.Path basepath)
-        {
+		{
 			AlphaTextureParam = new AlphaTextureParameter(basepath);
 			UVDistortionTextureParam = new UVDistortionTextureParameter(basepath);
 			AlphaCutoffParam = new AlphaCutoffParameter();
 			BlendTextureParams = new BlendTextureParameters(basepath);
 			SoftParticleParams = new SoftParticleParameters();
 		}
-    }
+	}
 }

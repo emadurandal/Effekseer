@@ -5,7 +5,7 @@ using System.Text;
 
 namespace Effekseer.Data.Value
 {
-	public class Int2 : IValueChangedFromDefault
+	public class Int2 : IResettableValue, IValueChangedFromDefault
 	{
 		public Int X
 		{
@@ -38,6 +38,14 @@ namespace Effekseer.Data.Value
 			Y = new Int(y, y_max, y_min, y_step);
 		}
 
+		public void ResetValue()
+		{
+			Command.CommandManager.StartCollection();
+			X.ResetValue();
+			Y.ResetValue();
+			Command.CommandManager.EndCollection();
+		}
+
 		public static explicit operator byte[](Int2 value)
 		{
 			byte[] values = new byte[sizeof(int) * 2];
@@ -62,13 +70,13 @@ namespace Effekseer.Data.Value
 			var o = obj as Int2;
 			if (o == null)
 				return false;
-		
+
 			if (X.Value != o.X.Value)
 				return false;
-		
+
 			if (Y.Value != o.Y.Value)
 				return false;
-		
+
 			return true;
 		}
 

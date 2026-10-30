@@ -1,11 +1,14 @@
-﻿using System;
+﻿using Effekseer.Utils;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using static Effekseer.InternalScript.SSAGenerator;
+using static IronPython.Runtime.Profiler;
 
 namespace Effekseer.Data.Value
 {
-	public class IntWithInifinite : IValueChangedFromDefault
+	public class IntWithInifinite : IResettableValue, IValueChangedFromDefault
 	{
 		public Int Value
 		{
@@ -51,6 +54,31 @@ namespace Effekseer.Data.Value
 
 			IsDynamicEquationEnabled = new Boolean();
 			DynamicEquation = new DynamicEquationReference();
+		}
+
+		public void ResetValue()
+		{
+			Command.CommandManager.StartCollection();
+			Value.ResetValue();
+			Infinite.ResetValue();
+			if (CanSelectDynamicEquation)
+			{
+				IsDynamicEquationEnabled.ResetValue();
+				DynamicEquation.SetValue(null);
+			}
+			Command.CommandManager.EndCollection();
+		}
+
+		public byte[] GetBytes(int valueWhenInfinite = int.MaxValue)
+		{
+			if (Infinite.Value)
+			{
+				return valueWhenInfinite.GetBytes();
+			}
+			else
+			{
+				return Value.GetBytes();
+			}
 		}
 	}
 }

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Xml;
 using System.Reflection;
-using Effekseer.Utl;
+using Effekseer.Utils;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -35,7 +35,7 @@ namespace Effekseer.Data
 			if (loadEvents.ContainsKey(target))
 				return true;
 
-			if(t.IsGenericType)
+			if (t.IsGenericType)
 			{
 				var def = t.GetGenericTypeDefinition();
 
@@ -45,11 +45,12 @@ namespace Effekseer.Data
 					return param.Length == 3 && param[1].ParameterType.IsGenericType && param[1].ParameterType.GetGenericTypeDefinition() == def;
 				});
 
-				if(found != null)
+				if (found != null)
 				{
 					var m = found.MakeGenericMethod(new[] { t.GenericTypeArguments[0] });
-					loadEvents.Add(target, (e, o, b) => { 
-						m.Invoke(null, new[] { e, o, b }); 
+					loadEvents.Add(target, (e, o, b) =>
+					{
+						m.Invoke(null, new[] { e, o, b });
 					});
 					return true;
 				}
@@ -84,7 +85,8 @@ namespace Effekseer.Data
 				if (found != null)
 				{
 					var m = found.MakeGenericMethod(new[] { t.GenericTypeArguments[0] });
-					saveEvents.Add(target, (e, s, o, b) => {
+					saveEvents.Add(target, (e, s, o, b) =>
+					{
 						return (XmlElement)m.Invoke(null, new[] { e, s, o, b });
 					});
 					return true;
@@ -99,7 +101,7 @@ namespace Effekseer.Data
 			return false;
 		}
 
-		public static void ExtendSupportedType(Type type, Func<XmlDocument, string, object, bool, XmlElement>  save, Action<XmlElement, object, bool> load)
+		public static void ExtendSupportedType(Type type, Func<XmlDocument, string, object, bool, XmlElement> save, Action<XmlElement, object, bool> load)
 		{
 			saveEvents.Add(type, save);
 			loadEvents.Add(type, load);
@@ -116,44 +118,51 @@ namespace Effekseer.Data
 				var io_attribute = property.GetCustomAttributes(typeof(IOAttribute), false).FirstOrDefault() as IOAttribute;
 				if (io_attribute != null && !io_attribute.Export) continue;
 
-				var method = typeof(IO).GetMethod("SaveToElement", new Type[] { typeof(XmlDocument), typeof(string), property.PropertyType, typeof(bool) });
-				if (method != null)
-				{
-					var property_value = property.GetValue(o, null);
-					var element = method.Invoke(null, new object[] { doc, property.Name, property_value, isClip });
+				var propertyName = property.Name;
+				var propertyType = property.PropertyType;
+				var property_value = property.GetValue(o, null);
+				var requiredToExport = io_attribute != null && io_attribute.Export;
 
-					if (element != null)
+				SaveObjectToElement(doc, isClip, e_o, requiredToExport, propertyName, propertyType, property_value);
+			}
+
+			if (e_o.ChildNodes.Count > 0) return e_o;
+			return null;
+		}
+
+		private static void SaveObjectToElement(XmlDocument doc, bool isClip, XmlElement e_o, bool requiredToExport, string propertyName, Type propertyType, object property_value)
+		{
+			var method = typeof(IO).GetMethod("SaveToElement", new Type[] { typeof(XmlDocument), typeof(string), propertyType, typeof(bool) });
+			if (method != null)
+			{
+				var element = method.Invoke(null, new object[] { doc, propertyName, property_value, isClip });
+
+				if (element != null)
+				{
+					e_o.AppendChild(element as XmlNode);
+				}
+			}
+			else if (CreateSavingMethod(propertyType) && saveEvents.ContainsKey(propertyType))
+			{
+				var element = saveEvents[propertyType](doc, propertyName, property_value, isClip);
+
+				if (element != null)
+				{
+					e_o.AppendChild(element as XmlNode);
+				}
+			}
+			else
+			{
+				if (requiredToExport)
+				{
+					var element = SaveObjectToElement(doc, propertyName, property_value, isClip);
+
+					if (element != null && element.ChildNodes.Count > 0)
 					{
 						e_o.AppendChild(element as XmlNode);
-					}
-				}
-				else if(CreateSavingMethod(property.PropertyType) && saveEvents.ContainsKey(property.PropertyType))
-				{
-					var property_value = property.GetValue(o, null);
-					var element = saveEvents[property.PropertyType](doc, property.Name, property_value, isClip);
-
-					if (element != null)
-					{
-						e_o.AppendChild(element as XmlNode);
-					}
-				}
-				else
-				{
-					if (io_attribute != null && io_attribute.Export)
-					{
-						var property_value = property.GetValue(o, null);
-						var element = SaveObjectToElement(doc, property.Name, property_value, isClip);
-
-						if (element != null && element.ChildNodes.Count > 0)
-						{
-							e_o.AppendChild(element as XmlNode);
-						}
 					}
 				}
 			}
-
-			if(e_o.ChildNodes.Count > 0) return e_o;
-			return null;
 		}
 
 		public static XmlElement SaveToElement(XmlDocument doc, string element_name, NodeBase node, bool isClip)
@@ -178,7 +187,7 @@ namespace Effekseer.Data
 			var e = doc.CreateElement(element_name);
 
 			var e_path = SaveToElement(doc, "Path", mfp.Path, isClip);
-			if(e_path != null)
+			if (e_path != null)
 			{
 				e.AppendChild(e_path);
 			}
@@ -188,15 +197,16 @@ namespace Effekseer.Data
 			var e_float3 = doc.CreateElement("Float3");
 			var e_float4 = doc.CreateElement("Float4");
 			var e_texture = doc.CreateElement("Texture");
+			var e_gradient = doc.CreateElement("Gradient");
 
 
 			// check file info
-			var info = new Utl.MaterialInformation();
-			if(info.Load(mfp.Path.AbsolutePath))
+			var info = new Utils.MaterialInformation();
+			if (info.Load(mfp.Path.AbsolutePath))
 			{
 				var uniforms = mfp.GetUniforms(info);
 
-				foreach(var uniform in uniforms.Where(_=>_.Item1 != null))
+				foreach (var uniform in uniforms.Where(_ => _.Item1 != null))
 				{
 					var status = uniform.Item1;
 
@@ -205,7 +215,7 @@ namespace Effekseer.Data
 						var v = status.Value as Data.Value.Vector4D;
 						var v_k = doc.CreateTextElement("Key", status.Key.ToString());
 						var v_e = SaveToElement(doc, "Value", v, isClip);
-						if(v_e != null)
+						if (v_e != null)
 						{
 							var e_root = doc.CreateElement("KeyValue");
 							e_root.AppendChild(v_k);
@@ -281,12 +291,38 @@ namespace Effekseer.Data
 						}
 					}
 				}
+
+				var gradients = mfp.GetGradients(info);
+				foreach (var kv in gradients)
+				{
+					var status = kv.Item1;
+
+					if (status == null)
+						continue;
+
+					if (!status.IsShown)
+						continue;
+
+					if (status.Value is Data.Value.Gradient)
+					{
+						var v = status.Value as Data.Value.Gradient;
+						var e_root = doc.CreateElement("KeyValue");
+						var v_k = doc.CreateTextElement("Key", status.Key.ToString());
+						SaveObjectToElement(doc, true, e_root, true, "Value", typeof(Data.Value.Gradient), v);
+
+						if (e_root.ChildNodes.Count > 0)
+						{
+							e_root.AppendChild(v_k);
+							e_gradient.AppendChild(e_root);
+						}
+					}
+				}
 			}
 			else
 			{
-				foreach(var status in mfp.GetValueStatus())
+				foreach (var status in mfp.GetValueStatus())
 				{
-					if(status.Value is Data.Value.Vector4D)
+					if (status.Value is Data.Value.Vector4D)
 					{
 						var v = status.Value as Data.Value.Vector4D;
 						var v_k = doc.CreateTextElement("Key", status.Key.ToString());
@@ -356,10 +392,23 @@ namespace Effekseer.Data
 							e_texture.AppendChild(e_root);
 						}
 					}
+					else if(status.Value is Data.Value.Gradient)
+					{
+						var v = status.Value as Data.Value.Gradient;
+						var e_root = doc.CreateElement("KeyValue");
+						var v_k = doc.CreateTextElement("Key", status.Key.ToString());
+						SaveObjectToElement(doc, true, e_root, true, "Value", typeof(Data.Value.Gradient), v);
+
+						if (e_root.ChildNodes.Count > 0)
+						{
+							e_root.AppendChild(v_k);
+							e_gradient.AppendChild(e_root);
+						}
+					}
 				}
 			}
 
-			if(e_float1.ChildNodes.Count > 0)
+			if (e_float1.ChildNodes.Count > 0)
 			{
 				e.AppendChild(e_float1);
 			}
@@ -384,6 +433,12 @@ namespace Effekseer.Data
 				e.AppendChild(e_texture);
 			}
 
+			if (e_gradient.ChildNodes.Count > 0)
+			{
+				e.AppendChild(e_gradient);
+			}
+
+
 			return e.ChildNodes.Count > 0 ? e : null;
 		}
 
@@ -393,7 +448,7 @@ namespace Effekseer.Data
 			for (int i = 0; i < collection.Values.Count; i++)
 			{
 				var e_node = SaveToElement(doc, collection.Values[i].GetType().Name, collection.Values[i], true);
-				if(e_node != null)
+				if (e_node != null)
 				{
 					e.AppendChild(e_node);
 				}
@@ -455,7 +510,7 @@ namespace Effekseer.Data
 
 		public static XmlElement SaveToElement(XmlDocument doc, string element_name, Value.Float value, bool isClip)
 		{
-			if(value.DynamicEquation.Index >= 0)
+			if (value.DynamicEquation.Index >= 0)
 			{
 				var e = doc.CreateElement(element_name);
 				var text = value.GetValue().ToString();
@@ -483,7 +538,7 @@ namespace Effekseer.Data
 			var e = doc.CreateElement(element_name);
 			var v = SaveToElement(doc, "Value", value.Value, isClip);
 			var i = SaveToElement(doc, "Infinite", value.Infinite, isClip);
-			
+
 			if (v != null) e.AppendChild(v);
 			if (i != null) e.AppendChild(i);
 
@@ -520,7 +575,7 @@ namespace Effekseer.Data
 			if (z != null) e.AppendChild(z);
 
 			var d = SaveToElement(doc, "DynamicEquation", value.DynamicEquation, isClip);
-			if(d != null)
+			if (d != null)
 			{
 				e.AppendChild(d);
 			}
@@ -687,7 +742,7 @@ namespace Effekseer.Data
 			if (value.DefaultValue == value.GetAbsolutePath() && !isClip) return null;
 
 			var text = "";
-			if(!isClip && value.IsRelativeSaved)
+			if (!isClip && value.IsRelativeSaved)
 				text = value.GetRelativePath();
 			else
 				text = value.GetAbsolutePath();
@@ -972,24 +1027,30 @@ namespace Effekseer.Data
 				var io_attribute = property.GetCustomAttributes(typeof(IOAttribute), false).FirstOrDefault() as IOAttribute;
 				if (io_attribute != null && !io_attribute.Import) continue;
 
-				var method = typeof(IO).GetMethod("LoadFromElement", new Type[] { typeof(XmlElement), property.PropertyType, typeof(bool) });
-				if (method != null)
+				bool isImportRequired = io_attribute != null && io_attribute.Import;
+				var property_value = property.GetValue(o, null);
+				var propertyType = property.PropertyType;
+
+				LoadObjectFromElement(isClip, ch_node, isImportRequired, ref property_value, propertyType);
+			}
+		}
+
+		private static void LoadObjectFromElement(bool isClip, XmlElement ch_node, bool isImportRequired, ref object property_value, Type propertyType)
+		{
+			var method = typeof(IO).GetMethod("LoadFromElement", new Type[] { typeof(XmlElement), propertyType, typeof(bool) });
+			if (method != null)
+			{
+				method.Invoke(null, new object[] { ch_node, property_value, isClip });
+			}
+			else if (CreateLoadingMethod(propertyType) && loadEvents.ContainsKey(propertyType))
+			{
+				loadEvents[propertyType](ch_node, property_value, isClip);
+			}
+			else
+			{
+				if (isImportRequired)
 				{
-					var property_value = property.GetValue(o, null);
-					method.Invoke(null, new object[] { ch_node, property_value, isClip });
-				}
-				else if(CreateLoadingMethod(property.PropertyType) && loadEvents.ContainsKey(property.PropertyType))
-				{
-					var property_value = property.GetValue(o, null);
-					loadEvents[property.PropertyType](ch_node, property_value, isClip);
-				}
-				else
-				{
-					if (io_attribute != null && io_attribute.Import)
-					{
-						var property_value = property.GetValue(o, null);
-						LoadObjectFromElement(ch_node, ref property_value, isClip);
-					}
+					LoadObjectFromElement(ch_node, ref property_value, isClip);
 				}
 			}
 		}
@@ -1017,7 +1078,7 @@ namespace Effekseer.Data
 		public static void LoadFromElement(XmlElement e, MaterialFileParameter mfp, bool isClip)
 		{
 			var e_path = e["Path"] as XmlElement;
-			if(e_path != null)
+			if (e_path != null)
 			{
 				LoadFromElement(e_path, mfp.Path, isClip);
 			}
@@ -1027,6 +1088,7 @@ namespace Effekseer.Data
 			var e_float3 = e["Float3"] as XmlElement;
 			var e_float4 = e["Float4"] as XmlElement;
 			var e_texture = e["Texture"] as XmlElement;
+			var e_gradient = e["Gradient"] as XmlElement;
 
 			if (e_float1 != null)
 			{
@@ -1037,7 +1099,7 @@ namespace Effekseer.Data
 					// compatibility
 					string key = string.Empty;
 					XmlElement valueElement = null;
-					if(MaterialFileParameter.GetVersionOfKey(e_child.Name) == 0)
+					if (MaterialFileParameter.GetVersionOfKey(e_child.Name) == 0)
 					{
 						key = e_child.Name;
 						valueElement = e_child;
@@ -1046,8 +1108,8 @@ namespace Effekseer.Data
 					{
 						var e_k = e_child["Key"] as XmlElement;
 						valueElement = e_child["Value"] as XmlElement;
-						
-						if(e_k != null)
+
+						if (e_k != null)
 						{
 							key = e_k.GetText();
 						}
@@ -1197,6 +1259,32 @@ namespace Effekseer.Data
 					}
 				}
 			}
+
+			if (e_gradient != null)
+			{
+				for (var i = 0; i < e_gradient.ChildNodes.Count; i++)
+				{
+					var e_child = e_gradient.ChildNodes[i] as XmlElement;
+
+					string key = string.Empty;
+
+					var e_k = e_child["Key"] as XmlElement;
+					var valueElement = e_child["Value"] as XmlElement;
+
+					if (e_k != null)
+					{
+						key = e_k.GetText();
+					}
+
+
+					var vs = mfp.FindValue(key, null, false);
+					if (vs != null)
+					{
+						var v = vs.Value;
+						LoadObjectFromElement(isClip, valueElement, true, ref v, typeof(Data.Value.Gradient));
+					}
+				}
+			}
 		}
 
 		public static void LoadFromElement(XmlElement e, Data.DynamicInputCollection collection, bool isClip)
@@ -1266,12 +1354,12 @@ namespace Effekseer.Data
 
 		public static void LoadFromElement(XmlElement e, Value.Float value, bool isClip)
 		{
-			if(e.HasChildNodes && e.ChildNodes[0].HasChildNodes)
+			if (e.HasChildNodes && e.ChildNodes[0].HasChildNodes)
 			{
 				// with dynamic equation
 				var e_value = e["Value"] as XmlElement;
 
-				if(e_value != null)
+				if (e_value != null)
 				{
 					LoadFromElement(e_value, value, isClip);
 				}
@@ -1302,7 +1390,7 @@ namespace Effekseer.Data
 			var e_infinite = e["Infinite"] as XmlElement;
 
 			// Convert int into intWithInfinit
-			if(e_value == null && e_infinite == null)
+			if (e_value == null && e_infinite == null)
 			{
 				var i = e.GetTextAsInt();
 				value.Value.SetValue(i);
@@ -1342,7 +1430,7 @@ namespace Effekseer.Data
 			if (e_y != null) LoadFromElement(e_y, value.Y, isClip);
 			if (e_z != null) LoadFromElement(e_z, value.Z, isClip);
 
-			if (e_d != null) 
+			if (e_d != null)
 			{
 				LoadFromElement(e_d, value.DynamicEquation, isClip);
 				value.IsDynamicEquationEnabled.SetValue(true);
@@ -1488,9 +1576,9 @@ namespace Effekseer.Data
 			var e_da = e["DrawnAs"];
 
 			// Convert Vector2D into Vector2DWithRandom
-			if(e_x != null)
+			if (e_x != null)
 			{
-				if(e_da == null && e_x["Max"] == null && e_x["Min"] == null && e_x["Center"] == null)
+				if (e_da == null && e_x["Max"] == null && e_x["Min"] == null && e_x["Center"] == null)
 				{
 					var x = e_x.GetTextAsFloat();
 					value.X.SetCenter(x);

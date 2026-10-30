@@ -23,6 +23,8 @@ class BoneConnector;
 class Node
 {
 public:
+	FbxNode* Original = nullptr;
+
 	std::string Name;
 	std::shared_ptr<Mesh> MeshData;
 
@@ -31,10 +33,20 @@ public:
 	float Rotation[4];
 	float Scaling[3];
 
+	FbxVector4 PreRotation;
+	FbxVector4 PostRotation;
 	FbxVector4 RotationOffset;
 	FbxVector4 RotationPivot;
 	FbxVector4 ScalingOffset;
 	FbxVector4 ScalingPivot;
+
+	FbxMatrix GeometryMatrix;
+
+	//! For Debug
+	FbxMatrix EvaluatedLocalMatrix;
+
+	//! For Debug
+	FbxMatrix EvaluatedGlobalMatrix;
 
 	std::vector<std::shared_ptr<Node>> Children;
 };
@@ -81,8 +93,10 @@ struct AnimationClip
 class BoneConnector
 {
 public:
+	FbxNode* LinkNode;
 	std::string Name;
-	FbxMatrix OffsetMatrix;
+	FbxMatrix TransformMatrix;
+	FbxMatrix TransformLinkMatrix;
 };
 
 struct Vertex
@@ -161,6 +175,9 @@ class Mesh
 {
 private:
 public:
+	int32_t NodeID;
+
+	FbxNode* BoundNode = nullptr;
 	std::string Name;
 
 	std::vector<Vertex> Vertexes;
@@ -201,6 +218,10 @@ struct NodeState
 	FbxMatrix MatLocal;
 	FbxMatrix MatGlobal;
 	FbxMatrix MatGlobalDefault;
+
+	//! for Debug
+	FbxMatrix EvaluatedMatGlobalDefault;
+
 	std::shared_ptr<Node> ParentNode;
 	std::shared_ptr<Node> TargetNode;
 
@@ -254,11 +275,6 @@ struct NodeState
 		s[1] = Values[(int32_t)AnimationTarget::SY];
 		s[2] = Values[(int32_t)AnimationTarget::SZ];
 
-		// old
-		// FbxMatrix mat;
-		// mat.SetTRS(t, r, s);
-		// MatLocal = mat;
-
 		FbxVector4 zero;
 		for (size_t i = 0; i < 4; i++)
 			zero[i] = 0.0f;
@@ -288,7 +304,15 @@ struct NodeState
 		FbxMatrix matRPivot;
 		matRPivot.SetTRS(this->TargetNode->RotationPivot, zero, one);
 
-		MatLocal = matT * matROffset * matRPivot * matR * matRPivot.Inverse() * matSOffset * matSPivot * matS * matSPivot.Inverse();
+		FbxMatrix matRPre;
+		matRPre.SetTRS(zero, this->TargetNode->PreRotation, one);
+
+		FbxMatrix matRPost;
+		matRPost.SetTRS(zero, this->TargetNode->PostRotation, one);
+
+		// https://help.autodesk.com/view/FBX/2017/ENU/?guid=__files_GUID_10CDD63C_79C1_4F2D_BB28_AD2BE65A02ED_htm
+		MatLocal = matT * matROffset * matRPivot * matRPre * matR * matRPost.Inverse() * matRPivot.Inverse() * matSOffset * matSPivot *
+				   matS * matSPivot.Inverse();
 	}
 };
 

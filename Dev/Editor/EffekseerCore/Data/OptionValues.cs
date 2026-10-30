@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Xml;
-using Effekseer.Utl;
+using Effekseer.Utils;
 
 namespace Effekseer.Data
 {
@@ -41,7 +41,7 @@ namespace Effekseer.Data
 
 	public enum FontType
 	{
-		[Key(key ="FontType_Normal")]
+		[Key(key = "FontType_Normal")]
 		Normal,
 
 		[Key(key = "FontType_Bold")]
@@ -227,12 +227,52 @@ namespace Effekseer.Data
 			private set;
 		}
 
+		[Key(key = "Options_FileBrowserViewMode")]
+		[Undo(Undo = false)]
+		public Value.Enum<FileViewMode> FileBrowserViewMode
+		{
+			get;
+			private set;
+		}
+		[Key(key = "Options_FileBrowserIconSize")]
+		[Undo(Undo = false)]
+		public Value.Int FileBrowserIconSize
+		{
+			get;
+			private set;
+		}
+
+		[Key(key = "Options_TexturePreviewLines")]
+		[Undo(Undo = false)]
+		public Value.Int TexturePreviewLines
+		{
+			get;
+			private set;
+		}
+
+		[Key(key = "Options_FloatFormatDigits")]
+		[Undo(Undo = false)]
+		public Value.Int FloatFormatDigits
+		{
+			get;
+			set;
+		}
+
+		[Key(key = "Options_AutoSaveIntervalMin")]
+		[Undo(Undo = false)]
+		public Value.Int AutoSaveIntervalMin
+		{
+			get;
+			set;
+		}
+
+
 		public OptionValues()
 		{
 			RenderingMode = new Value.Enum<RenderMode>(RenderMode.Normal);
 			ViewerMode = new Value.Enum<ViewMode>(ViewMode._3D);
 			GridColor = new Value.Color(255, 255, 255, 255);
-			
+
 			IsGridShown = new Value.Boolean(true);
 			IsXYGridShown = new Value.Boolean(false);
 			IsXZGridShown = new Value.Boolean(true);
@@ -260,8 +300,21 @@ namespace Effekseer.Data
 			MouseMappingType = new Value.Enum<MouseMappingType>(Data.MouseMappingType.Effekseer);
 
 			LanguageSelector = new LanguageSelector();
+
+			FileBrowserViewMode = new Value.Enum<FileViewMode>(FileViewMode.IconView);
+			FileBrowserIconSize = new Value.Int(96, 512, 48);
+			// 行数で持つと文字の大きさに追従する。既定は 3 行。
+			TexturePreviewLines = new Value.Int(3, 10, 2);
+			FloatFormatDigits =  new Value.Int(3, 9, 1);
+			AutoSaveIntervalMin = new Value.Int(2, 60, 0);
 		}
 		
+		
+		public string GetFloatFormat()
+		{
+			return $"%.{FloatFormatDigits.GetValue()}f"; 
+		}
+
 		public enum RenderMode : int
 		{
 			[Key(key = "RenderMode_Normal")]
@@ -320,6 +373,14 @@ namespace Effekseer.Data
 			GammaSpace = 0,
 			[Key(key = "ColorSpaceType_LinearSpace")]
 			LinearSpace = 1,
+		}
+
+		public enum FileViewMode : int
+		{
+			[Key(key = "FileBrowser_ViewMode_IconView")]
+			IconView = 0,
+			[Key(key = "FileBrowser_ViewMode_ListView")]
+			ListView = 1,
 		}
 	}
 }

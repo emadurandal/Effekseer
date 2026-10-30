@@ -6,80 +6,79 @@ using System.Threading.Tasks;
 
 namespace Effekseer.GUI.Dock
 {
-    class AdvancedRenderCommonValues : DockPanel
-    {
-        Component.CopyAndPaste candp = null;
-        Component.ParameterList parameterList = null;
+	class AdvancedRenderCommonValues : DockPanel
+	{
+		BindableComponent.ParameterList parameterList = null;
 
-        bool isFirstUpdate = true;
+		bool isFirstUpdate = true;
 
-        public AdvancedRenderCommonValues()
-        {
-            Label = Icons.PanelAdvancedRenderCommon + Resources.GetString("AdvancedRenderSettings") + "###AdvancedRenderSettings";
+		public AdvancedRenderCommonValues()
+		{
+			Label = Icons.PanelAdvancedRenderCommon + MultiLanguageTextProvider.GetText("AdvancedRenderSettings") + "###AdvancedRenderSettings";
+			DocPage = "rendererCommonAd.html";
 
-            parameterList = new Component.ParameterList();
-            parameterList.SetType(typeof(Data.AdvancedRenderCommonValues));
+			parameterList = new BindableComponent.ParameterList();
+			parameterList.SetType(typeof(Data.AdvancedRenderCommonValues));
 
-            candp = new Component.CopyAndPaste("AdvancedRenderSettings", GetTargetObject, Read);
+			CopyAndPaste = new BindableComponent.CopyAndPaste("AdvancedRenderSettings", GetTargetObject, Read);
 
-            Core.OnAfterLoad += OnAfterLoad;
-            Core.OnAfterNew += OnAfterLoad;
-            Core.OnAfterSelectNode += OnAfterSelectNode;
+			Core.OnAfterLoad += OnAfterLoad;
+			Core.OnAfterNew += OnAfterLoad;
+			Core.OnAfterSelectNode += OnAfterSelectNode;
 
-			Controls.Add(candp);
 			Controls.Add(parameterList);
 
 			Read();
 
-            TabToolTip = Resources.GetString("AdvancedRenderSettings");
-        }
-
-        public void FixValues()
-        {
-            parameterList.FixValues();
-        }
-
-        public override void OnDisposed()
-        {
-            FixValues();
-
-            Core.OnAfterLoad -= OnAfterLoad;
-            Core.OnAfterNew -= OnAfterLoad;
-            Core.OnAfterSelectNode -= OnAfterSelectNode;
-        }
-
-        protected override void UpdateInternal()
-        {
-            if (isFirstUpdate)
-            {
-            }
-        }
-
-        object GetTargetObject()
-        {
-			if(Core.SelectedNode != null)
-            {
-                if (Core.SelectedNode is Data.Node)
-                {
-                    return ((Data.Node)Core.SelectedNode).AdvancedRendererCommonValuesValues;
-                }
-            }
-            return null;
+			TabToolTip = MultiLanguageTextProvider.GetText("AdvancedRenderSettings");
 		}
 
-        void Read()
-        {
-            parameterList.SetValue(GetTargetObject());
-        }
+		public void FixValues()
+		{
+			parameterList.FixValues();
+		}
 
-        void OnAfterLoad(object sender, EventArgs e)
-        {
-            Read();
-        }
+		public override void OnDisposed()
+		{
+			FixValues();
 
-        void OnAfterSelectNode(object sender, EventArgs e)
-        {
-            Read();
-        }
-    }
+			Core.OnAfterLoad -= OnAfterLoad;
+			Core.OnAfterNew -= OnAfterLoad;
+			Core.OnAfterSelectNode -= OnAfterSelectNode;
+		}
+
+		protected override void UpdateInternal()
+		{
+			if (isFirstUpdate)
+			{
+			}
+		}
+
+		object GetTargetObject()
+		{
+			if (Core.SelectedNode != null)
+			{
+				if (Core.SelectedNode is Data.Node)
+				{
+					return ((Data.Node)Core.SelectedNode).AdvancedRendererCommonValuesValues;
+				}
+			}
+			return null;
+		}
+
+		void Read()
+		{
+			parameterList.SetValue(GetTargetObject());
+		}
+
+		void OnAfterLoad(object sender, EventArgs e)
+		{
+			Read();
+		}
+
+		void OnAfterSelectNode(object sender, EventArgs e)
+		{
+			Read();
+		}
+	}
 }

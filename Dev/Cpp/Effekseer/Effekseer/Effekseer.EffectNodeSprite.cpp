@@ -1,4 +1,5 @@
 ﻿#include "Effekseer.EffectNodeSprite.h"
+#include "Utils/Effekseer.BinaryReader.h"
 
 #include "Effekseer.Effect.h"
 #include "Effekseer.EffectImplemented.h"
@@ -15,26 +16,30 @@
 
 #include "Effekseer.Setting.h"
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 namespace Effekseer
 {
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
-void EffectNodeSprite::LoadRendererParameter(unsigned char*& pos, const SettingRef& setting)
+
+void EffectNodeSprite::LoadRendererParameter(BinaryReader<true>& pos, const SettingRef& setting)
 {
-	int32_t type = 0;
-	memcpy(&type, pos, sizeof(int));
-	pos += sizeof(int);
-	assert(type == GetType());
+	EffectNodeType type = EffectNodeType::NoneType;
+	if (!pos.Peek(&type, sizeof(int)))
+	{
+		return pos.MarkFailed();
+	}
+	pos.Skip(sizeof(int));
+	if (type != GetType())
+	{
+		return pos.MarkFailed();
+	}
 	EffekseerPrintDebug("Renderer : Sprite\n");
 
 	auto ef = (EffectImplemented*)m_effect;
 
-	memcpy(&RenderingOrder, pos, sizeof(int));
-	pos += sizeof(int);
+	if (!pos.Peek(&RenderingOrder, sizeof(int)))
+	{
+		return pos.MarkFailed();
+	}
+	pos.Skip(sizeof(int));
 
 	if (m_effect->GetVersion() >= 3)
 	{
@@ -42,20 +47,29 @@ void EffectNodeSprite::LoadRendererParameter(unsigned char*& pos, const SettingR
 	}
 	else
 	{
-		memcpy(&AlphaBlend, pos, sizeof(int));
-		pos += sizeof(int);
+		if (!pos.Peek(&AlphaBlend, sizeof(int)))
+		{
+			return pos.MarkFailed();
+		}
+		pos.Skip(sizeof(int));
 		RendererCommon.AlphaBlend = AlphaBlend;
 		RendererCommon.BasicParameter.AlphaBlend = AlphaBlend;
 	}
 
-	memcpy(&Billboard, pos, sizeof(int));
-	pos += sizeof(int);
+	if (!pos.Peek(&Billboard, sizeof(int)))
+	{
+		return pos.MarkFailed();
+	}
+	pos.Skip(sizeof(int));
 
 	SpriteAllColor.load(pos, m_effect->GetVersion());
 	EffekseerPrintDebug("SpriteColorAllType : %d\n", SpriteAllColor.type);
 
-	memcpy(&SpriteColor.type, pos, sizeof(int));
-	pos += sizeof(int);
+	if (!pos.Peek(&SpriteColor.type, sizeof(int)))
+	{
+		return pos.MarkFailed();
+	}
+	pos.Skip(sizeof(int));
 	EffekseerPrintDebug("SpriteColorType : %d\n", SpriteColor.type);
 
 	if (SpriteColor.type == SpriteColor.Default)
@@ -63,12 +77,18 @@ void EffectNodeSprite::LoadRendererParameter(unsigned char*& pos, const SettingR
 	}
 	else if (SpriteColor.type == SpriteColor.Fixed)
 	{
-		memcpy(&SpriteColor.fixed, pos, sizeof(SpriteColor.fixed));
-		pos += sizeof(SpriteColor.fixed);
+		if (!pos.Peek(&SpriteColor.fixed, sizeof(SpriteColor.fixed)))
+		{
+			return pos.MarkFailed();
+		}
+		pos.Skip(sizeof(SpriteColor.fixed));
 	}
 
-	memcpy(&SpritePosition.type, pos, sizeof(int));
-	pos += sizeof(int);
+	if (!pos.Peek(&SpritePosition.type, sizeof(int)))
+	{
+		return pos.MarkFailed();
+	}
+	pos.Skip(sizeof(int));
 	EffekseerPrintDebug("SpritePosition : %d\n", SpritePosition.type);
 
 	if (SpritePosition.type == SpritePosition.Default)
@@ -76,7 +96,10 @@ void EffectNodeSprite::LoadRendererParameter(unsigned char*& pos, const SettingR
 		if (m_effect->GetVersion() >= 8)
 		{
 			std::array<Vector2D, 4> fixed;
-			memcpy(fixed.data(), pos, sizeof(Vector2D) * 4);
+			if (!pos.Peek(&fixed, sizeof(Vector2D) * 4))
+			{
+				return pos.MarkFailed();
+			}
 
 			// This code causes bugs on asmjs
 			// const Vector2D* fixed = (const Vector2D*)pos;
@@ -84,7 +107,7 @@ void EffectNodeSprite::LoadRendererParameter(unsigned char*& pos, const SettingR
 			SpritePosition.fixed.lr = fixed[1];
 			SpritePosition.fixed.ul = fixed[2];
 			SpritePosition.fixed.ur = fixed[3];
-			pos += sizeof(Vector2D) * 4;
+			pos.Skip(sizeof(Vector2D) * 4);
 			SpritePosition.type = SpritePosition.Fixed;
 		}
 		else
@@ -99,7 +122,10 @@ void EffectNodeSprite::LoadRendererParameter(unsigned char*& pos, const SettingR
 	else if (SpritePosition.type == SpritePosition.Fixed)
 	{
 		std::array<Vector2D, 4> fixed;
-		memcpy(fixed.data(), pos, sizeof(Vector2D) * 4);
+		if (!pos.Peek(&fixed, sizeof(Vector2D) * 4))
+		{
+			return pos.MarkFailed();
+		}
 
 		// This code causes bugs on asmjs
 		// const Vector2D* fixed = (const Vector2D*)pos;
@@ -107,27 +133,28 @@ void EffectNodeSprite::LoadRendererParameter(unsigned char*& pos, const SettingR
 		SpritePosition.fixed.lr = fixed[1];
 		SpritePosition.fixed.ul = fixed[2];
 		SpritePosition.fixed.ur = fixed[3];
-		pos += sizeof(Vector2D) * 4;
+		pos.Skip(sizeof(Vector2D) * 4);
 	}
 
 	if (m_effect->GetVersion() >= 3)
 	{
-		SpriteTexture = RendererCommon.ColorTextureIndex;
 	}
 	else
 	{
-		memcpy(&SpriteTexture, pos, sizeof(int));
-		pos += sizeof(int);
-		RendererCommon.ColorTextureIndex = SpriteTexture;
+		int SpriteTexture = -1;
+		if (!pos.Peek(&SpriteTexture, sizeof(int)))
+		{
+			return pos.MarkFailed();
+		}
+		pos.Skip(sizeof(int));
+		RendererCommon.TextureIndexes[0] = SpriteTexture;
 		RendererCommon.BasicParameter.TextureIndexes[0] = SpriteTexture;
 	}
 
-	// 右手系左手系変換
 	if (setting->GetCoordinateSystem() == CoordinateSystem::LH)
 	{
 	}
 
-	/* 位置拡大処理 */
 	if (ef->IsDyanamicMagnificationValid())
 	{
 		if (SpritePosition.type == SpritePosition.Default)
@@ -143,67 +170,26 @@ void EffectNodeSprite::LoadRendererParameter(unsigned char*& pos, const SettingR
 	}
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
-void EffectNodeSprite::BeginRendering(int32_t count, Manager* manager, void* userData)
+void EffectNodeSprite::BeginRendering(int32_t count, Manager* manager, const InstanceGlobal* global, void* userData)
 {
 	SpriteRendererRef renderer = manager->GetSpriteRenderer();
 	if (renderer != nullptr)
 	{
-		SpriteRenderer::NodeParameter nodeParameter;
-		// nodeParameter.TextureFilter = RendererCommon.FilterType;
-		// nodeParameter.TextureWrap = RendererCommon.WrapType;
-		nodeParameter.ZTest = RendererCommon.ZTest;
-		nodeParameter.ZWrite = RendererCommon.ZWrite;
-		nodeParameter.Billboard = Billboard;
-		nodeParameter.EffectPointer = GetEffect();
-		nodeParameter.IsRightHand = manager->GetCoordinateSystem() == CoordinateSystem::RH;
-
-		nodeParameter.DepthParameterPtr = &DepthValues.DepthParameter;
-		nodeParameter.BasicParameterPtr = &RendererCommon.BasicParameter;
-
-		nodeParameter.ZSort = DepthValues.ZSort;
-
-		nodeParameter.EnableViewOffset = (TranslationType == ParameterTranslationType_ViewOffset);
-
-		nodeParameter.UserData = GetRenderingUserData();
-		nodeParameter.Maginification = GetEffect()->GetMaginification();
-
-		renderer->BeginRendering(nodeParameter, count, userData);
+		nodeParam_ = GetNodeParameter(manager, global);
+		renderer->BeginRendering(nodeParam_, count, userData);
 	}
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
-void EffectNodeSprite::Rendering(const Instance& instance, const Instance* next_instance, Manager* manager, void* userData)
+void EffectNodeSprite::Rendering(const Instance& instance, const Instance* next_instance, int index, Manager* manager, void* userData)
 {
 	const InstanceValues& instValues = instance.rendererValues.sprite;
 	SpriteRendererRef renderer = manager->GetSpriteRenderer();
 	if (renderer != nullptr)
 	{
-		SpriteRenderer::NodeParameter nodeParameter;
-		// nodeParameter.TextureFilter = RendererCommon.FilterType;
-		// nodeParameter.TextureWrap = RendererCommon.WrapType;
-		nodeParameter.ZTest = RendererCommon.ZTest;
-		nodeParameter.ZWrite = RendererCommon.ZWrite;
-		nodeParameter.Billboard = Billboard;
-		nodeParameter.EffectPointer = GetEffect();
-		nodeParameter.IsRightHand = manager->GetCoordinateSystem() == CoordinateSystem::RH;
-
-		nodeParameter.DepthParameterPtr = &DepthValues.DepthParameter;
-		nodeParameter.BasicParameterPtr = &RendererCommon.BasicParameter;
-
-		nodeParameter.ZSort = DepthValues.ZSort;
-
-		nodeParameter.EnableViewOffset = (TranslationType == ParameterTranslationType_ViewOffset);
-		nodeParameter.Maginification = GetEffect()->GetMaginification();
-
 		SpriteRenderer::InstanceParameter instanceParameter;
 		instanceParameter.AllColor = instValues._color;
 
-		instanceParameter.SRTMatrix43 = instance.GetGlobalMatrix43();
+		instanceParameter.SRTMatrix43 = instance.GetRenderedGlobalMatrix();
 
 		// Inherit Color
 		Color _color;
@@ -268,90 +254,47 @@ void EffectNodeSprite::Rendering(const Instance& instance, const Instance* next_
 		instanceParameter.BlendAlphaUV = instance.GetUV(4);
 		instanceParameter.BlendUVDistortionUV = instance.GetUV(5);
 
-		instanceParameter.FlipbookIndexAndNextRate = instance.m_flipbookIndexAndNextRate;
+		instanceParameter.FlipbookIndexAndNextRate = instance.GetFlipbookIndexAndNextRate();
 
-		instanceParameter.AlphaThreshold = instance.m_AlphaThreshold;
+		instanceParameter.AlphaThreshold = instance.alphaThreshold_;
 
-		if (nodeParameter.EnableViewOffset)
+		if (nodeParam_.EnableViewOffset)
 		{
-			instanceParameter.ViewOffsetDistance = instance.translation_values.view_offset.distance;
+			instanceParameter.ViewOffsetDistance = instance.translation_state_.view_offset.distance;
 		}
+
+		if (nodeParam_.Billboard == BillboardType::DirectionalBillboard)
+		{
+			instanceParameter.Direction = instance.GetGlobalDirection();
+		}
+
+		instanceParameter.ParticleTimes[0] = instance.GetNormalizedLivetime();
+		instanceParameter.ParticleTimes[1] = instance.livingTime_ / 60.0f;
 
 		CalcCustomData(&instance, instanceParameter.CustomData1, instanceParameter.CustomData2);
 
-		nodeParameter.UserData = GetRenderingUserData();
-
-		renderer->Rendering(nodeParameter, instanceParameter, userData);
+		renderer->Rendering(nodeParam_, instanceParameter, userData);
 	}
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 void EffectNodeSprite::EndRendering(Manager* manager, void* userData)
 {
 	SpriteRendererRef renderer = manager->GetSpriteRenderer();
 	if (renderer != nullptr)
 	{
-		SpriteRenderer::NodeParameter nodeParameter;
-		// nodeParameter.TextureFilter = RendererCommon.FilterType;
-		// nodeParameter.TextureWrap = RendererCommon.WrapType;
-		nodeParameter.ZTest = RendererCommon.ZTest;
-		nodeParameter.ZWrite = RendererCommon.ZWrite;
-		nodeParameter.Billboard = Billboard;
-		nodeParameter.EffectPointer = GetEffect();
-		nodeParameter.IsRightHand = manager->GetCoordinateSystem() == CoordinateSystem::RH;
-
-		nodeParameter.ZSort = DepthValues.ZSort;
-
-		nodeParameter.DepthParameterPtr = &DepthValues.DepthParameter;
-		nodeParameter.BasicParameterPtr = &RendererCommon.BasicParameter;
-
-		nodeParameter.UserData = GetRenderingUserData();
-		nodeParameter.Maginification = GetEffect()->GetMaginification();
-
-		renderer->EndRendering(nodeParameter, userData);
+		renderer->EndRendering(nodeParam_, userData);
 	}
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 void EffectNodeSprite::InitializeRenderedInstance(Instance& instance, InstanceGroup& instanceGroup, Manager* manager)
 {
 	InstanceValues& instValues = instance.rendererValues.sprite;
 	IRandObject& rand = instance.GetRandObject();
 
-	if (SpriteAllColor.type == StandardColorParameter::Fixed)
-	{
-		instValues.allColorValues.fixed._color = SpriteAllColor.fixed.all;
-		instValues._originalColor = instValues.allColorValues.fixed._color;
-	}
-	else if (SpriteAllColor.type == StandardColorParameter::Random)
-	{
-		instValues.allColorValues.random._color = SpriteAllColor.random.all.getValue(rand);
-		instValues._originalColor = instValues.allColorValues.random._color;
-	}
-	else if (SpriteAllColor.type == StandardColorParameter::Easing)
-	{
-		instValues.allColorValues.easing.start = SpriteAllColor.easing.all.getStartValue(rand);
-		instValues.allColorValues.easing.end = SpriteAllColor.easing.all.getEndValue(rand);
+	AllTypeColorFunctions::Init(instValues.allColorValues, rand, SpriteAllColor);
+	instValues._originalColor = AllTypeColorFunctions::Calculate(instValues.allColorValues, SpriteAllColor, instance.livingTime_, instance.livedTime_);
 
-		float t = instance.m_LivingTime / instance.m_LivedTime;
-
-		SpriteAllColor.easing.all.setValueToArg(
-			instValues._originalColor, instValues.allColorValues.easing.start, instValues.allColorValues.easing.end, t);
-	}
-	else if (SpriteAllColor.type == StandardColorParameter::FCurve_RGBA)
-	{
-		instValues.allColorValues.fcurve_rgba.offset = SpriteAllColor.fcurve_rgba.FCurve->GetOffsets(rand);
-		auto fcurveColor = SpriteAllColor.fcurve_rgba.FCurve->GetValues(instance.m_LivingTime, instance.m_LivedTime);
-		instValues._originalColor.R = (uint8_t)Clamp((instValues.allColorValues.fcurve_rgba.offset[0] + fcurveColor[0]), 255, 0);
-		instValues._originalColor.G = (uint8_t)Clamp((instValues.allColorValues.fcurve_rgba.offset[1] + fcurveColor[1]), 255, 0);
-		instValues._originalColor.B = (uint8_t)Clamp((instValues.allColorValues.fcurve_rgba.offset[2] + fcurveColor[2]), 255, 0);
-		instValues._originalColor.A = (uint8_t)Clamp((instValues.allColorValues.fcurve_rgba.offset[3] + fcurveColor[3]), 255, 0);
-	}
-
+	// TODO : Refactor
 	if (RendererCommon.ColorBindType == BindType::Always || RendererCommon.ColorBindType == BindType::WhenCreating)
 	{
 		instValues._color = Color::Mul(instValues._originalColor, instance.ColorParent);
@@ -361,41 +304,19 @@ void EffectNodeSprite::InitializeRenderedInstance(Instance& instance, InstanceGr
 		instValues._color = instValues._originalColor;
 	}
 
+	ApplyRendererCommonUVHorizontalFlip(instance, rand);
+
 	instance.ColorInheritance = instValues._color;
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 void EffectNodeSprite::UpdateRenderedInstance(Instance& instance, InstanceGroup& instanceGroup, Manager* manager)
 {
 	InstanceValues& instValues = instance.rendererValues.sprite;
 
-	if (SpriteAllColor.type == StandardColorParameter::Fixed)
-	{
-		instValues._originalColor = instValues.allColorValues.fixed._color;
-	}
-	else if (SpriteAllColor.type == StandardColorParameter::Random)
-	{
-		instValues._originalColor = instValues.allColorValues.random._color;
-	}
-	if (SpriteAllColor.type == StandardColorParameter::Easing)
-	{
-		float t = instance.m_LivingTime / instance.m_LivedTime;
-
-		SpriteAllColor.easing.all.setValueToArg(
-			instValues._originalColor, instValues.allColorValues.easing.start, instValues.allColorValues.easing.end, t);
-	}
-	else if (SpriteAllColor.type == StandardColorParameter::FCurve_RGBA)
-	{
-		auto fcurveColor = SpriteAllColor.fcurve_rgba.FCurve->GetValues(instance.m_LivingTime, instance.m_LivedTime);
-		instValues._originalColor.R = (uint8_t)Clamp((instValues.allColorValues.fcurve_rgba.offset[0] + fcurveColor[0]), 255, 0);
-		instValues._originalColor.G = (uint8_t)Clamp((instValues.allColorValues.fcurve_rgba.offset[1] + fcurveColor[1]), 255, 0);
-		instValues._originalColor.B = (uint8_t)Clamp((instValues.allColorValues.fcurve_rgba.offset[2] + fcurveColor[2]), 255, 0);
-		instValues._originalColor.A = (uint8_t)Clamp((instValues.allColorValues.fcurve_rgba.offset[3] + fcurveColor[3]), 255, 0);
-	}
+	instValues._originalColor = AllTypeColorFunctions::Calculate(instValues.allColorValues, SpriteAllColor, instance.livingTime_, instance.livedTime_);
 
 	float fadeAlpha = GetFadeAlpha(instance);
+
 	if (fadeAlpha != 1.0f)
 	{
 		instValues._originalColor.A = (uint8_t)(instValues._originalColor.A * fadeAlpha);
@@ -413,11 +334,31 @@ void EffectNodeSprite::UpdateRenderedInstance(Instance& instance, InstanceGroup&
 	instance.ColorInheritance = instValues._color;
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
-} // namespace Effekseer
+SpriteRenderer::NodeParameter EffectNodeSprite::GetNodeParameter(const Manager* manager, const InstanceGlobal* global)
+{
+	SpriteRenderer::NodeParameter nodeParameter;
+	nodeParameter.ZTest = RendererCommon.ZTest;
+	nodeParameter.ZWrite = RendererCommon.ZWrite;
+	nodeParameter.Billboard = Billboard;
+	nodeParameter.EffectPointer = GetEffect();
+	nodeParameter.IsRightHand = manager->GetSetting()->GetCoordinateSystem() == CoordinateSystem::RH;
+	nodeParameter.LocalTime = global->GetUpdatedFrame() / 60.0f;
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
+	nodeParameter.DepthParameterPtr = &DepthValues.DepthParameter;
+	nodeParameter.BasicParameterPtr = &RendererCommon.BasicParameter;
+
+	nodeParameter.ZSort = DepthValues.ZSort;
+
+	nodeParameter.EnableViewOffset = (TranslationParam.TranslationType == ParameterTranslationType_ViewOffset);
+	nodeParameter.Maginification = GetEffect()->GetMaginification();
+
+	nodeParameter.UserData = GetRenderingUserData();
+	nodeParameter.RenderingCoordinateTransform = global->RenderingCoordinateTransform;
+	nodeParameter.RenderingTransform = global->RenderingTransform;
+
+	nodeParameter.EnableViewOffset = (TranslationParam.TranslationType == ParameterTranslationType_ViewOffset);
+
+	return nodeParameter;
+}
+
+} // namespace Effekseer

@@ -1,86 +1,13 @@
 
-#ifdef _WIN32
-#define GLEW_STATIC 1
-#include <GL/glew.h>
-#endif
-
 #include "efk.GraphicsGL.h"
-#include <EffekseerRendererGL/EffekseerRenderer/EffekseerRendererGL.GLExtension.h>
-#include <EffekseerRendererGL/EffekseerRenderer/GraphicsDevice.h>
+#include <EffekseerRendererGL/EffekseerRendererGL.GLExtension.h>
+#include <EffekseerRendererGL/GraphicsDevice.h>
+#include <OpenGLExtensions.h>
+
+namespace GL = EffekseerRendererGL::GLExt;
 
 namespace efk
 {
-RenderTextureGL::RenderTextureGL(Graphics* graphics)
-	: graphics(graphics)
-{
-}
-
-RenderTextureGL::~RenderTextureGL()
-{
-}
-
-bool RenderTextureGL::Initialize(Effekseer::Tool::Vector2DI size, Effekseer::Backend::TextureFormatType format, uint32_t multisample)
-{
-	auto g = (GraphicsGL*)graphics;
-	auto gd = g->GetGraphicsDevice().DownCast<EffekseerRendererGL::Backend::GraphicsDevice>();
-
-	Effekseer::Backend::RenderTextureParameter param;
-	param.Format = format;
-	param.SamplingCount = multisample;
-	param.Size = {size.X, size.Y};
-	texture_ = gd->CreateRenderTexture(param).DownCast<EffekseerRendererGL::Backend::Texture>();
-
-	this->size_ = size;
-	this->samplingCount_ = multisample;
-	this->format_ = format;
-
-	if (multisample <= 1 && texture_ != nullptr)
-	{
-		GLint bound;
-		glGetIntegerv(GL_TEXTURE_BINDING_2D, &bound);
-		glBindTexture(GL_TEXTURE_2D, texture_->GetBuffer());
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glBindTexture(GL_TEXTURE_2D, bound);
-	}
-
-	return texture_ != nullptr;
-}
-
-DepthTextureGL::DepthTextureGL(Graphics* graphics)
-	: graphics_(graphics)
-{
-}
-
-DepthTextureGL::~DepthTextureGL()
-{
-}
-
-bool DepthTextureGL::Initialize(int32_t width, int32_t height, uint32_t multisample)
-{
-	if (glGetError() != GL_NO_ERROR)
-		return false;
-	auto g = (GraphicsGL*)graphics_;
-	auto gd = g->GetGraphicsDevice().DownCast<EffekseerRendererGL::Backend::GraphicsDevice>();
-
-	Effekseer::Backend::DepthTextureParameter param;
-	param.Format = Effekseer::Backend::TextureFormatType::D32;
-	param.SamplingCount = multisample;
-	param.Size = {width, height};
-	texture_ = gd->CreateDepthTexture(param).DownCast<EffekseerRendererGL::Backend::Texture>();
-
-	if (multisample <= 1 && texture_ != nullptr)
-	{
-		glBindTexture(GL_TEXTURE_2D, texture_->GetBuffer());
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glBindTexture(GL_TEXTURE_2D, 0);
-	}
-
-	return texture_ != nullptr;
-}
 
 bool SaveTextureGL(std::vector<Effekseer::Color>& dst, GLuint texture, int32_t width, int32_t height)
 {
@@ -93,7 +20,7 @@ bool SaveTextureGL(std::vector<Effekseer::Color>& dst, GLuint texture, int32_t w
 	glBindTexture(GL_TEXTURE_2D, texture);
 
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-	glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, src.data());
+	Effekseer::OpenGLHelper::glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, src.data());
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -119,12 +46,10 @@ GraphicsGL::GraphicsGL()
 
 GraphicsGL::~GraphicsGL()
 {
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glDeleteFramebuffers(1, &frameBuffer);
-	glDeleteFramebuffers(1, &frameBufferForCopySrc);
-	glDeleteFramebuffers(1, &frameBufferForCopyDst);
-
-	backTarget.reset();
+	GL::glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	GL::glDeleteFramebuffers(1, &frameBuffer);
+	GL::glDeleteFramebuffers(1, &frameBufferForCopySrc);
+	GL::glDeleteFramebuffers(1, &frameBufferForCopyDst);
 }
 
 bool GraphicsGL::Initialize(void* windowHandle, int32_t windowWidth, int32_t windowHeight)
@@ -134,34 +59,36 @@ bool GraphicsGL::Initialize(void* windowHandle, int32_t windowWidth, int32_t win
 
 	glDisable(GL_FRAMEBUFFER_SRGB);
 
-	glGenFramebuffers(1, &frameBuffer);
+	graphicsDevice_ = Effekseer::MakeRefPtr<EffekseerRendererGL::Backend::GraphicsDevice>(EffekseerRendererGL::OpenGLDeviceType::OpenGL3);
+
+	Effekseer::OpenGLHelper::Initialize();
+
+	GL::glGenFramebuffers(1, &frameBuffer);
 
 	// for bug
-	glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	GL::glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+	GL::glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	GLCheckError();
 
 	// TODO
 	// create VAO
 
 	// for glBlitFramebuffer
-	glGenFramebuffers(1, &frameBufferForCopySrc);
-	glGenFramebuffers(1, &frameBufferForCopyDst);
-
-	graphicsDevice_ = Effekseer::MakeRefPtr<EffekseerRendererGL::Backend::GraphicsDevice>(EffekseerRendererGL::OpenGLDeviceType::OpenGL3);
+	GL::glGenFramebuffers(1, &frameBufferForCopySrc);
+	GL::glGenFramebuffers(1, &frameBufferForCopyDst);
 
 	return true;
 }
 
 void GraphicsGL::CopyTo(Effekseer::Backend::TextureRef src, Effekseer::Backend::TextureRef dst)
 {
-	if (src->GetSize() != dst->GetSize())
+	if (src->GetParameter().Size != dst->GetParameter().Size)
 		return;
 
-	if (src->GetFormat() != dst->GetFormat())
+	if (src->GetParameter().Format != dst->GetParameter().Format)
 		return;
 
-	if (src->GetSamplingCount() != dst->GetSamplingCount())
+	if (src->GetParameter().SampleCount != dst->GetParameter().SampleCount)
 	{
 		ResolveRenderTarget(src, dst);
 	}
@@ -174,22 +101,24 @@ void GraphicsGL::CopyTo(Effekseer::Backend::TextureRef src, Effekseer::Backend::
 		auto s = src.DownCast<EffekseerRendererGL::Backend::Texture>();
 		auto d = dst.DownCast<EffekseerRendererGL::Backend::Texture>();
 
-		if (s->GetSamplingCount() > 1)
+		if (s->GetParameter().SampleCount > 1)
 		{
-			glBindFramebuffer(GL_FRAMEBUFFER, frameBufferForCopySrc);
-			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, s->GetRenderBuffer());
+			GL::glBindFramebuffer(GL_FRAMEBUFFER, frameBufferForCopySrc);
+			Effekseer::OpenGLHelper::glFramebufferRenderbuffer(
+				GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, s->GetRenderBuffer());
 		}
 		else
 		{
-			glBindFramebuffer(GL_FRAMEBUFFER, frameBufferForCopySrc);
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, s->GetBuffer(), 0);
+			GL::glBindFramebuffer(GL_FRAMEBUFFER, frameBufferForCopySrc);
+			GL::glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, s->GetBuffer(), 0);
 		}
 
 		glBindTexture(GL_TEXTURE_2D, d->GetBuffer());
-		glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, dst->GetSize()[0], dst->GetSize()[1]);
+		Effekseer::OpenGLHelper::glCopyTexSubImage2D(
+			GL_TEXTURE_2D, 0, 0, 0, 0, 0, dst->GetParameter().Size[0], dst->GetParameter().Size[1]);
 		glBindTexture(GL_TEXTURE_2D, 0);
 
-		glBindFramebuffer(GL_FRAMEBUFFER, backupFramebuffer);
+		GL::glBindFramebuffer(GL_FRAMEBUFFER, backupFramebuffer);
 	}
 }
 
@@ -212,31 +141,23 @@ bool GraphicsGL::Present()
 	return true;
 }
 
-void GraphicsGL::BeginScene()
-{
-}
-
-void GraphicsGL::EndScene()
-{
-}
-
 void GraphicsGL::SetRenderTarget(std::vector<Effekseer::Backend::TextureRef> renderTextures, Effekseer::Backend::TextureRef depthTexture)
 {
 	assert(renderTextures.size() > 0);
 	GLCheckError();
-	
+
 	// reset
 	for (int32_t i = 0; i < 4; i++)
 	{
-		glActiveTexture(GL_TEXTURE0 + i);
+		GL::glActiveTexture(GL_TEXTURE0 + i);
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
-	glActiveTexture(GL_TEXTURE0);
+	GL::glActiveTexture(GL_TEXTURE0);
 	GLCheckError();
 
 	if (renderTextures[0] == nullptr)
 	{
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		GL::glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glDrawBuffer(GL_BACK);
 		glViewport(0, 0, windowWidth, windowHeight);
 		currentRenderTargetCount_ = 0;
@@ -244,7 +165,7 @@ void GraphicsGL::SetRenderTarget(std::vector<Effekseer::Backend::TextureRef> ren
 	}
 	else
 	{
-		glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+		GL::glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
 
 		auto rt = renderTextures[0].DownCast<EffekseerRendererGL::Backend::Texture>();
 		auto dt = depthTexture.DownCast<EffekseerRendererGL::Backend::Texture>();
@@ -255,40 +176,45 @@ void GraphicsGL::SetRenderTarget(std::vector<Effekseer::Backend::TextureRef> ren
 
 			if (rti == nullptr)
 			{
-				glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_RENDERBUFFER, 0);
-				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, 0, 0);
+				Effekseer::OpenGLHelper::glFramebufferRenderbuffer(
+					GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_RENDERBUFFER, 0);
+				GL::glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, 0, 0);
 			}
-			else if (rti->GetSamplingCount() > 1)
+			else if (rti->GetParameter().SampleCount > 1)
 			{
-				glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_RENDERBUFFER, rti->GetRenderBuffer());
+				Effekseer::OpenGLHelper::glFramebufferRenderbuffer(
+					GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_RENDERBUFFER, rti->GetRenderBuffer());
 			}
 			else
 			{
-				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, rti->GetBuffer(), 0);
+				GL::glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, rti->GetBuffer(), 0);
 			}
 		}
 
 		for (size_t i = renderTextures.size(); i < 4; i++)
 		{
-			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_RENDERBUFFER, 0);
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, 0, 0);
+			Effekseer::OpenGLHelper::glFramebufferRenderbuffer(
+				GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_RENDERBUFFER, 0);
+			GL::glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, 0, 0);
 		}
 
 		if (dt != nullptr)
 		{
-			if (dt->GetSamplingCount() > 1)
+			if (dt->GetParameter().SampleCount > 1)
 			{
-				glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, dt->GetRenderBuffer());
+				Effekseer::OpenGLHelper::glFramebufferRenderbuffer(
+					GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, dt->GetRenderBuffer());
 			}
 			else
 			{
-				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, dt->GetBuffer(), 0);
+				GL::glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, dt->GetBuffer(), 0);
 			}
 		}
 		else
 		{
-			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
+			Effekseer::OpenGLHelper::glFramebufferRenderbuffer(
+				GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);
+			GL::glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
 		}
 
 		static const GLenum bufs[] = {
@@ -297,11 +223,11 @@ void GraphicsGL::SetRenderTarget(std::vector<Effekseer::Backend::TextureRef> ren
 			GL_COLOR_ATTACHMENT2,
 			GL_COLOR_ATTACHMENT3,
 		};
-		glDrawBuffers(renderTextures.size(), bufs);
+		GL::glDrawBuffers(renderTextures.size(), bufs);
 
 		GLCheckError();
 
-		glViewport(0, 0, renderTextures[0]->GetSize()[0], renderTextures[0]->GetSize()[1]);
+		glViewport(0, 0, renderTextures[0]->GetParameter().Size[0], renderTextures[0]->GetParameter().Size[1]);
 		currentRenderTargetCount_ = renderTextures.size();
 		hasDepthBuffer_ = depthTexture != nullptr;
 	}
@@ -310,8 +236,8 @@ void GraphicsGL::SetRenderTarget(std::vector<Effekseer::Backend::TextureRef> ren
 void GraphicsGL::SaveTexture(Effekseer::Backend::TextureRef texture, std::vector<Effekseer::Color>& pixels)
 {
 	auto t = texture.DownCast<EffekseerRendererGL::Backend::Texture>();
-	pixels.resize(t->GetSize()[0] * t->GetSize()[1]);
-	SaveTextureGL(pixels, t->GetBuffer(), t->GetSize()[0], t->GetSize()[1]);
+	pixels.resize(t->GetParameter().Size[0] * t->GetParameter().Size[1]);
+	SaveTextureGL(pixels, t->GetBuffer(), t->GetParameter().Size[0], t->GetParameter().Size[1]);
 }
 
 void GraphicsGL::Clear(Effekseer::Color color)
@@ -346,7 +272,7 @@ void GraphicsGL::Clear(Effekseer::Color color)
 
 		for (int32_t i = 0; i < currentRenderTargetCount_; i++)
 		{
-			glClearBufferfv(GL_COLOR, i, colorf.data());
+			Effekseer::OpenGLHelper::glClearBufferfv(GL_COLOR, i, colorf.data());
 			GLCheckError();
 		}
 
@@ -354,7 +280,7 @@ void GraphicsGL::Clear(Effekseer::Color color)
 		{
 			glDepthMask(GL_TRUE);
 			float clearDepth[] = {1.0f};
-			glClearBufferfv(GL_DEPTH, 0, clearDepth);
+			Effekseer::OpenGLHelper::glClearBufferfv(GL_DEPTH, 0, clearDepth);
 			GLCheckError();
 		}
 	}
@@ -369,24 +295,35 @@ void GraphicsGL::ResolveRenderTarget(Effekseer::Backend::TextureRef src, Effekse
 
 	GLint frameBufferBinding = 0;
 	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &frameBufferBinding);
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, frameBufferForCopySrc);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, frameBufferForCopyDst);
+	GL::glBindFramebuffer(GL_READ_FRAMEBUFFER, frameBufferForCopySrc);
+	GL::glBindFramebuffer(GL_DRAW_FRAMEBUFFER, frameBufferForCopyDst);
 	GLCheckError();
 
-	glFramebufferRenderbuffer(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, rtSrc->GetRenderBuffer());
-	glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rtDest->GetBuffer(), 0);
+	Effekseer::OpenGLHelper::glFramebufferRenderbuffer(
+		GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, rtSrc->GetRenderBuffer());
+	GL::glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rtDest->GetBuffer(), 0);
 	GLCheckError();
 
-	glBlitFramebuffer(0, 0, src->GetSize()[0], src->GetSize()[1], 0, 0, dest->GetSize()[0], dest->GetSize()[1], GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	Effekseer::OpenGLHelper::glBlitFramebuffer(
+		0,
+		0,
+		src->GetParameter().Size[0],
+		src->GetParameter().Size[1],
+		0,
+		0,
+		dest->GetParameter().Size[0],
+		dest->GetParameter().Size[1],
+		GL_COLOR_BUFFER_BIT,
+		GL_NEAREST);
 	GLCheckError();
 
-	glFramebufferRenderbuffer(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, 0);
-	glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
+	Effekseer::OpenGLHelper::glFramebufferRenderbuffer(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, 0);
+	GL::glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
 	GLCheckError();
 
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-	glBindFramebuffer(GL_FRAMEBUFFER, frameBufferBinding);
+	GL::glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+	GL::glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	GL::glBindFramebuffer(GL_FRAMEBUFFER, frameBufferBinding);
 }
 
 void GraphicsGL::ResetDevice()

@@ -10,16 +10,20 @@ namespace Effekseer.GUI.Menu
 			new DockSettings("Position", typeof(Dock.LocationValues), Icons.PanelLocation),
 			new DockSettings("AttractionForces", typeof(Dock.LocationAbsValues), Icons.PanelForceField),
 			new DockSettings("SpawningMethod", typeof(Dock.GenerationLocationValues), Icons.PanelGeneration),
+			new DockSettings("KillRules", typeof(Dock.KillRules), Icons.PanelKillRules),
 			new DockSettings("Rotation", typeof(Dock.RotationValues), Icons.PanelRotation),
 			new DockSettings("Scale", typeof(Dock.ScaleValues), Icons.PanelScale),
 			new DockSettings("Depth", typeof(Dock.DepthValues), Icons.PanelDepth),
+			new DockSettings("Collisions", typeof(Dock.CollisionsValues), Icons.PanelCollisions),
 			new DockSettings("RenderSettings", typeof(Dock.RendererValues), Icons.PanelRender),
 			new DockSettings("BasicRenderSettings", typeof(Dock.RendererCommonValues), Icons.PanelRenderCommon),
 			new DockSettings("AdvancedRenderSettings", typeof(Dock.AdvancedRenderCommonValues), Icons.PanelAdvancedRenderCommon),
+			new DockSettings("GpuParticles", typeof(Dock.GpuParticlesValues), Icons.PanelGpuParticles),
 			new DockSettings("Sound", typeof(Dock.SoundValues), Icons.PanelSound),
 			new DockSettings("FCurves", typeof(Dock.FCurves), Icons.PanelFCurve),
 			new DockSettings("Global", typeof(Dock.GlobalValues), Icons.PanelGlobal),
 			new DockSettings("Culling", typeof(Dock.Culling), Icons.PanelCulling),
+			new DockSettings("LOD_Name", typeof(Dock.LOD), Icons.PanelLOD),
 			new DockSettings("DynamicParameter_Name", typeof(Dock.Dynamic), Icons.PanelDynamicParams),
 			new DockSettings("ProceduralModel_Name", typeof(Dock.ProceduralModel), Icons.PanelProceduralModel),
 			new DockSettings("ViewerControls", typeof(Dock.ViewerController), Icons.PanelViewerCtrl),
@@ -28,8 +32,9 @@ namespace Effekseer.GUI.Menu
 			new DockSettings("Behavior", typeof(Dock.BehaviorValues), Icons.PanelBehavior),
 			new DockSettings("Network", typeof(Dock.Network), Icons.PanelNetwork),
 			new DockSettings("Recorder", typeof(Dock.Recorder), Icons.PanelRecorder),
-			new DockSettings("FileViewer", typeof(Dock.FileViewer), Icons.PanelFileViewer),
+			new DockSettings("FileBrowser", typeof(Dock.FileBrowser), Icons.PanelFileBrowser),
 			new DockSettings("Options", typeof(Dock.Option), Icons.PanelOptions),
+			new DockSettings("Profiler", typeof(Dock.Profiler), Icons.PanelProfiler),
 		};
 
 		public Menu SetupWindowMenu()
@@ -75,15 +80,10 @@ namespace Effekseer.GUI.Menu
 				item.Label = new MultiLanguageString(Title);
 				item.Icon = _iconName;
 				item.Clicked += () => Manager.SelectOrShowWindow(_type, new swig.Vec2(300, 300), true);
-				item.GetLabel = () => {
+				item.OnUpdate = () =>
+				{
 					var dock = Manager.GetWindow(_type);
-					var str = item.Label.ToString();
-					if(dock != null)
-					{
-						str += " x";
-					}
-
-					return str;
+					item.Checked = dock != null;
 				};
 
 				menu.Controls.Add(item);

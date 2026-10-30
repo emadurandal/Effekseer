@@ -5,7 +5,7 @@ using System.Text;
 
 namespace Effekseer.Data.Value
 {
-	public class Vector2DWithRandom : IValueChangedFromDefault
+	public class Vector2DWithRandom : IResettableValue, IValueChangedFromDefault
 	{
 		public FloatWithRandom X
 		{
@@ -47,21 +47,30 @@ namespace Effekseer.Data.Value
 			Y = new FloatWithRandom(y, y_max, y_min, drawnas, y_step);
 			DrawnAs = drawnas;
 			DefaultDrawnAs = DrawnAs;
-        }
+		}
 
-        public byte[] GetBytes(float mul = 1.0f)
-        {
-            byte[] values = new byte[sizeof(float) * 4];
-            BitConverter.GetBytes(X.Max * mul).CopyTo(values, sizeof(float) * 0);
-            BitConverter.GetBytes(Y.Max * mul).CopyTo(values, sizeof(float) * 1);
-            BitConverter.GetBytes(X.Min * mul).CopyTo(values, sizeof(float) * 2);
-            BitConverter.GetBytes(Y.Min * mul).CopyTo(values, sizeof(float) * 3);
-            return values;
-        }
+		public void ResetValue()
+		{
+			Command.CommandManager.StartCollection();
+			X.ResetValue();
+			Y.ResetValue();
+			DrawnAs = DefaultDrawnAs;
+			Command.CommandManager.EndCollection();
+		}
 
-        public static explicit operator byte[](Vector2DWithRandom value)
-        {
-            return value.GetBytes();
-        }
+		public byte[] GetBytes(float mul = 1.0f)
+		{
+			byte[] values = new byte[sizeof(float) * 4];
+			BitConverter.GetBytes(X.Max * mul).CopyTo(values, sizeof(float) * 0);
+			BitConverter.GetBytes(Y.Max * mul).CopyTo(values, sizeof(float) * 1);
+			BitConverter.GetBytes(X.Min * mul).CopyTo(values, sizeof(float) * 2);
+			BitConverter.GetBytes(Y.Min * mul).CopyTo(values, sizeof(float) * 3);
+			return values;
+		}
+
+		public static explicit operator byte[](Vector2DWithRandom value)
+		{
+			return value.GetBytes();
+		}
 	}
 }

@@ -1,9 +1,15 @@
 #include "TestHelper.h"
+#include "../TestRuntimeFramework/Runtime/TestDiagnostics.h"
 #include <Effekseer.h>
 #ifdef _WIN32
 #include <windows.h>
 #endif
 
+#include <array>
+#include <cassert>
+#include <exception>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <map>
@@ -14,81 +20,110 @@
 #include "../3rdParty/stb/stb_image_write.h"
 
 #if defined(_WIN32)
-static std::wstring ToWide(const char* text)
+static std::wstring ToWide(std::string_view text)
 {
-	int Len = ::MultiByteToWideChar(CP_ACP, 0, text, -1, NULL, 0);
-
-	wchar_t* pOut = new wchar_t[Len + 1];
-	::MultiByteToWideChar(CP_ACP, 0, text, -1, pOut, Len);
-	std::wstring Out(pOut);
-	delete[] pOut;
-
-	return Out;
+	const auto length = ::MultiByteToWideChar(CP_ACP, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+	std::wstring output(length, L'\0');
+	::MultiByteToWideChar(CP_ACP, 0, text.data(), static_cast<int>(text.size()), output.data(), length);
+	return output;
 }
 #endif
 
-std::string GetDirectoryPath(const char* path)
+namespace
 {
-	auto p = std::string(path);
-	size_t last = -1;
-	for (size_t i = 0; i < p.size(); i++)
+
+const char* currentTestName = "<none>";
+
+#if defined(_WIN32)
+LONG WINAPI LogUnhandledTestException(EXCEPTION_POINTERS* exceptionPointers)
+{
+	const auto exceptionRecord = exceptionPointers != nullptr ? exceptionPointers->ExceptionRecord : nullptr;
+	const auto exceptionCode = exceptionRecord != nullptr ? exceptionRecord->ExceptionCode : 0;
+	const auto exceptionAddress = exceptionRecord != nullptr ? exceptionRecord->ExceptionAddress : nullptr;
+	fprintf(
+		stderr,
+		"Unhandled exception while running %s: code=0x%08lX, address=%p, thread=%lu\n",
+		currentTestName,
+		static_cast<unsigned long>(exceptionCode),
+		exceptionAddress,
+		static_cast<unsigned long>(::GetCurrentThreadId()));
+	if (exceptionRecord != nullptr &&
+		exceptionCode == EXCEPTION_ACCESS_VIOLATION &&
+		exceptionRecord->NumberParameters >= 2)
 	{
-		if (p[i] == '/' || p[i] == '\\')
+		const auto operationCode = exceptionRecord->ExceptionInformation[0];
+		const char* operation = "unknown";
+		if (operationCode == 0)
 		{
-			last = i;
+			operation = "read";
 		}
+		else if (operationCode == 1)
+		{
+			operation = "write";
+		}
+		else if (operationCode == 8)
+		{
+			operation = "execute";
+		}
+		fprintf(
+			stderr,
+			"Access violation details: operation=%s, target=%p\n",
+			operation,
+			reinterpret_cast<void*>(exceptionRecord->ExceptionInformation[1]));
 	}
-
-	if (last >= 0)
-	{
-		p.resize(last);
-		p += "/";
-		return p;
-	}
-
-	return "";
+	fflush(stdout);
+	fflush(stderr);
+	return EXCEPTION_CONTINUE_SEARCH;
 }
+#endif
+
+} // namespace
 
 std::u16string GetDirectoryPathAsU16(const char* path)
 {
-	auto p = GetDirectoryPath(path);
+	auto p = Effekseer::PathHelper::GetDirectoryName(std::string(path));
 
 #ifdef _WIN32
-	auto w = ToWide(p.c_str());
-	return std::u16string((const char16_t*)w.c_str());
+	auto w = ToWide(p);
+	return std::u16string(reinterpret_cast<const char16_t*>(w.c_str()));
 #else
-	char16_t dst[512];
-	Effekseer::ConvertUtf8ToUtf16(dst, 512, p.c_str());
-	return std::u16string(dst);
+	std::array<char16_t, 512> dst{};
+	Effekseer::ConvertUtf8ToUtf16(dst.data(), static_cast<int>(dst.size()), p.c_str());
+	return std::u16string(dst.data());
 #endif
 }
 
 std::vector<uint8_t> LoadFile(const char16_t* path)
 {
-	char path8[256];
-	Effekseer::ConvertUtf16ToUtf8(path8, 256, path);
+	std::array<char, 256> path8{};
+	Effekseer::ConvertUtf16ToUtf8(path8.data(), static_cast<int>(path8.size()), path);
 
-	FILE* filePtr = NULL;
-#ifdef _WIN32
-	_wfopen_s(&filePtr, (const wchar_t*)path, L"rb");
-#else
-	filePtr = fopen((const char*)path8, "rb");
-#endif
+	const auto fsPath = std::filesystem::path(std::u16string(path));
 
-	if (filePtr == nullptr)
+	std::ifstream file(fsPath, std::ios::binary);
+	if (!file)
 	{
-		printf("Failed to load %s./n", path8);
-		assert(0);
+		printf("Failed to load %s.\n", path8.data());
+		assert(false);
+		return {};
 	}
 
-	fseek(filePtr, 0, SEEK_END);
-	auto size = ftell(filePtr);
-	fseek(filePtr, 0, SEEK_SET);
+	std::error_code ec;
+	const auto fileSize = std::filesystem::file_size(fsPath, ec);
+	if (ec != std::error_code())
+	{
+		printf("Failed to get file size for %s. %s\n", path8.data(), ec.message().c_str());
+		assert(false);
+		return {};
+	}
 
-	std::vector<uint8_t> data;
-	data.resize(size);
-	fread(data.data(), 1, size, filePtr);
-	fclose(filePtr);
+	std::vector<uint8_t> data(static_cast<size_t>(fileSize));
+	if (!file.read(reinterpret_cast<char*>(data.data()), static_cast<std::streamsize>(data.size())))
+	{
+		printf("Failed to fully read %s.\n", path8.data());
+		assert(false);
+		return {};
+	}
 
 	return data;
 }
@@ -97,71 +132,137 @@ struct InternalTestHelper
 {
 	std::string Root;
 	bool IsCaptureRequired = false;
-	std::map<std::string, std::function<void()>> tests;
+	std::vector<std::string> CommandLineArgs;
+
+	struct TestEntry
+	{
+		std::function<void()> Func;
+		TestExecutionMode ExecutionMode = TestExecutionMode::Default;
+	};
+
+	std::map<std::string, TestEntry, std::less<>> Tests;
 };
 
 std::shared_ptr<InternalTestHelper> TestHelper::Get()
 {
-	// HACK for initializing order in some platforms
-	static std::shared_ptr<InternalTestHelper> internalTestHelper;
-
-	if (internalTestHelper == nullptr)
-	{
-		internalTestHelper = std::shared_ptr<InternalTestHelper>(new InternalTestHelper());
-	}
-
+	static auto internalTestHelper = std::make_shared<InternalTestHelper>();
 	return internalTestHelper;
 }
 
 ParsedArgs TestHelper::ParseArg(int argc, char* argv[])
 {
-	ParsedArgs args;
+	ParsedArgs args{};
+	auto helper = Get();
+	helper->CommandLineArgs.clear();
 
-	bool isVulkanMode = false;
-	std::string filter;
+	using namespace std::literals;
+	constexpr auto filterPrefix = "--filter="sv;
 
 	for (int i = 0; i < argc; i++)
 	{
-		auto v = std::string(argv[i]);
+		const std::string_view arg(argv[i]);
+		helper->CommandLineArgs.emplace_back(arg);
 
-		if (v.find("--filter=") == 0)
+		if (arg == "--list")
 		{
-			args.Filter = v.substr(strlen("--filter="));
+			args.List = true;
+		}
+
+		if (arg.compare(0, filterPrefix.size(), filterPrefix) == 0)
+		{
+			args.Filter = std::string(arg.substr(filterPrefix.size()));
+			try
+			{
+				args.FilterPattern.emplace(args.Filter);
+			}
+			catch (const std::regex_error& e)
+			{
+				std::cerr << "Invalid filter regex '" << args.Filter << "': " << e.what() << std::endl;
+			}
 		}
 	}
 
 	return args;
 }
 
-void TestHelper::Run(const ParsedArgs& args)
+const std::vector<std::string>& TestHelper::GetCommandLineArgs()
 {
-	auto helper = Get();
-
-	if (args.Filter == "")
-	{
-		for (auto& f : helper->tests)
-		{
-			std::cout << "Start : " << f.first << std::endl;
-			f.second();
-		}
-	}
-	else
-	{
-		std::basic_regex<char> re(args.Filter);
-
-		for (auto& f : Get()->tests)
-		{
-			if (!std::regex_match(f.first, re))
-				continue;
-
-			std::cout << "Start : " << f.first << std::endl;
-			f.second();
-		}
-	}
+	return Get()->CommandLineArgs;
 }
 
-void TestHelper::RegisterTest(const char* name, std::function<void()> func)
+bool TestHelper::Run(const ParsedArgs& args)
+{
+	const auto helper = Get();
+	const auto& filter = args.FilterPattern;
+
+#if defined(_WIN32)
+	::SetUnhandledExceptionFilter(LogUnhandledTestException);
+#endif
+
+	for (const auto& [name, test] : helper->Tests)
+	{
+		if (filter && !std::regex_match(name, *filter))
+		{
+			continue;
+		}
+		if (args.List)
+		{
+			std::cout << name << std::endl;
+			continue;
+		}
+		if (!filter && test.ExecutionMode == TestExecutionMode::FilterOnly)
+		{
+			continue;
+		}
+		currentTestName = name.c_str();
+		TestDiagnostics::Reset();
+		std::cout << "Start : " << name << std::endl;
+		const auto startedAt = std::chrono::steady_clock::now();
+		try
+		{
+			test.Func();
+			if (TestDiagnostics::GetErrorCount() != 0)
+			{
+				std::cerr << "GPU errors while running " << name << ": " << TestDiagnostics::GetErrorCount() << std::endl;
+				currentTestName = "<none>";
+				return false;
+			}
+		}
+		catch (const std::exception& e)
+		{
+			std::cerr << "Exception while running " << name << ": " << e.what() << std::endl;
+			currentTestName = "<none>";
+			return false;
+		}
+		catch (const std::string& e)
+		{
+			std::cerr << "Exception while running " << name << ": " << e << std::endl;
+			currentTestName = "<none>";
+			return false;
+		}
+		catch (const char* e)
+		{
+			std::cerr << "Exception while running " << name << ": " << (e != nullptr ? e : "<null>") << std::endl;
+			currentTestName = "<none>";
+			return false;
+		}
+		catch (...)
+		{
+			std::cerr << "Unknown exception while running " << name << std::endl;
+			currentTestName = "<none>";
+			return false;
+		}
+		const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::steady_clock::now() - startedAt);
+		std::cout << "Finish: " << name << " (" << elapsed.count() << " ms)" << std::endl;
+		currentTestName = "<none>";
+	}
+
+	return true;
+}
+
+void TestHelper::RegisterTest(const char* name, std::function<void()> func, TestExecutionMode executionMode)
 {
 	auto helper = Get();
-	helper->tests[name] = func;
+	helper->Tests.emplace(name, InternalTestHelper::TestEntry{std::move(func), executionMode});
 }

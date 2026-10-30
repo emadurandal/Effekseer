@@ -87,6 +87,11 @@ namespace Effekseer.Data.Value
 			Y.ResetValue();
 			Z.ResetValue();
 			W.ResetValue();
+			if (CanSelectDynamicEquation)
+			{
+				IsDynamicEquationEnabled.ResetValue();
+				DynamicEquation.SetValue(null);
+			}
 			Command.CommandManager.EndCollection();
 		}
 
@@ -98,7 +103,7 @@ namespace Effekseer.Data.Value
 			W.ChangeDefaultValue(w);
 		}
 
-		public static explicit operator byte[] (Vector4D value)
+		public static explicit operator byte[](Vector4D value)
 		{
 			byte[] values = new byte[sizeof(float) * 4];
 			byte[] x = BitConverter.GetBytes(value.X.GetValue());

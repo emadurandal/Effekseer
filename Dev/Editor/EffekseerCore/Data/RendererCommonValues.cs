@@ -7,7 +7,7 @@ namespace Effekseer.Data
 {
 	public enum UVTextureReferenceTargetType
 	{
-		[Key(key= "UVTextureReferenceTargetType_None")]
+		[Key(key = "UVTextureReferenceTargetType_None")]
 		None = 0,
 		[Key(key = "UVTextureReferenceTargetType_Texture1")]
 		Texture1 = 1,
@@ -98,7 +98,7 @@ namespace Effekseer.Data
 			EditableValue ev = new EditableValue();
 			ev.Value = CustomData;
 
-			if(Name != string.Empty)
+			if (Name != string.Empty)
 			{
 				ev.Title = Name;
 				ev.Description = Desc;
@@ -128,7 +128,7 @@ namespace Effekseer.Data
 
 		public void Changed()
 		{
-			if(OnChanged != null)
+			if (OnChanged != null)
 			{
 				OnChanged(this, null);
 			}
@@ -160,7 +160,7 @@ namespace Effekseer.Data
 		{
 			var statusKey = StatusKey.From(key);
 
-			foreach(var kv in valueStatuses)
+			foreach (var kv in valueStatuses)
 			{
 				if (blacklist != null && blacklist.Contains(kv)) continue;
 				if (kv.Key.IsSame(statusKey, withName)) return kv;
@@ -172,22 +172,22 @@ namespace Effekseer.Data
 		public MaterialFileParameter(RendererCommonValues rcValues)
 		{
 			this.rcValues = rcValues;
-			Path = new Value.PathForMaterial(rcValues.BasePath, Resources.GetString("MaterialFilter"), true);
+			Path = new Value.PathForMaterial(rcValues.BasePath, new MultiLanguageString("MaterialFilter"), true);
 			Path.OnChanged += Path_OnChanged;
 		}
 
 		private void Path_OnChanged(object sender, ChangedValueEventArgs e)
 		{
 			// Apply values
-			Utl.MaterialInformation info = new Utl.MaterialInformation();
+			Utils.MaterialInformation info = new Utils.MaterialInformation();
 			info.Load(Path.GetAbsolutePath());
 
 			ApplyMaterial(info);
 
-			if(info.CustomData.Count() > 0)
+			if (info.CustomData.Count() > 0)
 			{
-				rcValues.CustomData1.Name = info.CustomData[0].Summaries[Core.Language];
-				rcValues.CustomData1.Desc = info.CustomData[0].Descriptions[Core.Language];
+				rcValues.CustomData1.Name = info.CustomData[0].Summary;
+				rcValues.CustomData1.Desc = info.CustomData[0].Description;
 			}
 			else
 			{
@@ -197,8 +197,8 @@ namespace Effekseer.Data
 
 			if (info.CustomData.Count() > 1)
 			{
-				rcValues.CustomData2.Name = info.CustomData[1].Summaries[Core.Language];
-				rcValues.CustomData2.Desc = info.CustomData[1].Descriptions[Core.Language];
+				rcValues.CustomData2.Name = info.CustomData[1].Summary;
+				rcValues.CustomData2.Desc = info.CustomData[1].Description;
 			}
 			else
 			{
@@ -227,7 +227,7 @@ namespace Effekseer.Data
 
 			var propPath = EditableValue.Create(Path, this.GetType().GetProperty("Path"));
 
-			if(!string.IsNullOrEmpty(selfSummary))
+			if (!string.IsNullOrEmpty(selfSummary))
 			{
 				propPath.Title = selfSummary;
 			}
@@ -254,39 +254,23 @@ namespace Effekseer.Data
 			return ret.ToArray();
 		}
 
-		public void ApplyMaterial(Utl.MaterialInformation info)
+		public void ApplyMaterial(Utils.MaterialInformation info)
 		{
 			bool isChanged = false;
 
 			var previous_selfSummary = selfSummary;
 			var previous_selfDetail = selfDetail;
 
-			if (info.Names.ContainsKey(Core.Language))
-			{
-				selfSummary = info.Names[Core.Language];
-			}
-			else
-			{
-				selfSummary = "";
-			}
-
-
-			if (info.Descriptions.ContainsKey(Core.Language))
-			{
-				selfDetail = info.Descriptions[Core.Language];
-			}
-			else
-			{
-				selfDetail = "";
-			}
+			selfSummary = info.Name;
+			selfDetail = info.Description;
 
 			if (previous_selfSummary != selfSummary) isChanged = true;
 			if (previous_selfDetail != selfDetail) isChanged = true;
 
 			HashSet<ValueStatus> usedValueStatuses = new HashSet<ValueStatus>();
 			HashSet<object> finished = new HashSet<object>();
-			
-			foreach (var withNameFlag in new[] { false, true} )
+
+			foreach (var withNameFlag in new[] { false, true })
 			{
 				foreach (var texture in info.Textures)
 				{
@@ -296,11 +280,7 @@ namespace Effekseer.Data
 
 					Func<string> getName = () =>
 					{
-						var ret = "";
-						if (texture.Summaries.ContainsKey(Core.Language))
-						{
-							ret = texture.Summaries[Core.Language];
-						}
+						var ret = texture.Summary;
 
 						if (string.IsNullOrEmpty(ret))
 						{
@@ -317,11 +297,7 @@ namespace Effekseer.Data
 
 					Func<string> getDesc = () =>
 					{
-						var ret = "";
-						if (texture.Descriptions.ContainsKey(Core.Language))
-						{
-							ret = texture.Descriptions[Core.Language];
-						}
+						var ret = texture.Description;
 
 						return ret;
 					};
@@ -338,7 +314,7 @@ namespace Effekseer.Data
 							status.IsShown = texture.IsParam;
 							isChanged = true;
 						}
-						
+
 						// update default path
 						if (texture.IsParam)
 						{
@@ -352,7 +328,7 @@ namespace Effekseer.Data
 						}
 						else
 						{
-							if((foundValue.Value as Value.PathForImage).AbsolutePath != defaultPath)
+							if ((foundValue.Value as Value.PathForImage).AbsolutePath != defaultPath)
 							{
 								(foundValue.Value as Value.PathForImage).SetAbsolutePathDirectly(defaultPath);
 								isChanged = true;
@@ -367,13 +343,13 @@ namespace Effekseer.Data
 						if (!withNameFlag) continue;
 
 						status = new ValueStatus();
-						var value = new Value.PathForImage(rcValues.BasePath, Resources.GetString("ImageFilter"), true, defaultPath);
+						var value = new Value.PathForImage(rcValues.BasePath, new MultiLanguageString("ImageFilter"), true, defaultPath);
 						status.Value = value;
 						status.IsShown = texture.IsParam;
 						status.Priority = texture.Priority;
 						valueStatuses.Add(status);
 
-						if(!string.IsNullOrEmpty(defaultPath))
+						if (!string.IsNullOrEmpty(defaultPath))
 						{
 							value.SetAbsolutePathDirectly(defaultPath);
 						}
@@ -399,11 +375,7 @@ namespace Effekseer.Data
 
 					Func<string> getName = () =>
 					{
-						var ret = "";
-						if (uniform.Summaries.ContainsKey(Core.Language))
-						{
-							ret = uniform.Summaries[Core.Language];
-						}
+						var ret = uniform.Summary;
 
 						if (string.IsNullOrEmpty(ret))
 						{
@@ -420,11 +392,7 @@ namespace Effekseer.Data
 
 					Func<string> getDesc = () =>
 					{
-						var ret = "";
-						if (uniform.Descriptions.ContainsKey(Core.Language))
-						{
-							ret = uniform.Descriptions[Core.Language];
-						}
+						var ret = uniform.Description;
 
 						return ret;
 					};
@@ -435,7 +403,7 @@ namespace Effekseer.Data
 					if (foundValue != null)
 					{
 						status = foundValue;
-						
+
 						status.IsShown = true;
 						isChanged = true;
 
@@ -455,7 +423,7 @@ namespace Effekseer.Data
 						{
 							(status.Value as Value.Vector4D).ChangeDefaultValue(uniform.DefaultValues[0], uniform.DefaultValues[1], uniform.DefaultValues[2], uniform.DefaultValues[3]);
 						}
-						
+
 					}
 					else
 					{
@@ -473,7 +441,7 @@ namespace Effekseer.Data
 							valueStatuses.Add(status);
 							isChanged = true;
 						}
-						else if(uniform.Type == 1)
+						else if (uniform.Type == 1)
 						{
 							status = new ValueStatus();
 							var value = new Value.Vector2D(uniform.DefaultValues[0], uniform.DefaultValues[1]);
@@ -523,11 +491,81 @@ namespace Effekseer.Data
 					usedValueStatuses.Add(status);
 					finished.Add(uniform);
 				}
+
+				foreach (var gradient in info.Gradients)
+				{
+					if (finished.Contains(gradient)) continue;
+
+					var key = StatusKey.From(gradient);
+
+					Func<string> getName = () =>
+					{
+						var ret = gradient.Summary;
+
+						if (string.IsNullOrEmpty(ret))
+						{
+							ret = gradient.Name;
+						}
+
+						if (string.IsNullOrEmpty(ret))
+						{
+							ret = gradient.UniformName;
+						}
+
+						return ret;
+					};
+
+					Func<string> getDesc = () =>
+					{
+						return gradient.Description;
+					};
+
+					ValueStatus status = null;
+
+					var foundValue = FindValue(key.ToString(), usedValueStatuses, withNameFlag);
+					if (foundValue != null)
+					{
+						status = foundValue;
+
+						var target = foundValue.Value as Value.Gradient;
+
+						if (gradient.Data.Equals(target.Value))
+						{
+							target.SetValueDirectly(gradient.Data);
+							isChanged = true;
+						}
+
+						target.DefaultValue = gradient.Data;
+					}
+					else
+					{
+						// create only when value is not found even if withName flag is true
+						if (!withNameFlag) continue;
+
+						status = new ValueStatus();
+						var value = new Value.Gradient();
+						status.Value = value;
+						status.IsShown = true;
+						status.Priority = gradient.Priority;
+						valueStatuses.Add(status);
+
+						isChanged = true;
+					}
+
+					if (status.Name != getName()) isChanged = true;
+					if (status.Description != getDesc()) isChanged = true;
+
+					status.Key = key;
+					status.Name = getName();
+					status.Description = getDesc();
+					usedValueStatuses.Add(status);
+					finished.Add(gradient);
+				}
 			}
 
 			foreach (var kts in valueStatuses)
 			{
-				if(!usedValueStatuses.Contains(kts))
+				if (!usedValueStatuses.Contains(kts))
 				{
 					var status = kts;
 					if (status.IsShown)
@@ -538,7 +576,7 @@ namespace Effekseer.Data
 				}
 			}
 
-			if(info.CustomData.Count() > 0)
+			if (info.CustomData.Count() > 0)
 			{
 				rcValues.CustomData1.Fixed4.ChangeDefaultValue(
 					info.CustomData[0].DefaultValues[0],
@@ -562,9 +600,9 @@ namespace Effekseer.Data
 			}
 		}
 
-		public List<Tuple35<ValueStatus, Utl.MaterialInformation.TextureInformation>> GetTextures(Utl.MaterialInformation info)
+		public List<Tuple35<ValueStatus, Utils.MaterialInformation.TextureInformation>> GetTextures(Utils.MaterialInformation info)
 		{
-			var ret = new List<Tuple35<ValueStatus, Utl.MaterialInformation.TextureInformation>>();
+			var ret = new List<Tuple35<ValueStatus, Utils.MaterialInformation.TextureInformation>>();
 
 			HashSet<ValueStatus> usedValueStatuses = new HashSet<ValueStatus>();
 
@@ -587,9 +625,9 @@ namespace Effekseer.Data
 			return ret;
 		}
 
-		public List<Tuple35<ValueStatus, Utl.MaterialInformation.UniformInformation>> GetUniforms(Utl.MaterialInformation info)
+		public List<Tuple35<ValueStatus, Utils.MaterialInformation.UniformInformation>> GetUniforms(Utils.MaterialInformation info)
 		{
-			var ret = new List<Tuple35<ValueStatus, Utl.MaterialInformation.UniformInformation>>();
+			var ret = new List<Tuple35<ValueStatus, Utils.MaterialInformation.UniformInformation>>();
 
 			foreach (var uniform in info.Uniforms)
 			{
@@ -603,6 +641,28 @@ namespace Effekseer.Data
 				else
 				{
 					ret.Add(Tuple35.Create((ValueStatus)(null), uniform));
+				}
+			}
+
+			return ret;
+		}
+
+		public List<Tuple35<ValueStatus, Utils.MaterialInformation.GradientInformation>> GetGradients(Utils.MaterialInformation info)
+		{
+			var ret = new List<Tuple35<ValueStatus, Utils.MaterialInformation.GradientInformation>>();
+
+			foreach (var gradient in info.Gradients)
+			{
+				var key = StatusKey.From(gradient);
+				var value = FindValue(key.ToString());
+
+				if (value != null)
+				{
+					ret.Add(Tuple35.Create(value, gradient));
+				}
+				else
+				{
+					ret.Add(Tuple35.Create((ValueStatus)(null), gradient));
 				}
 			}
 
@@ -647,7 +707,7 @@ namespace Effekseer.Data
 
 				StatusKey status = new StatusKey();
 
-				if(version > 0)
+				if (version > 0)
 				{
 					// TODO : rename to unity flag
 #if SCRIPT_ENABLED
@@ -680,7 +740,7 @@ namespace Effekseer.Data
 				}
 			}
 
-			public static StatusKey From(Utl.MaterialInformation.UniformInformation info)
+			public static StatusKey From(Utils.MaterialInformation.UniformInformation info)
 			{
 				StatusKey status = new StatusKey();
 				status.Name = info.Name;
@@ -689,12 +749,21 @@ namespace Effekseer.Data
 				return status;
 			}
 
-			public static StatusKey From(Utl.MaterialInformation.TextureInformation info)
+			public static StatusKey From(Utils.MaterialInformation.TextureInformation info)
 			{
 				StatusKey status = new StatusKey();
 				status.Name = info.Name;
 				status.UniformName = info.UniformName;
 				status.Footer = "TYPE_T";
+				return status;
+			}
+
+			public static StatusKey From(Utils.MaterialInformation.GradientInformation info)
+			{
+				StatusKey status = new StatusKey();
+				status.Name = info.Name;
+				status.UniformName = info.UniformName;
+				status.Footer = "TYPE_G";
 				return status;
 			}
 
@@ -796,7 +865,7 @@ namespace Effekseer.Data
 
 		[Selector(ID = 0)]
 		[Key(key = "BRS_FadeInType")]
-		public Value.Enum<FadeType> FadeInType
+		public Value.Enum<FadeInMethod> FadeInType
 		{
 			get;
 			private set;
@@ -820,7 +889,7 @@ namespace Effekseer.Data
 
 		[Selector(ID = 1)]
 		[Key(key = "BRS_FadeOutType")]
-		public Value.Enum<FadeType> FadeOutType
+		public Value.Enum<FadeOutMethod> FadeOutType
 		{
 			get;
 			private set;
@@ -835,12 +904,16 @@ namespace Effekseer.Data
 		}
 
 		[Selected(ID = 1, Value = 1)]
+		[Selected(ID = 1, Value = 2)]
 		[IO(Export = true)]
 		public FadeOutParamater FadeOut
 		{
 			get;
 			private set;
 		}
+
+		[Key(key = "BRS_UVFlipHorizontalProbability")]
+		public Value.Int UVFlipHorizontalProbability { get; private set; } = new Value.Int(0, 100, 0);
 
 		[Selector(ID = 2)]
 		[Key(key = "BRS_UV")]
@@ -909,21 +982,21 @@ namespace Effekseer.Data
 
 			EmissiveScaling = new Value.Float(1.0f, float.MaxValue, 0.0f);
 
-			ColorTexture = new Value.PathForImage(basepath, Resources.GetString("ImageFilter"), true, "");
+			ColorTexture = new Value.PathForImage(basepath, new MultiLanguageString("ImageFilter"), true, "");
 			Filter = new Value.Enum<FilterType>(FilterType.Linear);
 			Wrap = new Value.Enum<WrapType>(WrapType.Repeat);
 
-			NormalTexture = new Value.PathForImage(basepath, Resources.GetString("ImageFilter"), true, "");
+			NormalTexture = new Value.PathForImage(basepath, new MultiLanguageString("ImageFilter"), true, "");
 			Filter2 = new Value.Enum<FilterType>(FilterType.Linear);
 			Wrap2 = new Value.Enum<WrapType>(WrapType.Repeat);
 
 			AlphaBlend = new Value.Enum<AlphaBlendType>(AlphaBlendType.Blend);
-			
-			FadeInType = new Value.Enum<FadeType>(FadeType.None);
+
+			FadeInType = new Value.Enum<FadeInMethod>(FadeInMethod.None);
 			FadeInNone = new NoneParamater();
 			FadeIn = new FadeInParamater();
 
-			FadeOutType = new Value.Enum<FadeType>();
+			FadeOutType = new Value.Enum<FadeOutMethod>(FadeOutMethod.None);
 			FadeOutNone = new NoneParamater();
 			FadeOut = new FadeOutParamater();
 
@@ -1129,12 +1202,23 @@ namespace Effekseer.Data
 			[Key(key = "MaterialType_File")]
 			File = 128,
 		}
-		public enum FadeType : int
+
+		public enum FadeInMethod : int
 		{
-			[Key(key = "FadeType_Use")]
-			Use = 1,
 			[Key(key = "FadeType_None")]
 			None = 0,
+			[Key(key = "FadeType_Use")]
+			Use = 1,
+		}
+
+		public enum FadeOutMethod : int
+		{
+			[Key(key = "FadeType_None")]
+			None = 0,
+			[Key(key = "FadeType_WithinLifetime")]
+			WithinLifetime = 1,
+			[Key(key = "FadeType_AfterRemoved")]
+			AfterRemoved = 2,
 		}
 
 		public enum FilterType : int
@@ -1151,6 +1235,8 @@ namespace Effekseer.Data
 			Repeat = 0,
 			[Key(key = "WrapType_Clamp")]
 			Clamp = 1,
+			[Key(key = "WrapType_Mirror")]
+			Mirror = 2,
 		}
 
 		public enum UVType : int

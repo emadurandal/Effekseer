@@ -26,6 +26,10 @@ const int32_t CompiledMaterialVersion16 = 1610;
 
 const int32_t MaterialVersion15 = 3;
 const int32_t MaterialVersion16 = 1610;
+const int32_t MaterialVersion17Alpha2 = 1700;
+const int32_t MaterialVersion17Alpha4 = 1703;
+const int32_t MaterialVersion17 = 1710;
+const int32_t MaterialVersion18 = 1800;
 
 enum class TextureValueType
 {
@@ -75,6 +79,7 @@ enum class ValueType
 	Function,
 	Enum,
 	Int,
+	Gradient,
 	Unknown,
 };
 
@@ -96,6 +101,13 @@ enum class NodeType
 	Parameter3,
 	Parameter4,
 
+	Branch,		 //! 18xx
+	Compare, //! 18xx
+	BoolAnd,	 //! 18xx
+	BoolOr,		 //! 18xx
+	BoolNot,	 //! 18xx
+	IsFrontFace, //! 18xx
+
 	Abs,
 	Sine,
 	Arctangent2,
@@ -106,6 +118,7 @@ enum class NodeType
 	FMod,
 
 	Step,
+	SmoothStep, //! 18xx
 	Ceil,
 	Floor,
 	Frac,
@@ -116,7 +129,7 @@ enum class NodeType
 	Clamp,
 	DotProduct,
 	CrossProduct,
-	Normalize,	//! 1500
+	Normalize, //! 1500
 	LinearInterpolate,
 
 	OneMinus,
@@ -139,7 +152,6 @@ enum class NodeType
 	WorldPosition, //! 1500
 	VertexColor,
 	ObjectScale, //! 1500
-	
 
 	CustomData1,
 	CustomData2,
@@ -147,8 +159,24 @@ enum class NodeType
 	Fresnel,
 	Rotator,
 	PolarCoords,
-	
+
 	DepthFade,
+
+	RgbToHsv, //! 18xx
+	HsvToRgb, //! 18xx
+
+	Gradient,		   //! 1703
+	GradientParameter, //! 1703
+	SampleGradient,	   //! 1703
+
+	WhiteNoise,	   //! 1710 1.8
+	SimpleNoise,   //! 1703
+	CellularNoise, //! 1710 1.8
+
+	Light, //! 1703
+
+	LocalTime,	  //! 1703
+	ParticleTime, //! 1810
 
 	Comment,
 	Function, // Unimplemented
@@ -168,6 +196,16 @@ enum class DefaultType
 	Value,
 	UV,
 	Time,
+};
+
+enum class RequiredPredefinedMethodType : int32_t
+{
+	Gradient = 0,
+	Noise = 1,
+	Light = 2,
+	LocalTime = 3,
+	Hsv = 4,
+	ParticleTime = 5,
 };
 
 class PinParameter;
@@ -202,7 +240,8 @@ inline int GetElementCount(ValueType vt)
 class StringHelper
 {
 public:
-	template <typename T> static std::vector<std::basic_string<T>> Split(const std::basic_string<T>& s, T delim)
+	template <typename T>
+	static std::vector<std::basic_string<T>> Split(const std::basic_string<T>& s, T delim)
 	{
 		std::vector<std::basic_string<T>> elems;
 
@@ -243,7 +282,8 @@ public:
 		return target;
 	}
 
-	template <typename T, typename U> static std::basic_string<T> To(const U* str)
+	template <typename T, typename U>
+	static std::basic_string<T> To(const U* str)
 	{
 		std::basic_string<T> ret;
 		size_t len = 0;
@@ -266,7 +306,8 @@ public:
 class PathHelper
 {
 private:
-	template <typename T> static std::basic_string<T> Normalize(const std::vector<std::basic_string<T>>& paths)
+	template <typename T>
+	static std::basic_string<T> Normalize(const std::vector<std::basic_string<T>>& paths)
 	{
 		std::vector<std::basic_string<T>> elems;
 
@@ -305,7 +346,8 @@ private:
 	}
 
 public:
-	template <typename T> static std::basic_string<T> Normalize(const std::basic_string<T>& path)
+	template <typename T>
+	static std::basic_string<T> Normalize(const std::basic_string<T>& path)
 	{
 		if (path.size() == 0)
 			return path;
@@ -316,7 +358,8 @@ public:
 		return Normalize(paths);
 	}
 
-	template <typename T> static std::basic_string<T> Relative(const std::basic_string<T>& targetPath, const std::basic_string<T>& basePath)
+	template <typename T>
+	static std::basic_string<T> Relative(const std::basic_string<T>& targetPath, const std::basic_string<T>& basePath)
 	{
 		if (basePath.size() == 0 || targetPath.size() == 0)
 		{
@@ -366,7 +409,8 @@ public:
 		return ret;
 	}
 
-	template <typename T> static std::basic_string<T> Absolute(const std::basic_string<T>& targetPath, const std::basic_string<T>& basePath)
+	template <typename T>
+	static std::basic_string<T> Absolute(const std::basic_string<T>& targetPath, const std::basic_string<T>& basePath)
 	{
 		if (targetPath == StringHelper::To<T>(""))
 			return StringHelper::To<T>("");

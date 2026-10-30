@@ -1,13 +1,11 @@
 #include "EffekseerMaterialCompilerDX11.h"
-#include "../DirectX/ShaderGenerator.h"
+#include "../HLSLGenerator/ShaderGenerator.h"
 
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <iostream>
 
 #pragma comment(lib, "d3dcompiler.lib")
-
-#undef min
 
 namespace Effekseer
 {
@@ -116,9 +114,6 @@ static ID3DBlob* CompilePixelShader(const char* vertexShaderText,
 	return shader;
 }
 
-#define _DIRECTX11 1
-#include "../HLSL/HLSL.h"
-
 } // namespace DX11
 
 } // namespace Effekseer
@@ -188,11 +183,12 @@ public:
 	}
 };
 
-CompiledMaterialBinary* MaterialCompilerDX11::Compile(MaterialFile* materialFile, int32_t maximumTextureCount)
+CompiledMaterialBinary* MaterialCompilerDX11::Compile(MaterialFile* materialFile, int32_t maximumUniformCount, int32_t maximumTextureCount)
 {
 	auto binary = new CompiledMaterialBinaryDX11();
 
-	auto convertToVectorVS = [](const std::string& str) -> std::vector<uint8_t> {
+	auto convertToVectorVS = [](const std::string& str) -> std::vector<uint8_t>
+	{
 		std::vector<uint8_t> ret;
 
 		std::string log;
@@ -216,7 +212,8 @@ CompiledMaterialBinary* MaterialCompilerDX11::Compile(MaterialFile* materialFile
 		return ret;
 	};
 
-	auto convertToVectorPS = [](const std::string& str) -> std::vector<uint8_t> {
+	auto convertToVectorPS = [](const std::string& str) -> std::vector<uint8_t>
+	{
 		std::vector<uint8_t> ret;
 
 		std::string log;
@@ -240,25 +237,11 @@ CompiledMaterialBinary* MaterialCompilerDX11::Compile(MaterialFile* materialFile
 		return ret;
 	};
 
-	auto saveBinary = [&materialFile, &binary, &convertToVectorVS, &convertToVectorPS, &maximumTextureCount](MaterialShaderType type) -> bool {
-		auto generator = DirectX::ShaderGenerator(DX11::material_common_define,
-												  DX11::material_common_vs_functions,
-												  DX11::material_sprite_vs_pre,
-												  DX11::material_sprite_vs_pre_simple,
-												  DX11::model_vs_pre,
-												  DX11::material_sprite_vs_suf1,
-												  DX11::material_sprite_vs_suf1_simple,
-												  DX11::model_vs_suf1,
-												  DX11::material_sprite_vs_suf2,
-												  DX11::model_vs_suf2,
-												  DX11::g_material_ps_pre,
-												  DX11::g_material_ps_suf1,
-												  DX11::g_material_ps_suf2_lit,
-												  DX11::g_material_ps_suf2_unlit,
-												  DX11::g_material_ps_suf2_refraction,
-												  DirectX::ShaderGeneratorTarget::DirectX11);
+	auto saveBinary = [&materialFile, &binary, &convertToVectorVS, &convertToVectorPS, &maximumUniformCount, &maximumTextureCount](MaterialShaderType type) -> bool
+	{
+		auto generator = DirectX::ShaderGenerator(DirectX::ShaderGeneratorTarget::DirectX11);
 
-		auto shader = generator.GenerateShader(materialFile, type, maximumTextureCount, 0, 40);
+		auto shader = generator.GenerateShader(materialFile, type, maximumUniformCount, maximumTextureCount, 0, 40);
 
 		auto vsBuffer = convertToVectorVS(shader.CodeVS);
 		auto psBuffer = convertToVectorPS(shader.CodePS);
@@ -292,7 +275,7 @@ CompiledMaterialBinary* MaterialCompilerDX11::Compile(MaterialFile* materialFile
 
 CompiledMaterialBinary* MaterialCompilerDX11::Compile(MaterialFile* materialFile)
 {
-	return Compile(materialFile, Effekseer::UserTextureSlotMax);
+	return Compile(materialFile, Effekseer::UserUniformSlotMax, Effekseer::UserTextureSlotMax);
 }
 
 } // namespace Effekseer

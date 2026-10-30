@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Diagnostics;
 using System.Reflection;
 using System.IO;
 
@@ -15,7 +11,7 @@ namespace Effekseer.GUI
 	{
 		public static void Register()
 		{
-			Action<Func<bool>> register = (f) =>
+			void register(Func<bool> f)
 			{
 				var attributes = f.Method.GetCustomAttributes(false);
 				var uniquename = UniqueNameAttribute.GetUniqueName(attributes);
@@ -52,7 +48,7 @@ namespace Effekseer.GUI
 		[UniqueName(value = "Internal.New")]
 		public static bool New()
 		{
-			if(Core.IsChanged)
+			if (Core.IsChanged)
 			{
 				var dialog = new Dialog.SaveOnDisposing(
 					() =>
@@ -73,13 +69,13 @@ namespace Effekseer.GUI
 		[UniqueName(value = "Internal.Open")]
 		public static bool Open()
 		{
-			var filter = Resources.GetString("ProjectFilterNew");
+			var filter = MultiLanguageTextProvider.GetText("ProjectFilterNew");
 			var result = swig.FileDialog.OpenDialog(filter, System.IO.Directory.GetCurrentDirectory());
 
-            if(!string.IsNullOrEmpty(result))
-            {
-                Open(result);
-            }
+			if (!string.IsNullOrEmpty(result))
+			{
+				Open(result);
+			}
 
 			return true;
 		}
@@ -92,7 +88,7 @@ namespace Effekseer.GUI
 		{
 			if (!Utils.Misc.IsFullPath(fullPath))
 			{
-				throw new Exception(Resources.GetString("NotAbsolutePathError"));
+				throw new Exception(MultiLanguageTextProvider.GetText("NotAbsolutePathError"));
 			}
 			fullPath = Utils.Misc.BackSlashToSlash(fullPath);
 
@@ -110,7 +106,7 @@ namespace Effekseer.GUI
 						}
 						else
 						{
-							swig.GUIManager.show(string.Format(Resources.GetString("Error_NotFound"), fullPath), "Error", swig.DialogStyle.Error, swig.DialogButtons.OK);
+							swig.GUIManager.show(string.Format(MultiLanguageTextProvider.GetText("Error_NotFound"), fullPath), "Error", swig.DialogStyle.Error, swig.DialogButtons.OK);
 						}
 					}
 					catch (Exception e)
@@ -132,7 +128,7 @@ namespace Effekseer.GUI
 					}
 					else
 					{
-						swig.GUIManager.show(string.Format(Resources.GetString("Error_NotFound"), fullPath), "Error", swig.DialogStyle.Error, swig.DialogButtons.OK);
+						swig.GUIManager.show(string.Format(MultiLanguageTextProvider.GetText("Error_NotFound"), fullPath), "Error", swig.DialogStyle.Error, swig.DialogButtons.OK);
 					}
 				}
 				catch (Exception e)
@@ -142,6 +138,48 @@ namespace Effekseer.GUI
 
 				return true;
 			}
+		}
+
+		[Name(value = "InternalSaveBackup")]
+		[UniqueName(value = "Internal.SaveBackup")]
+		public static bool SaveBackup()
+		{
+			string fileNameWithoutExtensions = Path.GetFileNameWithoutExtension(Core.Root.GetFullPath());
+
+			// we need some kind of identifier which is as unique per project as possible
+			string identifier = !string.IsNullOrEmpty(fileNameWithoutExtensions) ? fileNameWithoutExtensions
+				: Core.Root.GetHashCode().ToString();
+
+			Core.SaveBackup(Path.GetTempPath() + "/efk_autosave_" + identifier + ".efkbac");
+			return true;
+		}
+
+		[Name(value = "InternalRestoreLastSession")]
+		[UniqueName(value = "Internal.RestoreLastSession")]
+		public static bool RestoreLastSession()
+		{
+			string lastSessionFile = Path.GetTempPath() + "/efk_quit.efkbac";
+			if (!File.Exists(lastSessionFile))
+			{
+				Core.OnOutputMessage?.Invoke(MultiLanguageTextProvider.GetText("Recover_LastSession_Error"));
+				return false;
+			}
+
+			RunWithUnsavedWarning(() => Core.OpenBackup(lastSessionFile));
+			return true;
+		}
+
+		[Name(value = "InternalRestoreAutoSave")]
+		[UniqueName(value = "Internal.RestoreAutoSave")]
+		public static bool RestoreLastAutoSave()
+		{
+			string path = swig.FileDialog.OpenDialog("efkbac", Path.GetTempPath());
+			if (!string.IsNullOrEmpty(path))
+			{
+				RunWithUnsavedWarning(() => Core.OpenBackup(path));
+				return true;
+			}
+			return false;
 		}
 
 		[Name(value = "InternalOverwrite")]
@@ -169,7 +207,7 @@ namespace Effekseer.GUI
 		[UniqueName(value = "Internal.SaveAs")]
 		public static bool SaveAs()
 		{
-			var filter = Resources.GetString("EffekseerParticleFilter");
+			var filter = MultiLanguageTextProvider.GetText("EffekseerParticleFilter");
 
 			var result = swig.FileDialog.SaveDialog(filter, System.IO.Directory.GetCurrentDirectory());
 
@@ -313,7 +351,7 @@ namespace Effekseer.GUI
 
 				return true;
 			}
-			
+
 			return false;
 		}
 
@@ -325,14 +363,14 @@ namespace Effekseer.GUI
 			{
 				var data = Manager.NativeManager.GetClipboardText();
 
-				if(Core.IsValidXml(data))
+				if (Core.IsValidXml(data))
 				{
 					Core.Paste(Core.SelectedNode, data);
 				}
-				
+
 				return true;
 			}
-			
+
 			return false;
 		}
 
@@ -403,8 +441,9 @@ namespace Effekseer.GUI
 			var selected = Core.SelectedNode;
 			if (selected != null)
 			{
-				var renameNode = new GUI.Dialog.RenameNode();
-				renameNode.Show(selected);
+				//var renameNode = new GUI.Dialog.RenameNode();
+				//renameNode.Show(selected);
+				Core.RenameNode(selected);
 				return true;
 			}
 			return false;
@@ -418,22 +457,7 @@ namespace Effekseer.GUI
 		[UniqueName(value = "Internal.ViewHelp")]
 		static public bool ViewHelp()
 		{
-			string helpPath = @"https://effekseer.github.io/Helps/16x/Tool/en/index.html";
-
-			if (Core.Language == Language.Japanese)
-			{
-				helpPath = @"https://effekseer.github.io/Helps/16x/Tool/ja/index.html";
-			}
-
-			try
-			{
-				System.Diagnostics.Process.Start(helpPath);
-			}
-			catch
-			{
-				swig.GUIManager.show(MultiLanguageTextProvider.GetText("Error_FailedToOpenHelp"), "Error", swig.DialogStyle.Error, swig.DialogButtons.OK);
-			}
-
+			ShowURL(Core.GetToolHelpURL());
 			return true;
 		}
 
@@ -448,7 +472,7 @@ namespace Effekseer.GUI
 		{
 			string rootDir = Path.GetDirectoryName(Manager.GetEntryDirectory());
 
-			var filter = Resources.GetString("ProjectFilterNew");
+			var filter = MultiLanguageTextProvider.GetText("ProjectFilterNew");
 
 			var result = swig.FileDialog.OpenDialog(filter, Path.Combine(rootDir, @"Sample"));
 
@@ -518,6 +542,18 @@ namespace Effekseer.GUI
 			efkpkg.Export(packagePath);
 		}
 
+		private static void RunWithUnsavedWarning(Action command)
+		{
+			if (Core.IsChanged)
+			{
+				new Dialog.SaveOnDisposing(command);
+			}
+			else
+			{
+				command();
+			}
+		}
+
 		static public void HandleExceptionWhileOpenning(Exception e)
 		{
 			if (e is TargetInvocationException)
@@ -528,6 +564,25 @@ namespace Effekseer.GUI
 
 			swig.GUIManager.show(e.Message, "Error", swig.DialogStyle.Error, swig.DialogButtons.OK);
 			Core.New();
+		}
+
+		static public bool ShowURL(string url)
+		{
+			try
+			{
+				var info = new System.Diagnostics.ProcessStartInfo
+				{
+					FileName = url,
+					UseShellExecute = true
+				};
+				System.Diagnostics.Process.Start(info);
+			}
+			catch
+			{
+				swig.GUIManager.show(MultiLanguageTextProvider.GetText("Error_FailedToOpenHelp"), "Error", swig.DialogStyle.Error, swig.DialogButtons.OK);
+			}
+
+			return true;
 		}
 	}
 }

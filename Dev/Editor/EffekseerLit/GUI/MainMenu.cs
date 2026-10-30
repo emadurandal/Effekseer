@@ -13,7 +13,7 @@ namespace Effekseer.GUI.Menu
 		internal List<IControl> Controls = new List<IControl>();
 
 		private bool _isFirstUpdate = true;
-		
+
 		public bool ShouldBeRemoved { get; } = false;
 
 		public MainMenu()
@@ -29,7 +29,7 @@ namespace Effekseer.GUI.Menu
 
 		public void Update()
 		{
-			if(_isFirstUpdate)
+			if (_isFirstUpdate)
 			{
 				ReloadMenu();
 				_windowTitleControl.Reload();
@@ -57,7 +57,10 @@ namespace Effekseer.GUI.Menu
 
 		public void UpdateSystemBar()
 		{
-			Manager.NativeManager.PushStyleVar(swig.ImGuiStyleVarFlags.FramePadding, new swig.Vec2(0.0f, 8.0f * Manager.DpiScale));
+			float desiredBarHeight = 32.0f * Manager.DpiScale;
+			float textHeight = Manager.NativeManager.GetTextLineHeight();
+			float framePaddingY = System.Math.Max((desiredBarHeight - textHeight) * 0.5f, 0.0f);
+			Manager.NativeManager.PushStyleVar(swig.ImGuiStyleVarFlags.FramePadding, new swig.Vec2(0.0f, framePaddingY));
 			Manager.NativeManager.BeginMainMenuBar();
 
 			var windowSize = Manager.NativeManager.GetWindowSize();
@@ -77,7 +80,7 @@ namespace Effekseer.GUI.Menu
 			float buttonY = size.Y - 1;
 			float buttonX = buttonY * 44 / 32;
 
-			void ShowButton(int offset, ImageResource icon, Action onClick)
+			void ShowButton(int offset, Image icon, Action onClick)
 			{
 				Manager.NativeManager.SetCursorPosX(windowSize.X - buttonX * offset);
 				if (Manager.NativeManager.ImageButtonOriginal(icon, buttonX, buttonY))
@@ -127,7 +130,7 @@ namespace Effekseer.GUI.Menu
 		{
 			float iconSize = 28.0f * Manager.DpiScale;
 			Manager.NativeManager.SetCursorPosY((Manager.NativeManager.GetFrameHeight() - iconSize) / 2);
-			Manager.NativeManager.Image(Images.GetIcon("AppIcon"), iconSize, iconSize);
+			Manager.NativeManager.ImageData(Images.GetIcon("AppIcon"), iconSize, iconSize);
 			Manager.NativeManager.SetCursorPosY(0);
 		}
 

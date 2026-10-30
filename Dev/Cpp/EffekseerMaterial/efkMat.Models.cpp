@@ -4,8 +4,8 @@
 #include "efkMat.Library.h"
 #include "efkMat.Parameters.h"
 #include "efkMat.TextExporter.h"
-#include <float.h>
 #include <cstring>
+#include <float.h>
 
 std::vector<std::string> Split(const std::string& s, char delim)
 {
@@ -43,14 +43,16 @@ class BinaryWriter
 	std::vector<uint8_t> buffer_;
 
 public:
-	template <typename T> void Push(T value)
+	template <typename T>
+	void Push(T value)
 	{
 		auto offset = buffer_.size();
 		buffer_.resize(offset + sizeof(T));
 		std::memcpy(buffer_.data() + offset, &value, sizeof(T));
 	}
 
-	template <typename U> void Push(const std::vector<U>& value)
+	template <typename U>
+	void Push(const std::vector<U>& value)
 	{
 		Push(static_cast<int32_t>(value.size()));
 		auto offset = buffer_.size();
@@ -58,10 +60,14 @@ public:
 		std::memcpy(buffer_.data() + offset, value.data(), sizeof(U) * value.size());
 	}
 
-	const std::vector<uint8_t>& GetBuffer() const { return buffer_; }
+	const std::vector<uint8_t>& GetBuffer() const
+	{
+		return buffer_;
+	}
 };
 
-template <> void BinaryWriter::Push<bool>(bool value)
+template <>
+void BinaryWriter::Push<bool>(bool value)
 {
 	int32_t temp = value ? 1 : 0;
 	Push(temp);
@@ -70,6 +76,8 @@ template <> void BinaryWriter::Push<bool>(bool value)
 static const char* tag_changeNumberCommand = "ChangeNumberCommand";
 
 static const char* tag_changeStringCommand = "ChangeStringCommand";
+
+static const char* tag_changeGradientCommand = "ChangeGradientCommand";
 
 static const char* tag_changeNodePosCommand = "ChangeNodePosCommand";
 
@@ -95,13 +103,20 @@ private:
 
 public:
 	ChangeNumberCommand(std::shared_ptr<NodeProperty> prop, std::array<float, 4> newValue, std::array<float, 4> oldValue)
-		: prop_(prop), newValue_(newValue), oldValue_(oldValue)
+		: prop_(prop)
+		, newValue_(newValue)
+		, oldValue_(oldValue)
 	{
 	}
 
-	virtual ~ChangeNumberCommand() {}
+	virtual ~ChangeNumberCommand()
+	{
+	}
 
-	void Execute() override { prop_->Floats = newValue_; }
+	void Execute() override
+	{
+		prop_->Floats = newValue_;
+	}
 
 	void Unexecute() override
 	{
@@ -135,7 +150,10 @@ public:
 		return true;
 	}
 
-	virtual const char* GetTag() { return tag_changeNumberCommand; }
+	virtual const char* GetTag()
+	{
+		return tag_changeNumberCommand;
+	}
 };
 
 class ChangeStringCommand : public ICommand
@@ -147,7 +165,9 @@ private:
 
 public:
 	ChangeStringCommand(std::shared_ptr<NodeProperty> prop, std::string newValue, std::string oldValue)
-		: prop_(prop), newValue_(newValue), oldValue_(oldValue)
+		: prop_(prop)
+		, newValue_(newValue)
+		, oldValue_(oldValue)
 	{
 	}
 
@@ -202,23 +222,99 @@ public:
 		return true;
 	}
 
-	virtual const char* GetTag() { return tag_changeStringCommand; }
+	virtual const char* GetTag()
+	{
+		return tag_changeStringCommand;
+	}
+};
+
+class ChangeGradientCommand : public ICommand
+{
+private:
+	std::shared_ptr<NodeProperty> prop_;
+	Gradient newValue_;
+	Gradient oldValue_;
+
+	void Apply(const Gradient& value)
+	{
+		if (prop_->GradientData == nullptr)
+		{
+			prop_->GradientData = std::make_unique<Gradient>();
+		}
+
+		*prop_->GradientData = value;
+
+		auto parent = prop_->Parent.lock();
+
+		if (parent != nullptr)
+		{
+			auto parentMaterial = parent->Parent.lock();
+
+			if (parentMaterial != nullptr)
+			{
+				parentMaterial->MakeDirty(parent);
+			}
+		}
+	}
+
+public:
+	ChangeGradientCommand(std::shared_ptr<NodeProperty> prop, const Gradient& newValue, const Gradient& oldValue)
+		: prop_(prop)
+		, newValue_(newValue)
+		, oldValue_(oldValue)
+	{
+	}
+
+	virtual ~ChangeGradientCommand() = default;
+
+	void Execute() override
+	{
+		Apply(newValue_);
+	}
+
+	void Unexecute() override
+	{
+		Apply(oldValue_);
+	}
+
+	bool Merge(ICommand* command) override
+	{
+		if (command->GetTag() != this->GetTag())
+			return false;
+
+		auto command_ = static_cast<ChangeGradientCommand*>(command);
+		if (command_->prop_ != this->prop_)
+			return false;
+
+		this->oldValue_ = command_->oldValue_;
+
+		return true;
+	}
+
+	virtual const char* GetTag()
+	{
+		return tag_changeGradientCommand;
+	}
 };
 
 class ChangeNodeRegionCommand : public ICommand
 {
 private:
 	std::shared_ptr<Node> node_;
-	std::array<Vector2DF,2> newValue_;
-	std::array<Vector2DF,2> oldValue_;
+	std::array<Vector2DF, 2> newValue_;
+	std::array<Vector2DF, 2> oldValue_;
 
 public:
-	ChangeNodeRegionCommand(std::shared_ptr<Node> node, std::array<Vector2DF,2> newValue, std::array<Vector2DF,2> oldValue)
-		: node_(node), newValue_(newValue), oldValue_(oldValue)
+	ChangeNodeRegionCommand(std::shared_ptr<Node> node, std::array<Vector2DF, 2> newValue, std::array<Vector2DF, 2> oldValue)
+		: node_(node)
+		, newValue_(newValue)
+		, oldValue_(oldValue)
 	{
 	}
 
-	virtual ~ChangeNodeRegionCommand() {}
+	virtual ~ChangeNodeRegionCommand()
+	{
+	}
 
 	void Execute() override
 	{
@@ -249,7 +345,10 @@ public:
 		return true;
 	}
 
-	virtual const char* GetTag() { return tag_changeNodePosCommand; }
+	virtual const char* GetTag()
+	{
+		return tag_changeNodePosCommand;
+	}
 };
 
 class ChangeMultiNodePosCommand : public ICommand
@@ -261,11 +360,15 @@ private:
 
 public:
 	ChangeMultiNodePosCommand(std::vector<std::shared_ptr<Node>> nodes, std::vector<Vector2DF> newValues, std::vector<Vector2DF> oldValues)
-		: targetNodes_(nodes), newValues_(newValues), oldValues_(oldValues)
+		: targetNodes_(nodes)
+		, newValues_(newValues)
+		, oldValues_(oldValues)
 	{
 	}
 
-	virtual ~ChangeMultiNodePosCommand() {}
+	virtual ~ChangeMultiNodePosCommand()
+	{
+	}
 
 	void Execute() override
 	{
@@ -308,7 +411,10 @@ public:
 		return true;
 	}
 
-	virtual const char* GetTag() { return tag_changeMultiNodePosCommand; }
+	virtual const char* GetTag()
+	{
+		return tag_changeMultiNodePosCommand;
+	}
 };
 
 int32_t Node::GetInputPinIndex(const std::string& name)
@@ -365,12 +471,12 @@ void Node::UpdateRegion(const Vector2DF& pos, const Vector2DF& size)
 
 uint64_t Material::GetIDAndNext()
 {
-	auto ret = nextGUID;
-	nextGUID++;
+	auto ret = nextGuid_;
+	nextGuid_++;
 
-	if (nextGUID > std::numeric_limits<uint64_t>::max() - 0xff)
+	if (nextGuid_ > std::numeric_limits<uint64_t>::max() - 0xff)
 	{
-		nextGUID = 0xff;
+		nextGuid_ = 0xff;
 	}
 
 	return ret;
@@ -391,7 +497,8 @@ bool Material::FindLoop(std::shared_ptr<Pin> pin1, std::shared_ptr<Pin> pin2)
 
 	std::function<bool(std::weak_ptr<Node>)> visit;
 
-	visit = [&](std::weak_ptr<Node> node) -> bool {
+	visit = [&](std::weak_ptr<Node> node) -> bool
+	{
 		auto locked_node = node.lock();
 
 		for (auto p : locked_node->OutputPins)
@@ -466,13 +573,10 @@ std::string Material::SaveAsStrInternal(std::vector<std::shared_ptr<Node>> nodes
 
 		if (node->Parameter->IsDescriptionExported)
 		{
-			for (size_t i = 0; i < node->Descriptions.size(); i++)
-			{
-				picojson::object descJson;
-				descJson.insert(std::make_pair("Summary", picojson::value(node->Descriptions[i]->Summary)));
-				descJson.insert(std::make_pair("Detail", picojson::value(node->Descriptions[i]->Detail)));
-				descsJson.push_back(picojson::value(descJson));
-			}
+			picojson::object descJson;
+			descJson.insert(std::make_pair("Summary", picojson::value(node->Description->Summary)));
+			descJson.insert(std::make_pair("Detail", picojson::value(node->Description->Detail)));
+			descsJson.push_back(picojson::value(descJson));
 		}
 
 		picojson::array propsJson;
@@ -538,6 +642,35 @@ std::string Material::SaveAsStrInternal(std::vector<std::shared_ptr<Node>> nodes
 			{
 				prop_.insert(std::make_pair("Value", picojson::value((double)p->Floats[0])));
 			}
+			else if (pp->Type == ValueType::Gradient)
+			{
+				picojson::array colors;
+				picojson::array alphas;
+
+				for (int32_t j = 0; j < p->GradientData->ColorCount; j++)
+				{
+					const auto& c = p->GradientData->Colors[j];
+					picojson::object obj;
+					obj.insert(std::make_pair("R", picojson::value((double)c.Color[0])));
+					obj.insert(std::make_pair("G", picojson::value((double)c.Color[1])));
+					obj.insert(std::make_pair("B", picojson::value((double)c.Color[2])));
+					obj.insert(std::make_pair("Intensity", picojson::value((double)c.Intensity)));
+					obj.insert(std::make_pair("Position", picojson::value((double)c.Position)));
+					colors.push_back(picojson::value(obj));
+				}
+
+				for (int32_t j = 0; j < p->GradientData->AlphaCount; j++)
+				{
+					const auto& a = p->GradientData->Alphas[j];
+					picojson::object obj;
+					obj.insert(std::make_pair("Alpha", picojson::value((double)a.Alpha)));
+					obj.insert(std::make_pair("Position", picojson::value((double)a.Position)));
+					alphas.push_back(picojson::value(obj));
+				}
+
+				prop_.insert(std::make_pair("Colors", colors));
+				prop_.insert(std::make_pair("Alphas", alphas));
+			}
 			else
 			{
 				assert(0);
@@ -548,7 +681,7 @@ std::string Material::SaveAsStrInternal(std::vector<std::shared_ptr<Node>> nodes
 
 		nodeJson.insert(std::make_pair("Props", picojson::value(propsJson)));
 
-		if (node->Descriptions.size() > 0 && node->Parameter->IsDescriptionExported)
+		if (node->Parameter->IsDescriptionExported)
 		{
 			nodeJson.insert(std::make_pair("Descs", picojson::value(descsJson)));
 		}
@@ -602,15 +735,10 @@ std::string Material::SaveAsStrInternal(std::vector<std::shared_ptr<Node>> nodes
 		for (size_t i = 0; i < CustomData.size(); i++)
 		{
 			picojson::array customdata_lang;
-
-			for (size_t j = 0; j < CustomData[i].Descriptions.size(); j++)
-			{
-				picojson::object cd;
-				cd.insert(std::make_pair("Summary", picojson::value(CustomData[i].Descriptions[j]->Summary)));
-				cd.insert(std::make_pair("Detail", picojson::value(CustomData[i].Descriptions[j]->Detail)));
-				customdata_lang.push_back(picojson::value(cd));
-			}
-
+			picojson::object cd;
+			cd.insert(std::make_pair("Summary", picojson::value(CustomData[i].Description->Summary)));
+			cd.insert(std::make_pair("Detail", picojson::value(CustomData[i].Description->Detail)));
+			customdata_lang.push_back(picojson::value(cd));
 			customdata_desc.push_back(picojson::value(customdata_lang));
 		}
 
@@ -619,9 +747,9 @@ std::string Material::SaveAsStrInternal(std::vector<std::shared_ptr<Node>> nodes
 
 	if (aim == SaveLoadAimType::IO)
 	{
-		picojson::array textures_;
+		picojson::array textures__;
 
-		for (auto texture : textures)
+		for (auto texture : textures_)
 		{
 			picojson::object texture_;
 
@@ -636,10 +764,10 @@ std::string Material::SaveAsStrInternal(std::vector<std::shared_ptr<Node>> nodes
 			texture_.insert(std::make_pair("Path", picojson::value(relative)));
 			texture_.insert(std::make_pair("Type", picojson::value(static_cast<double>(texture.second->Type))));
 
-			textures_.push_back(picojson::value(texture_));
+			textures__.push_back(picojson::value(texture_));
 		}
 
-		rootJson.insert(std::make_pair("Textures", picojson::value(textures_)));
+		rootJson.insert(std::make_pair("Textures", picojson::value(textures__)));
 	}
 
 	auto str_main = picojson::value(rootJson).serialize();
@@ -650,6 +778,37 @@ std::string Material::SaveAsStrInternal(std::vector<std::shared_ptr<Node>> nodes
 void Material::LoadFromStrInternal(
 	const char* json, Vector2DF offset, std::shared_ptr<Library> library, const char* basePath, SaveLoadAimType aim)
 {
+	const auto load_summary = [](const picojson::array& arr)
+	{
+		std::vector<std::shared_ptr<NodeDescription>> descriptions;
+
+		for (int32_t i = 0; i < arr.size(); i++)
+		{
+			auto description = std::make_shared<NodeDescription>();
+			description->Summary = arr[i].get("Summary").get<std::string>();
+			description->Detail = arr[i].get("Detail").get<std::string>();
+			descriptions.emplace_back(description);
+		}
+
+		if (descriptions.size() > 1)
+		{
+			if (descriptions[1]->Summary != "" || descriptions[1]->Detail != "")
+			{
+				return descriptions[1];
+			}
+			else
+			{
+				return descriptions[0];
+			}
+		}
+		else if (descriptions.size() == 1)
+		{
+			return descriptions[0];
+		}
+
+		return std::make_shared<NodeDescription>();
+	};
+
 	// offset must be int
 	offset.X = std::floor(offset.X);
 	offset.Y = std::floor(offset.Y);
@@ -688,7 +847,7 @@ void Material::LoadFromStrInternal(
 
 		if (guidMax > 255)
 		{
-			nextGUID = guidMax + 1;
+			nextGuid_ = guidMax + 1;
 		}
 	}
 
@@ -750,13 +909,7 @@ void Material::LoadFromStrInternal(
 		{
 			auto descs_obj = node_.get("Descs");
 			auto descs_ = descs_obj.get<picojson::array>();
-
-			for (int32_t i = 0; i < descs_.size(); i++)
-			{
-				node->Descriptions[i] = std::make_shared<NodeDescription>();
-				node->Descriptions[i]->Summary = descs_[i].get("Summary").get<std::string>();
-				node->Descriptions[i]->Detail = descs_[i].get("Detail").get<std::string>();
-			}
+			node->Description = load_summary(descs_obj.get<picojson::array>());
 		}
 
 		auto props_obj = node_.get("Props");
@@ -816,6 +969,32 @@ void Material::LoadFromStrInternal(
 			else if (node->Parameter->Properties[i]->Type == ValueType::Enum)
 			{
 				node->Properties[i]->Floats[0] = static_cast<float>(props_[i].get("Value").get<double>());
+			}
+			else if (node->Parameter->Properties[i]->Type == ValueType::Gradient)
+			{
+				Gradient g;
+				const auto prop_colors = props_[i].get("Colors").get<picojson::array>();
+				const auto prop_alphas = props_[i].get("Alphas").get<picojson::array>();
+				g.ColorCount = prop_colors.size();
+				g.AlphaCount = prop_alphas.size();
+
+				for (int32_t j = 0; j < g.ColorCount; j++)
+				{
+					g.Colors[j].Color[0] = static_cast<float>(prop_colors[j].get("R").get<double>());
+					g.Colors[j].Color[1] = static_cast<float>(prop_colors[j].get("G").get<double>());
+					g.Colors[j].Color[2] = static_cast<float>(prop_colors[j].get("B").get<double>());
+					g.Colors[j].Intensity = static_cast<float>(prop_colors[j].get("Intensity").get<double>());
+					g.Colors[j].Position = static_cast<float>(prop_colors[j].get("Position").get<double>());
+				}
+
+				for (int32_t j = 0; j < g.AlphaCount; j++)
+				{
+					g.Alphas[j].Alpha = static_cast<float>(prop_alphas[j].get("Alpha").get<double>());
+					g.Alphas[j].Position = static_cast<float>(prop_alphas[j].get("Position").get<double>());
+				}
+
+				node->Properties[i]->GradientData = std::make_unique<Gradient>();
+				*node->Properties[i]->GradientData = g;
 			}
 			else
 			{
@@ -887,14 +1066,7 @@ void Material::LoadFromStrInternal(
 			{
 				if (customdata[n].is<picojson::array>())
 				{
-					picojson::array descs_ = customdata[n].get<picojson::array>();
-					for (int32_t i = 0; i < descs_.size(); i++)
-					{
-
-						CustomData[n].Descriptions[i] = std::make_shared<NodeDescription>();
-						CustomData[n].Descriptions[i]->Summary = descs_[i].get("Summary").get<std::string>();
-						CustomData[n].Descriptions[i]->Detail = descs_[i].get("Detail").get<std::string>();
-					}
+					CustomData[n].Description = load_summary(customdata[n].get<picojson::array>());
 				}
 			}
 		}
@@ -903,25 +1075,25 @@ void Material::LoadFromStrInternal(
 		{
 			if (node->Parameter->Type == NodeType::CustomData1)
 			{
-				node->Descriptions = this->CustomData[0].Descriptions;
+				node->Description = this->CustomData[0].Description;
 			}
 
 			if (node->Parameter->Type == NodeType::CustomData2)
 			{
-				node->Descriptions = this->CustomData[1].Descriptions;
+				node->Description = this->CustomData[1].Description;
 			}
 		}
 	}
 
 	if (aim == SaveLoadAimType::IO)
 	{
-		picojson::value textures_obj = root_.get("Textures");
+		picojson::value textures__obj = root_.get("Textures");
 
-		if (textures_obj.is<picojson::array>())
+		if (textures__obj.is<picojson::array>())
 		{
-			picojson::array textures_ = textures_obj.get<picojson::array>();
+			picojson::array textures__ = textures__obj.get<picojson::array>();
 
-			for (auto texture_ : textures_)
+			for (auto texture_ : textures__)
 			{
 				auto path_obj = texture_.get("Path");
 				auto path = path_obj.get<std::string>();
@@ -933,19 +1105,30 @@ void Material::LoadFromStrInternal(
 				auto texture = std::make_shared<TextureInfo>();
 				texture->Path = absolute;
 				texture->Type = static_cast<TextureValueType>(static_cast<int>(textureType));
-				textures[absolute] = texture;
+				textures_[absolute] = texture;
 			}
 		}
 	}
 }
 
-Material::Material() { commandManager_ = std::make_shared<CommandManager>(); }
+Material::Material()
+{
+	commandManager_ = std::make_shared<CommandManager>();
+}
 
-Material::~Material() {}
+Material::~Material()
+{
+}
 
-const std::string& Material::GetPath() const { return path_; }
+const std::string& Material::GetPath() const
+{
+	return path_;
+}
 
-void Material::SetPath(const std::string& path) { path_ = path; }
+void Material::SetPath(const std::string& path)
+{
+	path_ = path;
+}
 
 void Material::Initialize()
 {
@@ -955,12 +1138,7 @@ void Material::Initialize()
 
 	for (size_t ci = 0; ci < CustomData.size(); ci++)
 	{
-		CustomData[ci].Descriptions.resize(static_cast<int32_t>(LanguageType::Max));
-
-		for (size_t i = 0; i < CustomData[ci].Descriptions.size(); i++)
-		{
-			CustomData[ci].Descriptions[i] = std::make_shared<NodeDescription>();
-		}
+		CustomData[ci].Description = std::make_shared<NodeDescription>();
 	}
 
 	commandManager_->Reset();
@@ -1013,7 +1191,7 @@ std::unordered_set<std::shared_ptr<Pin>> Material::GetRelatedPins(std::shared_pt
 				{
 					if (ret.find(pp) != ret.end())
 					{
-						auto ppins = GetRelatedPins(pp);					
+						auto ppins = GetRelatedPins(pp);
 						ret.insert(ppins.begin(), ppins.end());
 					}
 				}
@@ -1115,20 +1293,15 @@ std::shared_ptr<Node> Material::CreateNode(std::shared_ptr<NodeParameter> parame
 	{
 		if (parameter->Type == NodeType::CustomData1)
 		{
-			node->Descriptions = this->CustomData[0].Descriptions;
+			node->Description = this->CustomData[0].Description;
 		}
 		else if (parameter->Type == NodeType::CustomData2)
 		{
-			node->Descriptions = this->CustomData[1].Descriptions;
+			node->Description = this->CustomData[1].Description;
 		}
 		else
 		{
-			node->Descriptions.resize(static_cast<int32_t>(LanguageType::Max));
-
-			for (size_t i = 0; i < node->Descriptions.size(); i++)
-			{
-				node->Descriptions[i] = std::make_shared<NodeDescription>();
-			}
+			node->Description = std::make_shared<NodeDescription>();
 		}
 	}
 
@@ -1165,6 +1338,12 @@ std::shared_ptr<Node> Material::CreateNode(std::shared_ptr<NodeParameter> parame
 		auto np = std::make_shared<NodeProperty>();
 		np->Floats = parameter->Properties[i]->DefaultValues;
 		np->Str = parameter->Properties[i]->DefaultStr;
+
+		if (parameter->Properties[i]->Type == ValueType::Gradient)
+		{
+			np->GradientData = std::make_unique<Gradient>();
+		}
+
 		np->Parent = node;
 
 		node->Properties.push_back(np);
@@ -1183,11 +1362,13 @@ std::shared_ptr<Node> Material::CreateNode(std::shared_ptr<NodeParameter> parame
 	else
 	{
 		auto command = std::make_shared<DelegateCommand>(
-			[this, val_new]() -> void {
+			[this, val_new]() -> void
+			{
 				this->nodes_ = val_new;
 				this->UpdateWarnings();
 			},
-			[this, val_old]() -> void {
+			[this, val_old]() -> void
+			{
 				this->nodes_ = val_old;
 				this->UpdateWarnings();
 			});
@@ -1226,12 +1407,14 @@ void Material::RemoveNode(std::shared_ptr<Node> node)
 	}
 
 	auto command = std::make_shared<DelegateCommand>(
-		[this, nodes_new, links_new]() -> void {
+		[this, nodes_new, links_new]() -> void
+		{
 			this->nodes_ = nodes_new;
 			this->links_ = links_new;
 			this->UpdateWarnings();
 		},
-		[this, nodes_old, links_old]() -> void {
+		[this, nodes_old, links_old]() -> void
+		{
 			this->nodes_ = nodes_old;
 			this->links_ = links_old;
 			this->UpdateWarnings();
@@ -1353,12 +1536,14 @@ ConnectResultType Material::ConnectPin(std::shared_ptr<Pin> pin1, std::shared_pt
 	links_new.push_back(link);
 
 	auto command = std::make_shared<DelegateCommand>(
-		[this, links_new, p1]() -> void {
+		[this, links_new, p1]() -> void
+		{
 			this->links_ = links_new;
 			this->UpdateWarnings();
 			this->MakeDirty(p1->Parent.lock());
 		},
-		[this, links_old, p1]() -> void {
+		[this, links_old, p1]() -> void
+		{
 			this->links_ = links_old;
 			this->UpdateWarnings();
 			this->MakeDirty(p1->Parent.lock());
@@ -1379,7 +1564,8 @@ bool Material::BreakPin(std::shared_ptr<Link> link)
 	auto inputNode = link->InputPin->Parent.lock();
 
 	auto command = std::make_shared<DelegateCommand>(
-		[this, links_new, inputNode]() -> void {
+		[this, links_new, inputNode]() -> void
+		{
 			this->links_ = links_new;
 			this->UpdateWarnings();
 			if (inputNode != nullptr)
@@ -1387,7 +1573,8 @@ bool Material::BreakPin(std::shared_ptr<Link> link)
 				MakeDirty(inputNode);
 			}
 		},
-		[this, links_old, inputNode]() -> void {
+		[this, links_old, inputNode]() -> void
+		{
 			this->links_ = links_old;
 			this->UpdateWarnings();
 			if (inputNode != nullptr)
@@ -1401,11 +1588,20 @@ bool Material::BreakPin(std::shared_ptr<Link> link)
 	return true;
 }
 
-const std::vector<std::shared_ptr<Node>>& Material::GetNodes() const { return nodes_; }
+const std::vector<std::shared_ptr<Node>>& Material::GetNodes() const
+{
+	return nodes_;
+}
 
-const std::vector<std::shared_ptr<Link>>& Material::GetLinks() const { return links_; }
+const std::vector<std::shared_ptr<Link>>& Material::GetLinks() const
+{
+	return links_;
+}
 
-const std::map<std::string, std::shared_ptr<TextureInfo>> Material::GetTextures() const { return textures; }
+const std::map<std::string, std::shared_ptr<TextureInfo>> Material::GetTextures() const
+{
+	return textures_;
+}
 
 std::shared_ptr<Node> Material::FindNode(uint64_t guid)
 {
@@ -1452,9 +1648,9 @@ std::shared_ptr<TextureInfo> Material::FindTexture(const char* path)
 
 	auto key = std::string(path);
 
-	auto kv = textures.find(path);
+	auto kv = textures_.find(path);
 
-	if (kv != textures.end())
+	if (kv != textures_.end())
 	{
 		return kv->second;
 	}
@@ -1463,7 +1659,7 @@ std::shared_ptr<TextureInfo> Material::FindTexture(const char* path)
 
 	texture->Type = TextureValueType::Color;
 	texture->Path = path;
-	textures[key] = texture;
+	textures_[key] = texture;
 
 	return texture;
 }
@@ -1561,17 +1757,30 @@ void Material::ChangeValue(std::shared_ptr<NodeProperty> prop, std::string value
 	commandManager_->Execute(command);
 }
 
+void Material::ChangeValue(std::shared_ptr<NodeProperty> prop, const Gradient& value)
+{
+	assert(prop->GradientData != nullptr);
+
+	auto value_old = *prop->GradientData;
+	auto value_new = value;
+
+	auto command = std::make_shared<ChangeGradientCommand>(prop, value_new, value_old);
+	commandManager_->Execute(command);
+}
+
 void Material::ChangeValueTextureType(std::shared_ptr<TextureInfo> prop, TextureValueType type)
 {
 	auto value_old = prop->Type;
 	auto value_new = type;
 
 	auto command = std::make_shared<DelegateCommand>(
-		[prop, value_new, this]() -> void {
+		[prop, value_new, this]() -> void
+		{
 			prop->Type = value_new;
 			// TODO make content dirty
 		},
-		[prop, value_old, this]() -> void {
+		[prop, value_old, this]() -> void
+		{
 			prop->Type = value_old;
 			// TODO make content dirty
 		});
@@ -1581,7 +1790,7 @@ void Material::ChangeValueTextureType(std::shared_ptr<TextureInfo> prop, Texture
 
 void Material::MakeDirty(std::shared_ptr<Node> node, bool doesUpdateWarnings)
 {
-	node->isDirtied = true;
+	node->isDirtied_ = true;
 
 	for (auto o : node->OutputPins)
 	{
@@ -1599,11 +1808,14 @@ void Material::MakeDirty(std::shared_ptr<Node> node, bool doesUpdateWarnings)
 	}
 }
 
-void Material::ClearDirty(std::shared_ptr<Node> node) { node->isDirtied = false; }
+void Material::ClearDirty(std::shared_ptr<Node> node)
+{
+	node->isDirtied_ = false;
+}
 
 void Material::MakeContentDirty(std::shared_ptr<Node> node)
 {
-	node->isContentDirtied = true;
+	node->isContentDirtied_ = true;
 
 	for (auto o : node->OutputPins)
 	{
@@ -1618,7 +1830,10 @@ void Material::MakeContentDirty(std::shared_ptr<Node> node)
 	UpdateWarnings();
 }
 
-void Material::ClearContentDirty(std::shared_ptr<Node> node) { node->isContentDirtied = false; }
+void Material::ClearContentDirty(std::shared_ptr<Node> node)
+{
+	node->isContentDirtied_ = false;
+}
 
 void Material::UpdateWarnings()
 {
@@ -1648,14 +1863,17 @@ void Material::LoadFromStr(const char* json, std::shared_ptr<Library> library, c
 
 	nodes_.clear();
 	links_.clear();
-	textures.clear();
+	textures_.clear();
 
 	LoadFromStrInternal(json, Vector2DF(), library, basePath, SaveLoadAimType::IO);
 
 	commandManager_->Reset();
 }
 
-std::string Material::SaveAsStr(const char* basePath) { return SaveAsStrInternal(nodes_, links_, basePath, SaveLoadAimType::IO); }
+std::string Material::SaveAsStr(const char* basePath)
+{
+	return SaveAsStrInternal(nodes_, links_, basePath, SaveLoadAimType::IO);
+}
 
 ErrorCode Material::Load(std::vector<uint8_t>& data, std::shared_ptr<Library> library, const char* basePath)
 {
@@ -1710,10 +1928,11 @@ ErrorCode Material::Load(std::vector<uint8_t>& data, std::shared_ptr<Library> li
 
 bool Material::Save(std::vector<uint8_t>& data, const char* basePath)
 {
+
 	// header
 
 	const char* prefix = "EFKM";
-	int version = MaterialVersion16;
+	int version = MaterialVersion18;
 
 	size_t offset = 0;
 
@@ -1751,12 +1970,9 @@ bool Material::Save(std::vector<uint8_t>& data, const char* basePath)
 
 	// description
 	BinaryWriter bwDescs;
-	bwDescs.Push(static_cast<uint32_t>(outputNode->Descriptions.size()));
-	for (size_t descInd = 0; descInd < outputNode->Descriptions.size(); descInd++)
 	{
-		bwDescs.Push(static_cast<uint32_t>(descInd));
-		bwDescs.Push(GetVectorFromStr(outputNode->Descriptions[descInd]->Summary));
-		bwDescs.Push(GetVectorFromStr(outputNode->Descriptions[descInd]->Detail));
+		bwDescs.Push(GetVectorFromStr(outputNode->Description->Summary));
+		bwDescs.Push(GetVectorFromStr(outputNode->Description->Detail));
 	}
 
 	const char* chunk_desc = "DESC";
@@ -1789,6 +2005,12 @@ bool Material::Save(std::vector<uint8_t>& data, const char* basePath)
 	bwParam.Push(result.HasRefraction);
 	bwParam.Push(result.CustomData1);
 	bwParam.Push(result.CustomData2);
+	bwParam.Push(static_cast<int32_t>(result.RequiredPredefinedMethodTypes.size()));
+
+	for (const auto& type : result.RequiredPredefinedMethodTypes)
+	{
+		bwParam.Push(static_cast<int32_t>(type));
+	}
 
 	bwParam.Push(static_cast<int32_t>(result.Textures.size()));
 
@@ -1835,6 +2057,46 @@ bool Material::Save(std::vector<uint8_t>& data, const char* basePath)
 		bwParam.Push(param->DefaultConstants[3]);
 	}
 
+	const auto pushGradient = [&](const std::vector<std::shared_ptr<TextExporterGradient>>& gradients)
+	{
+		bwParam.Push(static_cast<int32_t>(gradients.size()));
+
+		for (size_t i = 0; i < gradients.size(); i++)
+		{
+			auto& param = gradients[i];
+
+			auto name_ = GetVectorFromStr(Replace(param->Name, "$SUFFIX", ""));
+			bwParam.Push(name_);
+
+			auto uniformName = GetVectorFromStr(param->UniformName);
+			bwParam.Push(uniformName);
+			bwParam.Push(param->Offset);
+			bwParam.Push(param->Priority);
+
+			bwParam.Push(param->Defaults.ColorCount);
+
+			for (int j = 0; j < param->Defaults.ColorCount; j++)
+			{
+				bwParam.Push(param->Defaults.Colors[j].Position);
+				bwParam.Push(param->Defaults.Colors[j].Color[0]);
+				bwParam.Push(param->Defaults.Colors[j].Color[1]);
+				bwParam.Push(param->Defaults.Colors[j].Color[2]);
+				bwParam.Push(param->Defaults.Colors[j].Intensity);
+			}
+
+			bwParam.Push(param->Defaults.AlphaCount);
+
+			for (int j = 0; j < param->Defaults.AlphaCount; j++)
+			{
+				bwParam.Push(param->Defaults.Alphas[j].Position);
+				bwParam.Push(param->Defaults.Alphas[j].Alpha);
+			}
+		}
+	};
+
+	pushGradient(result.Gradients);
+	pushGradient(result.FixedGradients);
+
 	const char* chunk_para = "PRM_";
 	auto size_para = static_cast<int32_t>(bwParam.GetBuffer().size());
 
@@ -1853,20 +2115,26 @@ bool Material::Save(std::vector<uint8_t>& data, const char* basePath)
 	// param 2
 	BinaryWriter bwParam2;
 
-	if (version >= 2)
+	const auto storeSummary = [](BinaryWriter& bw, std::shared_ptr<NodeDescription> node_description)
+	{
+		if (node_description != nullptr)
+		{
+			bw.Push(GetVectorFromStr(node_description->Summary));
+			bw.Push(GetVectorFromStr(node_description->Detail));
+		}
+		else
+		{
+			bw.Push(GetVectorFromStr(""));
+			bw.Push(GetVectorFromStr(""));
+		}
+	};
+
 	{
 		bwParam2.Push(static_cast<int32_t>(CustomData.size()));
 
 		for (size_t ci = 0; ci < CustomData.size(); ci++)
 		{
-			bwParam2.Push(static_cast<int32_t>(CustomData[ci].Descriptions.size()));
-
-			for (size_t descInd = 0; descInd < CustomData[ci].Descriptions.size(); descInd++)
-			{
-				bwParam2.Push(static_cast<uint32_t>(descInd));
-				bwParam2.Push(GetVectorFromStr(CustomData[ci].Descriptions[descInd]->Summary));
-				bwParam2.Push(GetVectorFromStr(CustomData[ci].Descriptions[descInd]->Detail));
-			}
+			storeSummary(bwParam2, CustomData[ci].Description);
 		}
 	}
 
@@ -1874,27 +2142,22 @@ bool Material::Save(std::vector<uint8_t>& data, const char* basePath)
 
 	for (size_t i = 0; i < result.Textures.size(); i++)
 	{
-		bwParam2.Push(static_cast<int32_t>(result.Textures[i]->Descriptions.size()));
-
-		for (size_t descInd = 0; descInd < result.Textures[i]->Descriptions.size(); descInd++)
-		{
-			bwParam2.Push(static_cast<uint32_t>(descInd));
-			bwParam2.Push(GetVectorFromStr(result.Textures[i]->Descriptions[descInd]->Summary));
-			bwParam2.Push(GetVectorFromStr(result.Textures[i]->Descriptions[descInd]->Detail));
-		}
+		storeSummary(bwParam2, result.Textures[i]->Description);
 	}
 
 	bwParam2.Push(static_cast<int32_t>(result.Uniforms.size()));
 
 	for (size_t i = 0; i < result.Uniforms.size(); i++)
 	{
-		bwParam2.Push(static_cast<int32_t>(result.Uniforms[i]->Descriptions.size()));
+		storeSummary(bwParam2, result.Uniforms[i]->Description);
+	}
 
-		for (size_t descInd = 0; descInd < result.Uniforms[i]->Descriptions.size(); descInd++)
+	{
+		bwParam2.Push(static_cast<int32_t>(result.Gradients.size()));
+
+		for (size_t i = 0; i < result.Gradients.size(); i++)
 		{
-			bwParam2.Push(static_cast<uint32_t>(descInd));
-			bwParam2.Push(GetVectorFromStr(result.Uniforms[i]->Descriptions[descInd]->Summary));
-			bwParam2.Push(GetVectorFromStr(result.Uniforms[i]->Descriptions[descInd]->Detail));
+			storeSummary(bwParam2, result.Gradients[i]->Description);
 		}
 	}
 

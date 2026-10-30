@@ -16,8 +16,9 @@
 #include <functional>
 #include <locale>
 
-#include "../efk.Base.h"
+#include "../Parameters.h"
 #include "efk.Vec2.h"
+#include "efk.Vec4.h"
 
 namespace efk
 {
@@ -33,7 +34,7 @@ private:
 
 	GLFWwindow* window = nullptr;
 	bool isOpenGLMode = false;
-	DeviceType deviceType = DeviceType::OpenGL;
+	Effekseer::Tool::DeviceType deviceType = Effekseer::Tool::DeviceType::OpenGL;
 	bool minimized = false;
 	bool maximized = false;
 
@@ -51,7 +52,7 @@ public:
 	Window();
 	virtual ~Window();
 
-	bool Initialize(std::shared_ptr<Effekseer::MainWindow> mainWindow, DeviceType deviceType);
+	bool Initialize(std::shared_ptr<Effekseer::MainWindow> mainWindow, Effekseer::Tool::DeviceType deviceType);
 
 	void Terminate();
 

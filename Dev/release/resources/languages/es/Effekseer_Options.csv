@@ -43,6 +43,11 @@ Options_DistortionType_Name,Metodo distorsión
 Options_DistortionType_Desc,Metodo de distorsión
 Options_MouseMappingType_Name,Movimiento ratón
 Options_MouseMappingType_Desc,Configuración del movimiento del ratón
+Options_FileBrowserViewMode_Name,Modo de vista de archivo
+Options_FileBrowserIconSize_Name,Tamaño del icono de archivo
+Options_FloatFormatDigits_Name,Dígitos en formato flotante
+Options_AutoSaveIntervalMin_Name,Intervalo de guardado automático (minutos)
+Options_AutoSaveIntervalMin_Desc,Minutos entre copias de seguridad automáticas. Establecer en 0 para deshabilitar.
 RenderMode_Normal_Name,Normal
 RenderMode_Wireframe_Name,Estructura lineal
 ViewMode_3D_Name,3D
@@ -64,3 +69,11 @@ MouseMappingType_Effekseer_Name,Effekseer
 MouseMappingType_Unity_Name,Unity
 MouseMappingType_Blender_Name,Blender
 MouseMappingType_Maya_Name,Maya
+FileBrowser_ViewMode_IconView_Name,Vista de icono
+FileBrowser_ViewMode_ListView_Name,Vista de la lista
+,
+Options_FloatFormatDigits_Desc,Cantidad de dígitos después del punto decimal
+RenderMode_NormalWithWireframe_Name,Normal+Malla de alambre
+RenderMode_Overdraw_Name,Sobredibujo
+Options_TexturePreviewLines_Name,Tamaño de la vista previa de textura
+Options_TexturePreviewLines_Desc,"Altura de la vista previa de textura en los paneles de parámetros, medida en líneas de texto"

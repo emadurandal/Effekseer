@@ -2,13 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Effekseer.Utl;
+using Effekseer.Utils;
 
 namespace Effekseer.Binary
 {
 	class GenerationLocationValues
 	{
-		public static byte[] GetBytes(Data.GenerationLocationValues value, Data.ParentEffectType parentEffectType, SortedDictionary<string, int> model_and_index, Dictionary<Data.ProceduralModelParameter, int> pmodel_and_index, ExporterVersion version)
+		public static byte[] GetBytes(Data.GenerationLocationValues value, Data.ParentEffectType parentEffectType, SortedDictionary<string, int> model_and_index, Dictionary<Data.ProceduralModelParameter, int> pmodel_and_index)
 		{
 			List<byte[]> data = new List<byte[]>();
 			if (value.EffectsRotation)
@@ -21,15 +21,6 @@ namespace Effekseer.Binary
 			}
 
 			var type = value.Type.GetValue();
-
-			// Fallback
-			if(version < ExporterVersion.Ver16Alpha1)
-			{
-				if(type == Data.GenerationLocationValues.ParameterType.Model && value.Model.ModelReference.Value == Data.ModelReferenceType.ProceduralModel)
-				{
-					type = Data.GenerationLocationValues.ParameterType.Point;
-				}
-			}
 
 			data.Add(((int)type).GetBytes());
 
@@ -48,13 +39,12 @@ namespace Effekseer.Binary
 			}
 			if (type == Data.GenerationLocationValues.ParameterType.Model)
 			{
-				if(version >= ExporterVersion.Ver16Alpha3)
 				{
 					var refType = (int)value.Model.ModelReference.Value;
 					data.Add((refType).GetBytes());
 				}
 
-				if(value.Model.ModelReference.Value == Data.ModelReferenceType.File)
+				if (value.Model.ModelReference.Value == Data.ModelReferenceType.File)
 				{
 					var relative_path = value.Model.Model.RelativePath;
 
@@ -78,7 +68,7 @@ namespace Effekseer.Binary
 				}
 				else if (value.Model.ModelReference.Value == Data.ModelReferenceType.ProceduralModel)
 				{
-					if(value.Model.Reference.Value != null)
+					if (value.Model.Reference.Value != null)
 					{
 						var ind = pmodel_and_index[value.Model.Reference.Value];
 						data.Add(ind.GetBytes());
@@ -90,10 +80,11 @@ namespace Effekseer.Binary
 				}
 				else
 				{
-					throw new Exception();
+					data.Add(value.Model.ExternalModelIndex.GetBytes());
 				}
 
 				data.Add(((int)value.Model.Type.Value).GetBytes());
+				data.Add(((int)value.Model.Coordinate.Value).GetBytes());
 			}
 			else if (type == Data.GenerationLocationValues.ParameterType.Circle)
 			{

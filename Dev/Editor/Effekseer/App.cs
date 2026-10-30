@@ -13,6 +13,8 @@ namespace Effekseer
 
 	public class App : Application
 	{
+		swig.DeviceType deviceType;
+
 		protected override void OnInitialize()
 		{
 			var dockTypes = new Type[]
@@ -23,6 +25,8 @@ namespace Effekseer
 				typeof(Dock.LocationValues),
 				typeof(Dock.LocationAbsValues),
 				typeof(Dock.GenerationLocationValues),
+				typeof(Dock.KillRules),
+				typeof(Dock.CollisionsValues),
 				typeof(Dock.RotationValues),
 				typeof(Dock.ScaleValues),
 				typeof(Dock.DepthValues),
@@ -37,15 +41,18 @@ namespace Effekseer
 				typeof(Dock.GlobalValues),
 				typeof(Dock.BehaviorValues),
 				typeof(Dock.Culling),
+				typeof(Dock.LOD),
 				typeof(Dock.Network),
-				typeof(Dock.FileViewer),
+				typeof(Dock.FileBrowser),
 				typeof(Dock.Dynamic),
 				typeof(Dock.ProceduralModel),
 				typeof(Dock.AdvancedRenderCommonValues),
+				typeof(Dock.Profiler),
+				typeof(Dock.GpuParticlesValues),
 			};
 
 			System.OperatingSystem os = System.Environment.OSVersion;
-			swig.DeviceType deviceType = swig.DeviceType.DirectX11;
+			deviceType = swig.DeviceType.DirectX11;
 
 			if (!(os.Platform == PlatformID.Win32NT ||
 			os.Platform == PlatformID.Win32S ||
@@ -78,7 +85,7 @@ namespace Effekseer
 		protected override void OnCreateEffectViwer()
 		{
 			Debug.Assert(Manager.effectViewer == null);
-			Manager.effectViewer = new Dock.EffectViwer();
+			Manager.effectViewer = new Dock.EffectViwerPaneBase(deviceType);
 			Manager.dockManager.Controls.Add(Manager.effectViewer);
 		}
 

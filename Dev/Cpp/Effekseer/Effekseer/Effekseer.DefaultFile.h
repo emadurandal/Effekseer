@@ -2,78 +2,65 @@
 #ifndef __EFFEKSEER_DEFAULT_FILE_H__
 #define __EFFEKSEER_DEFAULT_FILE_H__
 
-//----------------------------------------------------------------------------------
-// Include
-//----------------------------------------------------------------------------------
-#include "Effekseer.Base.h"
+#include "Effekseer.Base.Pre.h"
 #include "Effekseer.File.h"
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 namespace Effekseer
 {
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
-/**
-	@brief	標準のファイル読み込みクラス
-*/
 
+/**
+	@brief
+	\~English	Default file loader
+	\~Japanese	標準のファイル読み込みクラス
+*/
 class DefaultFileReader : public FileReader
 {
 private:
-	FILE* m_filePtr;
+	FILE* filePtr_;
 
 public:
 	DefaultFileReader(FILE* filePtr);
 
-	~DefaultFileReader();
+	~DefaultFileReader() override;
 
-	size_t Read(void* buffer, size_t size);
+	size_t Read(void* buffer, size_t size) override;
 
-	void Seek(int position);
+	void Seek(int position) override;
 
-	int GetPosition();
+	int GetPosition() const override;
 
-	size_t GetLength();
+	size_t GetLength() const override;
 };
 
 class DefaultFileWriter : public FileWriter
 {
 private:
-	FILE* m_filePtr;
+	FILE* filePtr_;
 
 public:
 	DefaultFileWriter(FILE* filePtr);
 
-	~DefaultFileWriter();
+	~DefaultFileWriter() override;
 
-	size_t Write(const void* buffer, size_t size);
+	size_t Write(const void* buffer, size_t size) override;
 
-	void Flush();
+	void Flush() override;
 
-	void Seek(int position);
+	void Seek(int position) override;
 
-	int GetPosition();
+	int GetPosition() const override;
 
-	size_t GetLength();
+	size_t GetLength() const override;
 };
 
 class DefaultFileInterface : public FileInterface
 {
-private:
 public:
-	FileReader* OpenRead(const char16_t* path);
+	FileReaderRef OpenRead(const char16_t* path) override;
 
-	FileWriter* OpenWrite(const char16_t* path);
+	FileWriterRef OpenWrite(const char16_t* path) override;
 };
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 } // namespace Effekseer
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
+
 #endif // __EFFEKSEER_DEFAULT_FILE_H__

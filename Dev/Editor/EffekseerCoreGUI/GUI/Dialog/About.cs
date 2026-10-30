@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 
 namespace Effekseer.GUI.Dialog
 {
-    class About : IRemovableControl
-    {
-        string id = "###Abount";
-        string title = "About";
-        string versionInfo = "";
+	class About : IRemovableControl
+	{
+		string id = "###Abount";
+		string title = "About";
+		string versionInfo = "";
 
 		bool isFirstUpdate = true;
 
@@ -39,24 +39,26 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-[Official Website](http://effekseer.github.io/)
+- [Official Website](http://effekseer.github.io/)
 
-[Github](https://github.com/effekseer/Effekseer)
+- [GitHub](https://github.com/effekseer/Effekseer)
+
+- Partial icons by [Icons8](https://icons8.com)
 
 ";
 
-        public bool ShouldBeRemoved { get; private set; } = false;
+		public bool ShouldBeRemoved { get; private set; } = false;
 
-        public void Show()
-        {
-            versionInfo = "Effekseer Version " + Core.Version;
-			title = Resources.GetString("InternalAbout");
+		public void Show()
+		{
+			versionInfo = "Effekseer Version " + Core.Version;
+			title = MultiLanguageTextProvider.GetText("InternalAbout");
 
 			Manager.AddControl(this);
-        }
+		}
 
-        public void Update()
-        {
+		public void Update()
+		{
 			if (isFirstUpdate)
 			{
 				Manager.NativeManager.OpenPopup(id);
@@ -65,35 +67,35 @@ THE SOFTWARE.
 			}
 
 			if (Manager.NativeManager.BeginPopupModal(title + id, ref opened, swig.WindowFlags.None))
-            {
+			{
 				const float iconSize = 64;
 
-				Manager.NativeManager.Image(Images.GetIcon("AppIcon"), iconSize, iconSize);
+				Manager.NativeManager.ImageData(Images.GetIcon("AppIcon"), iconSize, iconSize);
 
 				Manager.NativeManager.SameLine();
-				
+
 				Manager.NativeManager.SetCursorPosY(Manager.NativeManager.GetCursorPosY() + iconSize / 2 - Manager.NativeManager.GetTextLineHeight() / 2);
 				Manager.NativeManager.Text(versionInfo);
 
 				Manager.NativeManager.Separator();
 
 				Manager.NativeManager.Markdown(license);
-				
+
 				Manager.NativeManager.Separator();
-				
+
 				Manager.NativeManager.SetCursorPosX(Manager.NativeManager.GetContentRegionAvail().X / 2 - 100 / 2);
 
-                if (Manager.NativeManager.Button("OK", 100))
-                {
-                    ShouldBeRemoved = true;
-                }
+				if (Manager.NativeManager.Button("OK", 100))
+				{
+					ShouldBeRemoved = true;
+				}
 
-                Manager.NativeManager.EndPopup();
-            }
-            else
-            {
-                ShouldBeRemoved = true;
-            }
-        }
-    }
+				Manager.NativeManager.EndPopup();
+			}
+			else
+			{
+				ShouldBeRemoved = true;
+			}
+		}
+	}
 }

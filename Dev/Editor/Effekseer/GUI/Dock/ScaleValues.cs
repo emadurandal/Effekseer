@@ -8,27 +8,27 @@ namespace Effekseer.GUI.Dock
 {
 	class ScaleValues : DockPanel
 	{
-		Component.CopyAndPaste candp = null;
-		Component.ParameterList paramerterList = null;
+		BindableComponent.ParameterList paramerterList = null;
 
 		bool isFiestUpdate = true;
 
 		public ScaleValues()
 		{
-			Label = Icons.PanelScale + Resources.GetString("Scale") + "###Scale";
+			Label = Icons.PanelScale + MultiLanguageTextProvider.GetText("Scale") + "###Scale";
+			DocPage = "scale.html";
 
-			paramerterList = new Component.ParameterList();
+			paramerterList = new BindableComponent.ParameterList();
 			paramerterList.SetType(typeof(Data.ScaleValues));
 
-			candp = new Component.CopyAndPaste("Scale", GetTargetObject, Read);
+			CopyAndPaste = new BindableComponent.CopyAndPaste("Scale", GetTargetObject, Read);
 
 			Core.OnAfterLoad += OnAfterLoad;
 			Core.OnAfterNew += OnAfterLoad;
 			Core.OnAfterSelectNode += OnAfterSelectNode;
-			
+
 			Read();
 
-			TabToolTip = Resources.GetString("Scale");
+			TabToolTip = MultiLanguageTextProvider.GetText("Scale");
 		}
 
 		public void FixValues()
@@ -50,8 +50,6 @@ namespace Effekseer.GUI.Dock
 			if (isFiestUpdate)
 			{
 			}
-
-			candp.Update();
 
 			paramerterList.Update();
 		}

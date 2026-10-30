@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Text;
+using static Effekseer.InternalScript.SSAGenerator;
 
 namespace Effekseer.Data.Value
 {
-	public class Color : IValueChangedFromDefault
+	public class Color : IResettableValue, IValueChangedFromDefault
 	{
 		public Int R
 		{
@@ -42,11 +44,14 @@ namespace Effekseer.Data.Value
 
 		public bool IsValueChangedFromDefault
 		{
-			get { return 
-					R.IsValueChangedFromDefault || 
-					G.IsValueChangedFromDefault || 
-					B.IsValueChangedFromDefault || 
-					A.IsValueChangedFromDefault; }
+			get
+			{
+				return
+				  R.IsValueChangedFromDefault ||
+				  G.IsValueChangedFromDefault ||
+				  B.IsValueChangedFromDefault ||
+				  A.IsValueChangedFromDefault;
+			}
 		}
 
 		internal ColorSpace DefaultColorSpace { get; private set; }
@@ -65,7 +70,7 @@ namespace Effekseer.Data.Value
 			int old_b = B.Value;
 			int old_a = A.Value;
 
-			Utl.RGBHSVColor color;
+			Utils.RGBHSVColor color;
 
 			color.RH = old_r;
 			color.GS = old_g;
@@ -75,11 +80,11 @@ namespace Effekseer.Data.Value
 			{
 				if (newval == ColorSpace.HSVA)
 				{
-					color = Utl.RGBHSVColor.RGBToHSV(color);
+					color = Utils.RGBHSVColor.RGBToHSV(color);
 				}
 				else
 				{
-					color = Utl.RGBHSVColor.HSVToRGB(color);
+					color = Utils.RGBHSVColor.HSVToRGB(color);
 				}
 			}
 
@@ -183,26 +188,38 @@ namespace Effekseer.Data.Value
 			Command.CommandManager.Execute(cmd);
 		}
 
-		public static implicit operator byte[](Color value)
+		public void ResetValue()
 		{
-			if(value.ColorSpace == ColorSpace.RGBA)
+			Command.CommandManager.StartCollection();
+			R.ResetValue();
+			G.ResetValue();
+			B.ResetValue();
+			A.ResetValue();
+			Command.CommandManager.EndCollection();
+		}
+
+		public byte[] GetBytes()
+		{
+			if (ColorSpace == ColorSpace.RGBA)
 			{
-				byte[] values = new byte[sizeof(byte) * 4] { (byte)value.R, (byte)value.G, (byte)value.B, (byte)value.A };
+				byte[] values = new byte[sizeof(byte) * 4] { (byte)R, (byte)G, (byte)B, (byte)A };
 				return values;
 			}
 			else
 			{
-				Utl.RGBHSVColor color;
-
-				color.RH = value.R.Value;
-				color.GS = value.G.Value;
-				color.BV = value.B.Value;
-				color = Utl.RGBHSVColor.HSVToRGB(color);
-
-				byte[] values = new byte[sizeof(byte) * 4] { (byte)value.R, (byte)value.G, (byte)value.B, (byte)value.A };
+				Utils.RGBHSVColor color;
+				color.RH = R.Value;
+				color.GS = G.Value;
+				color.BV = B.Value;
+				color = Utils.RGBHSVColor.HSVToRGB(color);
+				byte[] values = new byte[sizeof(byte) * 4] { (byte)color.RH, (byte)color.GS, (byte)color.BV, (byte)A };
 				return values;
-
 			}
+		}
+
+		public static implicit operator byte[](Color value)
+		{
+			return value.GetBytes();
 		}
 
 		public void ChangeColorSpace(ColorSpace colorSpace)

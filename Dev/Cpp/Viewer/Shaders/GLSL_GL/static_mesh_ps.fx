@@ -44,8 +44,11 @@ PS_OUTPUT _main(PS_Input Input)
     if (CBPS0.isLit.x > 0.0)
     {
         float diffuse = max(dot(CBPS0.directionalLightDirection.xyz, Input.Normal), 0.0);
-        vec3 _73 = _output.o0.xyz * ((CBPS0.directionalLightColor.xyz * diffuse) + CBPS0.ambientLightColor.xyz);
-        _output.o0 = vec4(_73.x, _73.y, _73.z, _output.o0.w);
+        vec4 _62 = _output.o0;
+        vec3 _73 = _62.xyz * ((CBPS0.directionalLightColor.xyz * diffuse) + CBPS0.ambientLightColor.xyz);
+        _output.o0.x = _73.x;
+        _output.o0.y = _73.y;
+        _output.o0.z = _73.z;
     }
     _output.o1 = vec4(1.0);
     _output.o1.x = Input.Position.z / Input.Position.w;

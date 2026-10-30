@@ -44,7 +44,7 @@ namespace Effekseer
 			get;
 			private set;
 		}
-		
+
 		protected Application()
 		{
 			if (Current != null) throw new InvalidOperationException(); // Prohibit multiple instances.
@@ -72,11 +72,14 @@ namespace Effekseer
 
 
 			// Register UI
-			GUI.Component.ParameterListComponentFactory.Register(typeof(Data.LanguageSelector), () => { return new GUI.Component.LanguageSelector(); });
+			GUI.BindableComponent.ParameterListComponentFactory.Register(typeof(Data.LanguageSelector), () => { return new GUI.BindableComponent.LanguageSelector(); });
 
-			GUI.Component.ParameterListComponentFactory.Register(typeof(Data.ProceduralModelReference), () => {
-				return new GUI.Component.ObjectReference<Data.ProceduralModelParameter>(Core.ProceduralModel.ProceduralModels);
+			GUI.BindableComponent.ParameterListComponentFactory.Register(typeof(Data.ProceduralModelReference), () =>
+			{
+				return new GUI.BindableComponent.ObjectReference<Data.ProceduralModelParameter>(Core.ProceduralModel.ProceduralModels);
 			});
+
+			GUI.BindableComponent.ParameterListComponentFactory.Register(typeof(Data.Value.Gradient), () => { return new GUI.BindableComponent.Gradient(); });
 
 			// Debug
 			bool isDebugMode = false;
@@ -85,7 +88,7 @@ namespace Effekseer
 #endif
 			if (System.IO.File.Exists(Path.Combine(EntryDirectory, "debug.txt")) || isDebugMode)
 			{
-				swig.Native.SetFileLogger(Path.Combine(GUI.Manager.GetEntryDirectory(), "Effekseer.log.txt"));
+				swig.Logger.SetFileLogger(Path.Combine(GUI.Manager.GetEntryDirectory(), "Effekseer.log.txt"));
 				Utils.Logger.LogPath = Path.Combine(GUI.Manager.GetEntryDirectory(), "Effekseer.Managed.log.txt");
 			}
 
@@ -103,6 +106,14 @@ namespace Effekseer
 				else if (systemLanguage == swig.SystemLanguage.English)
 				{
 					language = "en";
+				}
+				else if (systemLanguage == swig.SystemLanguage.SimplifiedChinese)
+				{
+					language = "zhcn";
+				}
+				else if (systemLanguage == swig.SystemLanguage.TraditionalChinese)
+				{
+					language = "zhtw";
 				}
 			}
 			else
@@ -160,8 +171,11 @@ namespace Effekseer
 
 		public void Run()
 		{
+			Process.MaterialEditor.Init();
+
 			while (GUI.Manager.NativeManager.DoEvents())
 			{
+				Process.MaterialEditor.Update();
 				GUI.Manager.Update();
 				OnUpdate();
 			}
@@ -209,6 +223,7 @@ namespace Effekseer
 			MultiLanguageTextProvider.LoadCSV("Effekseer.csv");
 			MultiLanguageTextProvider.LoadCSV("Effekseer_Options.csv");
 			MultiLanguageTextProvider.LoadCSV("Effekseer_BasicSettings.csv");
+			MultiLanguageTextProvider.LoadCSV("Effekseer_Collisions.csv");
 			MultiLanguageTextProvider.LoadCSV("Effekseer_Position.csv");
 			MultiLanguageTextProvider.LoadCSV("Effekseer_Rotation.csv");
 			MultiLanguageTextProvider.LoadCSV("Effekseer_Scale.csv");
@@ -222,11 +237,16 @@ namespace Effekseer
 			MultiLanguageTextProvider.LoadCSV("Effekseer_SpawnMethod.csv");
 			MultiLanguageTextProvider.LoadCSV("Effekseer_Depth.csv");
 			MultiLanguageTextProvider.LoadCSV("Effekseer_Culling.csv");
+			MultiLanguageTextProvider.LoadCSV("Effekseer_LOD.csv");
 			MultiLanguageTextProvider.LoadCSV("Effekseer_Global.csv");
 			MultiLanguageTextProvider.LoadCSV("Effekseer_Sound.csv");
 			MultiLanguageTextProvider.LoadCSV("Effekseer_FCurve.csv");
 			MultiLanguageTextProvider.LoadCSV("Effekseer_FCurve_Element.csv");
+			MultiLanguageTextProvider.LoadCSV("Effekseer_KillRules.csv");
+			MultiLanguageTextProvider.LoadCSV("Effekseer_Profiler.csv");
+			MultiLanguageTextProvider.LoadCSV("Effekseer_GpuParticles.csv");
 			LanguageTable.CreateTableFromDirectory(EntryDirectory);
+			LanguageTable.StoreLanguageNames(EntryDirectory);
 			GUI.Manager.UpdateFont();
 		}
 
@@ -242,7 +262,7 @@ namespace Effekseer
 
 			if (e is UnauthorizedAccessException)
 			{
-				if (Core.Language == Language.Japanese)
+				if (LanguageTable.Languages[LanguageTable.SelectedIndex] == "ja")
 				{
 					messageBase = "アクセスが拒否されエラーが発生しました。\n他のディレクトリにインストールしてください。\nもしくはアクセスできないファイルを選択しています。\n";
 				}
@@ -253,7 +273,7 @@ namespace Effekseer
 			}
 			else
 			{
-				if (Core.Language == Language.Japanese)
+				if (LanguageTable.Languages[LanguageTable.SelectedIndex] == "ja")
 				{
 					messageBase = "エラーが発生しました。";
 				}
@@ -269,7 +289,7 @@ namespace Effekseer
 
 				string message = messageBase + "Error log is written in " + filepath + "\nWe are glad if you send this error to Effekseer with a mail or twitter.\n";
 
-				if (Core.Language == Language.Japanese)
+				if (LanguageTable.Languages[LanguageTable.SelectedIndex] == "ja")
 				{
 					message = messageBase + "エラーログが" + filepath + "に出力されました。\nもしエラーをメールやTwitterでEffekseerに送っていただけると助かります。\n";
 				}

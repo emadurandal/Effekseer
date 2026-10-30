@@ -9,18 +9,22 @@ RS_RenderingOrder_FirstCreatedInstanceIsFirst_Name,Order of spawn
 RS_RenderingOrder_FirstCreatedInstanceIsLast_Name,Reversed
 BillboardType_Billboard_Name,Billboard
 BillboardType_RotatedBillboard_Name,Rotated Billboard
+BillboardType_DirectionalBillboard_Name,Direccional Billboard
 BillboardType_YAxisFixed_Name,Fixed Y-Axis
 BillboardType_Fixed_Name,Fixed
 StandardColorType_Fixed_Name,Fixed
 StandardColorType_Random_Name,Random
 StandardColorType_Easing_Name,Easing
 StandardColorType_FCurve_Name,F-Curve (RGBA)
+StandardColorType_Gradient_Name,Gradient
 TextureUVTypeParameter_Type_Name,UV Type
+TextureUVTypeParameter_TileLength_Name,Tile Length
 TextureUVTypeParameter_TileEdgeHead_Name,The number of tile on Head
 TextureUVTypeParameter_TileEdgeTail_Name,The number of tile on Tail
 TextureUVTypeParameter_TileLoopingArea_Name,Looping area
 TextureUVTypeParameter_Type_Strech_Name,Strech
 TextureUVTypeParameter_Type_Tile_Name,Tile
+TextureUVTypeParameter_Type_TilePerParticle_Name,Tile(Per particle)
 ,
 CullingType_Front_Name,Front view
 CullingType_Back_Name,Back view
@@ -63,9 +67,10 @@ FixedRandomEasingType_Fixed_Name,Fixed
 FixedRandomEasingType_Random_Name,Random
 FixedRandomEasingType_Easing_Name,Easing
 ,
+RS_ColorAll_Name,Color All
+,
 RS_Sprite_RenderingOrder_Name,Rendering Order
 RS_Sprite_Billboard_Name,Configuration
-RS_Sprite_ColorAll_Name,Color All
 RS_Sprite_Color_Name,Vertex Color
 RS_Sprite_Color_Fixed_LL_Name,Lower-Left Color
 RS_Sprite_Color_Fixed_LR_Name,Lower-Right Color
@@ -112,6 +117,8 @@ RS_Model_Model_Desc,Model File
 RS_Model_Billboard_Name,Configuration
 RS_Model_Culling_Name,Culling
 RS_Model_Color_Name,Color
+RS_Model_ExternalIndex_Name,External Model Index
+RS_Model_ExternalIndex_Desc,External model index.
 ,
 RS_Ring_RingShape_Name,Shape
 RS_Ring_RenderingOrder_Name,Rendering Order
@@ -138,3 +145,8 @@ RS_Ring_PVALocation_Velocity_Name,Speed
 RS_Ring_PVALocation_Velocity_Desc,Initial velocity of the edge
 RS_Ring_PVALocation_Acceleration_Name,Accel
 RS_Ring_PVALocation_Acceleration_Desc,Acceleration of the edge
+,
+"RS_TrailSmoothing_Name","Smoothing"
+"RS_TrailTimeSource_Name","Source of color time"
+"RS_TrailTimeSource_FirstParticle_Name", "First particle"
+"RS_TrailTimeSource_ParticleGroup_Name", "Group"

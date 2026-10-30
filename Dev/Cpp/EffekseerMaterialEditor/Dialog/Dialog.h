@@ -15,9 +15,15 @@ public:
 	Dialog() = default;
 	virtual ~Dialog() = default;
 
-	virtual const char* GetID() const { return ""; }
+	virtual const char* GetID() const
+	{
+		return "";
+	}
 
-	virtual bool Update() { return true; }
+	virtual bool Update()
+	{
+		return true;
+	}
 
 	bool IsClosing = false;
 };
@@ -29,11 +35,19 @@ private:
 	std::string id_ = "###NewOrOpenDialog";
 
 public:
-	NewOrOpenDialog(std::shared_ptr<EffekseerMaterial::Editor> content) : content_(content) {}
+	NewOrOpenDialog(std::shared_ptr<EffekseerMaterial::Editor> content)
+		: content_(content)
+	{
+	}
 
-	virtual ~NewOrOpenDialog() {}
+	virtual ~NewOrOpenDialog()
+	{
+	}
 
-	const char* GetID() const { return id_.c_str(); }
+	const char* GetID() const
+	{
+		return id_.c_str();
+	}
 
 	bool Update() override
 	{
@@ -45,7 +59,7 @@ public:
 		bool open = true;
 		if (ImGui::BeginPopupModal(GetID(), &open, ImGuiWindowFlags_NoResize))
 		{
-			ImGui::Text(StringContainer::GetValue("Starting", "Starting").c_str());
+			ImGui::Text("%s", StringContainer::GetValue("Starting", "Starting").c_str());
 			ImGui::Separator();
 
 			const float buttonWidth = ImGui::GetContentRegionAvail().x;
@@ -80,13 +94,19 @@ private:
 
 public:
 	SaveOrCloseDialog(std::shared_ptr<EffekseerMaterial::EditorContent> content, std::function<void()> onClosed)
-		: content_(content), onClosed_(onClosed)
+		: content_(content)
+		, onClosed_(onClosed)
 	{
 	}
 
-	virtual ~SaveOrCloseDialog() {}
+	virtual ~SaveOrCloseDialog()
+	{
+	}
 
-	const char* GetID() const { return id_.c_str(); }
+	const char* GetID() const
+	{
+		return id_.c_str();
+	}
 
 	bool Update() override
 	{
@@ -96,11 +116,12 @@ public:
 			auto message = StringContainer::GetValue("ConfirmSaveChanged", "[{0}] has been changed. Do you want to save?");
 			message = Replace(message, "{0}", content_->GetName());
 
-			ImGui::Text(message.c_str());
+			ImGui::Text("%s", message.c_str());
 			ImGui::Separator();
-			
-			const float buttonWidth = (ImGui::GetContentRegionAvail().x - 
-				ImGui::GetStyle().ItemSpacing.x * 2.0f) / 3.0f;
+
+			const float buttonWidth = (ImGui::GetContentRegionAvail().x -
+									   ImGui::GetStyle().ItemSpacing.x * 2.0f) /
+									  3.0f;
 
 			if (ImGui::Button("Yes", ImVec2(buttonWidth, 0)))
 			{

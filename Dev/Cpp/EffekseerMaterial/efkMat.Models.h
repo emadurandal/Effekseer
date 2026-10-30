@@ -3,17 +3,11 @@
 
 #include "efkMat.Base.h"
 #include "efkMat.Utils.h"
+#include <memory>
 #include <set>
 
 namespace EffekseerMaterial
 {
-
-enum class LanguageType
-{
-	Japanese,
-	English,
-	Max,
-};
 
 class CommandManager;
 
@@ -22,6 +16,46 @@ class UserObject
 public:
 	UserObject() = default;
 	virtual ~UserObject() = default;
+};
+
+class Gradient
+{
+public:
+	static const int MarkerMax = 8;
+
+	struct ColorMarker
+	{
+		float Position;
+		std::array<float, 3> Color;
+		float Intensity;
+	};
+
+	struct AlphaMarker
+	{
+		float Position;
+		float Alpha;
+	};
+
+	int ColorCount = 0;
+	int AlphaCount = 0;
+	std::array<ColorMarker, MarkerMax> Colors;
+	std::array<AlphaMarker, MarkerMax> Alphas;
+
+	Gradient()
+	{
+		for (auto& c : Colors)
+		{
+			c.Color.fill(1.0f);
+			c.Intensity = 1.0f;
+			c.Position = 0.0f;
+		}
+
+		for (auto& a : Alphas)
+		{
+			a.Alpha = 1.0f;
+			a.Position = 0.0f;
+		}
+	}
 };
 
 class Link
@@ -65,6 +99,9 @@ public:
 	//! Function
 	std::shared_ptr<Material> MaterialFunction;
 
+	// TODO : it should uses optional
+	std::unique_ptr<Gradient> GradientData;
+
 	std::weak_ptr<Node> Parent;
 };
 
@@ -79,8 +116,8 @@ class Node : public std::enable_shared_from_this<Node>
 {
 private:
 	friend class Material;
-	bool isDirtied = true;
-	bool isContentDirtied = false;
+	bool isDirtied_ = true;
+	bool isContentDirtied_ = false;
 	bool isPosDirtied_ = true;
 
 	std::weak_ptr<Material> material_;
@@ -104,7 +141,7 @@ public:
 	bool IsPreviewOpened = false;
 
 	//! descriptons for other editors
-	std::vector<std::shared_ptr<NodeDescription>> Descriptions;
+	std::shared_ptr<NodeDescription> Description;
 
 	//! warning
 	WarningType CurrentWarning = WarningType::None;
@@ -122,25 +159,46 @@ public:
 
 	void UpdateRegion(const Vector2DF& pos, const Vector2DF& size);
 
-	bool GetIsPosDirtied() const { return isPosDirtied_; }
+	bool GetIsPosDirtied() const
+	{
+		return isPosDirtied_;
+	}
 
-	bool GetIsDirtied() const { return isDirtied; }
+	bool GetIsDirtied() const
+	{
+		return isDirtied_;
+	}
 
-	bool GetIsContentDirtied() const { return isContentDirtied; }
+	bool GetIsContentDirtied() const
+	{
+		return isContentDirtied_;
+	}
 
-	void MakePosDirtied() { isPosDirtied_ = true; }
+	void MakePosDirtied()
+	{
+		isPosDirtied_ = true;
+	}
 
-	void ClearPosDirtied() { isPosDirtied_ = false; }
+	void ClearPosDirtied()
+	{
+		isPosDirtied_ = false;
+	}
 
-	Node() {}
+	Node()
+	{
+	}
 };
 
 class TextureInfo : public std::enable_shared_from_this<TextureInfo>
 {
 public:
-	TextureInfo() {}
+	TextureInfo()
+	{
+	}
 
-	virtual ~TextureInfo() {}
+	virtual ~TextureInfo()
+	{
+	}
 
 	std::string Path;
 	TextureValueType Type = TextureValueType::Color;
@@ -149,12 +207,17 @@ public:
 class CustomDataProperty
 {
 public:
-	CustomDataProperty() { Values.fill(0.0f); }
+	CustomDataProperty()
+	{
+		Values.fill(0.0f);
+	}
 
-	virtual ~CustomDataProperty() {}
+	virtual ~CustomDataProperty()
+	{
+	}
 
 	//! descriptons for other editors
-	std::vector<std::shared_ptr<NodeDescription>> Descriptions;
+	std::shared_ptr<NodeDescription> Description;
 
 	std::array<float, 4> Values;
 };
@@ -170,7 +233,7 @@ enum class ErrorCode
 class Material : public std::enable_shared_from_this<Material>
 {
 private:
-	const int32_t lastestSupportedVersion_ = MaterialVersion16;
+	const int32_t lastestSupportedVersion_ = MaterialVersion18;
 
 	enum class SaveLoadAimType
 	{
@@ -182,9 +245,9 @@ private:
 
 	std::vector<std::shared_ptr<Node>> nodes_;
 	std::vector<std::shared_ptr<Link>> links_;
-	std::map<std::string, std::shared_ptr<TextureInfo>> textures;
+	std::map<std::string, std::shared_ptr<TextureInfo>> textures_;
 
-	uint64_t nextGUID = 0xff;
+	uint64_t nextGuid_ = 0xff;
 
 	uint64_t GetIDAndNext();
 
@@ -253,6 +316,8 @@ public:
 
 	void ChangeValue(std::shared_ptr<NodeProperty> prop, std::string value);
 
+	void ChangeValue(std::shared_ptr<NodeProperty> prop, const Gradient& value);
+
 	void ChangeValueTextureType(std::shared_ptr<TextureInfo> prop, TextureValueType type);
 
 	void MakeDirty(std::shared_ptr<Node> node, bool doesUpdateWarnings = true);
@@ -273,11 +338,12 @@ public:
 
 	bool Save(std::vector<uint8_t>& data, const char* basePath);
 
-	LanguageType Language = LanguageType::Japanese;
-
 	std::array<CustomDataProperty, 2> CustomData;
 
-	std::shared_ptr<CommandManager> GetCommandManager() { return commandManager_; }
+	std::shared_ptr<CommandManager> GetCommandManager()
+	{
+		return commandManager_;
+	}
 };
 
 } // namespace EffekseerMaterial

@@ -5,7 +5,11 @@
 //----------------------------------------------------------------------------------
 // Include
 //----------------------------------------------------------------------------------
-#include "Effekseer.Base.h"
+#include "Effekseer.Base.Pre.h"
+#include "Effekseer.CoordinateSystem.h"
+#include "Effekseer.ExternalModel.h"
+#include "Effekseer.Matrix44.h"
+#include "Effekseer.RenderingTransform.h"
 #include "Effekseer.Vector3D.h"
 
 //----------------------------------------------------------------------------------
@@ -13,15 +17,50 @@
 //----------------------------------------------------------------------------------
 namespace Effekseer
 {
+
+struct Color;
+
 //----------------------------------------------------------------------------------
 //
 //----------------------------------------------------------------------------------
+
+/**
+	@brief	Random Function
+*/
+using RandFunc = std::function<int()>;
+
+/**
+	@brief
+	\~English Callback event when an instance of an effect is destroyed
+	\~Japanese エフェクトのインスタンス破棄時のコールバックイベント
+	@note
+	\~English
+	manager The manager to which the effect belongs
+	handle Handle of the effect instance
+	isRemovingManager Whether the effect instance is removed when the manager is removed.
+	\~Japanese
+	manager 所属しているマネージャー
+	handle エフェクトのインスタンスのハンドル
+	isRemovingManager マネージャーを破棄したときにエフェクトのインスタンスを破棄しているか
+*/
+using EffectInstanceRemovingCallback = std::function<void(Manager*, Handle, bool)>;
+
+/**
+	@brief
+	\~English Callback to query external collision. It returns true when a collision occurs and sets collisionPosition as the hit point and collisionNormal as the surface normal.
+	\~Japanese 外部との衝突を問い合わせるためのコールバック。衝突した場合はtrueを返し、collisionPositionに衝突点、collisionNormalに衝突面の法線を設定する。
+*/
+using CollisionCallback =
+	std::function<bool(const Vector3D& startPosition, const Vector3D& endPosition, Vector3D& collisionPosition, Vector3D& collisionNormal)>;
 
 /**
 	@brief エフェクト管理クラス
 */
 class Manager : public IReference
 {
+public:
+	static constexpr int32_t LayerCount = 32;
+
 public:
 	/**
 		@brief
@@ -52,20 +91,31 @@ public:
 			\~English Perform synchronous update
 			\~Japanese 同期更新を行う
 			@note
-			\~English If true, update processing is performed synchronously. If false, update processing is performed asynchronously (after this, do not call anything other than Draw)
-			\~Japanese trueなら同期的に更新処理を行う。falseなら非同期的に更新処理を行う（次はDraw以外呼び出してはいけない）
+			\~English If true, update processing is performed synchronously. If false, update processing is performed asynchronously (after this, do not call anything other than Draw or Compute)
+			\~Japanese trueなら同期的に更新処理を行う。falseなら非同期的に更新処理を行う（次はDraw/Compute以外呼び出してはいけない）
 		*/
 		bool SyncUpdate = true;
 	};
 
 	/**
-	@brief
 		@brief
 		\~English Parameters for Manager::Draw and Manager::DrawHandle
 		\~Japanese Manager::Draw and Manager::DrawHandleに使用するパラメーター
 	*/
 	struct DrawParameter
 	{
+		Matrix44 ViewProjectionMatrix;
+
+		/**
+			@brief
+			\~English An orthogonal coordinate transform applied only to this draw call
+			\~Japanese この描画呼び出しだけに適用する直交座標系変換
+		*/
+		Matrix44 RenderingCoordinateMatrix;
+
+		float ZNear = 0.0f;
+		float ZFar = 0.0f;
+
 		Vector3D CameraPosition;
 
 		/**
@@ -96,6 +146,58 @@ public:
 		bool IsSortingEffectsEnabled = false;
 
 		DrawParameter();
+	};
+
+	struct DrawTime
+	{
+		int32_t WorkerThreadWait = 0;
+		int32_t MutexLock = 0;
+		int32_t Culling = 0;
+		int32_t Sorting = 0;
+		int32_t DrawSets = 0;
+		int32_t GpuParticles = 0;
+		int32_t Total = 0;
+	};
+
+	/**
+		@brief
+		\~English Parameters of Manager::SetLayerParameter to be set for each layer index.
+		\~Japanese Manager::SetLayerParameterにレイヤーごとに設定するパラメーター
+	*/
+	struct LayerParameter
+	{
+		/**
+			@brief
+			\~English
+			Position of effects viewer to calculate distance of Level of Details system.
+			Normally should be set the same position which is passed in translation of camera matrix.
+			\~Japanese
+			LODシステムで使用される視点の位置。
+			通常はカメラの位置と同じ値を指定する。
+		*/
+		Vector3D ViewerPosition = {0.0f, 0.0f, 0.0f};
+
+		/**
+			@brief
+			\~English
+			Adds given value to calculated distance from viewer which is used for LOD selection.
+			Useful for LODs debugging.
+			\~Japanese
+			LODの選択に使用される、視点からの計算された距離に加算される値。
+			LODのデバッグに役に立ちます。
+		*/
+		float DistanceBias = 0.0f;
+	};
+
+	struct PlayParameter
+	{
+		EffectRef Effect;
+		Vector3D Position = {0.0f, 0.0f, 0.0f};
+		Vector3D Rotation = {0.0f, 0.0f, 0.0f};
+		Vector3D Scale = {1.0f, 1.0f, 1.0f};
+		int32_t StartFrame = 0;
+		std::vector<ExternalModel> ExternalModels;
+		EffectFlipParameter Flip;
 	};
 
 protected:
@@ -130,32 +232,6 @@ public:
 	virtual ThreadNativeHandleType GetWorkerThreadHandle(uint32_t threadID) = 0;
 
 	/**
-		@brief
-		\~English get an allocator
-		\~Japanese メモリ確保関数を取得する。
-	*/
-	virtual MallocFunc GetMallocFunc() const = 0;
-
-	/**
-		\~English specify an allocator
-		\~Japanese メモリ確保関数を設定する。
-	*/
-	virtual void SetMallocFunc(MallocFunc func) = 0;
-
-	/**
-		@brief
-		\~English get a deallocator
-		\~Japanese メモリ破棄関数を取得する。
-	*/
-	virtual FreeFunc GetFreeFunc() const = 0;
-
-	/**
-		\~English specify a deallocator
-		\~Japanese メモリ破棄関数を設定する。
-	*/
-	virtual void SetFreeFunc(FreeFunc func) = 0;
-
-	/**
 		@brief	ランダム関数を取得する。
 	*/
 	virtual RandFunc GetRandFunc() const = 0;
@@ -166,14 +242,18 @@ public:
 	virtual void SetRandFunc(RandFunc func) = 0;
 
 	/**
-		@brief	ランダム最大値を取得する。
+		@brief
+		\~English Set a callback to determine collision points against external objects.
+		\~Japanese 外部オブジェクトへの衝突判定に使用するコールバックを設定する。
 	*/
-	virtual int GetRandMax() const = 0;
+	virtual void SetCollisionCallback(CollisionCallback callback) = 0;
 
 	/**
-		@brief	ランダム関数を設定する。
+		@brief
+		\~English Get a callback to determine collision points against external objects.
+		\~Japanese 外部オブジェクトへの衝突判定に使用するコールバックを取得する。
 	*/
-	virtual void SetRandMax(int max_) = 0;
+	virtual CollisionCallback GetCollisionCallback() const = 0;
 
 	/**
 		@brief	座標系を取得する。
@@ -189,6 +269,32 @@ public:
 		エフェクトファイルを読み込む前に設定する必要がある。
 	*/
 	virtual void SetCoordinateSystem(CoordinateSystem coordinateSystem) = 0;
+
+	/**
+		@brief Gets how the coordinate-system setting is applied.
+	*/
+	virtual CoordinateSystemMode GetCoordinateSystemMode() const = 0;
+
+	/**
+		@brief Selects legacy simulation conversion or boundary conversion.
+		@note Set this before loading effects. ExternalConversion keeps effect loading and simulation in RH space.
+		To do so it forces the CoordinateSystem of the attached Setting to RH (switching back to LegacySimulation restores
+		the previous coordinate system). Because a Setting can be shared, do not share one Setting between managers
+		that use different CoordinateSystemModes or coordinate systems.
+	*/
+	virtual void SetCoordinateSystemMode(CoordinateSystemMode mode) = 0;
+
+	/**
+		@brief Gets the internal-RH to external coordinate transform.
+	*/
+	virtual CoordinateSystemTransform GetCoordinateSystemTransform() const = 0;
+
+	/**
+		@brief Sets the internal-RH to external coordinate transform.
+		@return false when the matrix is not a signed axis permutation.
+		@note Set this before loading effects. It takes effect at the Manager boundary only in ExternalConversion mode.
+	*/
+	virtual bool SetCoordinateSystemTransform(const CoordinateSystemTransform& transform) = 0;
 
 	/**
 		@brief	スプライト描画機能を取得する。
@@ -239,6 +345,48 @@ public:
 		@brief	軌跡描画機能を設定する。
 	*/
 	virtual void SetTrackRenderer(TrackRendererRef renderer) = 0;
+
+	/**
+		@brief
+		\~English get an GPU performance timer
+		\~Japanese GPUパフォーマンスタイマー取得する。
+	*/
+	virtual GpuTimerRef GetGpuTimer() = 0;
+
+	/**
+		@brief
+		\~English get an GPU performance timer
+		\~Japanese GPUパフォーマンスタイマーを設定する。
+	*/
+	virtual void SetGpuTimer(GpuTimerRef gpuTimer) = 0;
+
+	/**
+		@brief
+		\~English get an GPU particle system
+		\~Japanese GPUパーティクルシステム取得する。
+	*/
+	virtual GpuParticleSystemRef GetGpuParticleSystem() = 0;
+
+	/**
+		@brief
+		\~English get an GPU particle system
+		\~Japanese GPUパーティクルシステムを設定する。
+	*/
+	virtual void SetGpuParticleSystem(GpuParticleSystemRef system) = 0;
+
+	/**
+	@brief
+	\~English get an GPU particle factory
+	\~Japanese GPUパーティクルファクトリ取得する。
+	*/
+	virtual GpuParticleFactoryRef GetGpuParticleFactory() = 0;
+
+	/**
+	@brief
+	\~English get an GPU particle factory
+	\~Japanese GPUパーティクルファクトリを設定する。
+	*/
+	virtual void SetGpuParticleFactory(GpuParticleFactoryRef factory) = 0;
 
 	/**
 		@brief	設定クラスを取得する。
@@ -372,6 +520,13 @@ public:
 	virtual bool Exists(Handle handle) = 0;
 
 	/**
+		@brief
+		\~English Get the effect that is being played.
+		\~Japanese 再生されているエフェクトを取得する。
+	*/
+	virtual EffectRef GetEffect(Handle handle) = 0;
+
+	/**
 		@brief	エフェクトに使用されているインスタンス数を取得する。
 		@param	handle	[in]	インスタンスのハンドル
 		@return	インスタンス数
@@ -399,6 +554,32 @@ public:
 		Managerに残っているインスタンス数+エフェクトに使用されているインスタンス数は、最初に確保した個数よりも存在しているRootの数の分だけ多く存在する。
 	*/
 	virtual int32_t GetTotalInstanceCount() const = 0;
+
+	/**
+		@brief
+		\~English Returns LOD which is currently utilized for given effect
+	 */
+	virtual int32_t GetCurrentLOD(Handle handle) = 0;
+
+	/**
+		@brief
+		\~English Returns current specified LOD parameters.
+		\~Japanese 現在指定されているLODパラメータを返します
+	 */
+	virtual const LayerParameter& GetLayerParameter(int32_t layer) const = 0;
+
+	/**
+		@brief
+		\~English Set layer parameters.
+		\~Japanese レイヤーパラメータを設定する。
+		@param	layer
+		\~English	Layer index
+		\~Japanese	レイヤーのインデックス
+		@param	layerParameter
+		\~English	Layer parameters
+		\~Japanese	レイヤーパラメータ
+	 */
+	virtual void SetLayerParameter(int32_t layer, const LayerParameter& layerParameter) = 0;
 
 	/**
 		@brief	エフェクトのインスタンスに設定されている行列を取得する。
@@ -464,6 +645,17 @@ public:
 	virtual void SetScale(Handle handle, float x, float y, float z) = 0;
 
 	/**
+		@brief Gets the rendering-only root-local flip of a playing effect.
+	*/
+	virtual EffectFlipParameter GetEffectFlip(Handle handle) const = 0;
+
+	/**
+		@brief Sets a rendering-only root-local flip of a playing effect.
+		@note This does not change simulation matrices or particle state.
+	*/
+	virtual void SetEffectFlip(Handle handle, const EffectFlipParameter& flip) = 0;
+
+	/**
 	@brief
 		\~English	Specify the color of overall effect.
 		\~Japanese	エフェクト全体の色を指定する。
@@ -497,6 +689,13 @@ public:
 		\~Japanese 再生中にエフェクトのパラメーターを変更する動的パラメーターを設定する。
 	*/
 	virtual void SetDynamicInput(Handle handle, int32_t index, float value) = 0;
+
+	/**
+		@brief
+		\~English Sends the specified trigger to the currently playing effect.
+		\~Japanese トリガーを再生中のエフェクトに送信します。
+	*/
+	virtual void SendTrigger(Handle handle, int32_t index) = 0;
 
 	/**
 		@brief	エフェクトのベース行列を取得する。
@@ -564,6 +763,17 @@ public:
 	virtual void SetPausedToAllEffects(bool paused) = 0;
 
 	/**
+		@brief Stops new particles spawning but continues simulation of already spawned particles
+		@param spawnDisabled Whether to stop particles generation
+	 */
+	virtual void SetSpawnDisabled(Handle handle, bool spawnDisabled) = 0;
+
+	/**
+	 *	@brief Whether spawn of new particles is disabled
+	 */
+	virtual bool GetSpawnDisabled(Handle handle) = 0;
+
+	/**
 		@brief
 		\~English	Get a layer index
 		\~Japanese	レイヤーのインデックスを取得する
@@ -571,7 +781,7 @@ public:
 		\~English For example, if effect's layer is 1 and CameraCullingMask's first bit is 1, this effect is shown.
 		\~Japanese 例えば、エフェクトのレイヤーが0でカリングマスクの最初のビットが1のときエフェクトは表示される。
 	*/
-	virtual int GetLayer(Handle handle) = 0;
+	virtual int32_t GetLayer(Handle handle) = 0;
 
 	/**
 		@brief
@@ -634,6 +844,13 @@ public:
 		@param	autoDraw	[in]	自動描画フラグ
 	*/
 	virtual void SetAutoDrawing(Handle handle, bool autoDraw) = 0;
+
+	/**
+		@brief
+		\~English	Gets the user pointer set on the handle.
+		\~Japanese	ハンドルに設定されたユーザーポインタを取得する。
+	*/
+	virtual void* GetUserData(Handle handle) = 0;
 
 	/**
 		@brief
@@ -713,7 +930,7 @@ public:
 	virtual void UpdateHandle(Handle handle, float deltaFrame = 1.0f) = 0;
 
 	/**
-		@brief	
+		@brief
 		\~English	Update an effect to move to the specified frame
 		\~Japanese	指定した時間に移動するために更新する
 		\~English	a handle.
@@ -726,6 +943,13 @@ public:
 		\~Japanese	この関数は遅い。
 	*/
 	virtual void UpdateHandleToMoveToFrame(Handle handle, float frame) = 0;
+
+	/**
+	@brief
+	\~English	Compute GPU particles.
+	\~Japanese	GPUパーティクルの計算処理を行う。
+	*/
+	virtual void Compute() = 0;
 
 	/**
 	@brief
@@ -770,6 +994,13 @@ public:
 	virtual void DrawHandleFront(Handle handle, const Manager::DrawParameter& drawParameter = Manager::DrawParameter()) = 0;
 
 	/**
+	@brief
+	\~English	Get whether the effect will be culled.
+	\~Japanese	エフェクトがカリングされるか取得する。
+	*/
+	virtual bool GetIsCulled(Handle handle, const Manager::DrawParameter& drawParameter) = 0;
+
+	/**
 		@brief	再生する。
 		@param	effect	[in]	エフェクト
 		@param	x	[in]	X座標
@@ -797,20 +1028,52 @@ public:
 
 	/**
 		@brief
+		\~English	Play an effect with detailed parameters.
+		\~Japanese	再生用の詳細なパラメーターを指定して再生する。
+	*/
+	virtual Handle Play(const PlayParameter& parameter) = 0;
+
+	/**
+		@brief
 		\~English	Get a camera's culling mask to show all effects
 		\~Japanese	全てのエフェクトを表示するためのカメラのカリングマスクを取得する。
 	*/
 	virtual int GetCameraCullingMaskToShowAllEffects() = 0;
 
 	/**
-		@brief	Update処理時間を取得。
+		@brief
+		\~English	Gets the CPU time required for the Update process.
+		\~Japanese	Update処理にかかるCPU時間を取得する。
 	*/
 	virtual int GetUpdateTime() const = 0;
 
 	/**
-		@brief	Draw処理時間を取得。
+		@brief
+		\~English	Gets the CPU time required for the Draw process.
+		\~Japanese	Draw処理にかかるCPU時間を取得する。
 	*/
 	virtual int GetDrawTime() const = 0;
+
+	/**
+		@brief
+		\~English	Gets the detailed CPU time required for the Draw process.
+		\~Japanese	Draw処理にかかるCPU時間の内訳を取得する。
+	*/
+	virtual DrawTime GetDrawTimeBreakdown() const = 0;
+
+	/**
+		@brief
+		\~English	Gets the GPU time (microseconds) taken to render the all effects.
+		\~Japanese	エフェクト全ての描画処理にかかるGPU時間(マイクロ秒)を取得する。
+	*/
+	virtual int32_t GetGpuTime() const = 0;
+
+	/**
+		@brief
+		\~English	Gets the GPU time (microseconds) taken to render the effect.
+		\~Japanese	エフェクトの描画処理にかかるGPU時間(マイクロ秒)を取得する。
+	*/
+	virtual int32_t GetGpuTime(Handle handle) const = 0;
 
 	/**
 		@brief
@@ -818,27 +1081,6 @@ public:
 		\~Japanese	残りの確保したインスタンス数を取得する。
 	*/
 	virtual int32_t GetRestInstancesCount() const = 0;
-
-	/**
-		@brief	エフェクトをカリングし描画負荷を減らすための空間を生成する。
-		@param	xsize	X方向幅
-		@param	ysize	Y方向幅
-		@param	zsize	Z方向幅
-		@param	layerCount	層数(大きいほどカリングの効率は上がるがメモリも大量に使用する)
-	*/
-	virtual void CreateCullingWorld(float xsize, float ysize, float zsize, int32_t layerCount) = 0;
-
-	/**
-		@brief	カリングを行い、カリングされたオブジェクトのみを描画するようにする。
-		@param	cameraProjMat	カメラプロジェクション行列
-		@param	isOpenGL		OpenGLによる描画か?
-	*/
-	virtual void CalcCulling(const Matrix44& cameraProjMat, bool isOpenGL) = 0;
-
-	/**
-		@brief	現在存在するエフェクトのハンドルからカリングの空間を配置しなおす。
-	*/
-	virtual void RessignCulling() = 0;
 
 	/**
 		@brief

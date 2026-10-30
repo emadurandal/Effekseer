@@ -2,16 +2,16 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Effekseer.Utl;
+using Effekseer.Utils;
 
 namespace Effekseer.Data.Value
 {
-	public class Int : IValueChangedFromDefault
+	public class Int : IResettableValue, IValueChangedFromDefault
 	{
 		int _value = 0;
 		int _max = int.MaxValue;
 		int _min = int.MinValue;
-		
+
 		public int Min
 		{
 			get
@@ -40,7 +40,7 @@ namespace Effekseer.Data.Value
 				SetValue(value);
 			}
 		}
-		
+
 		/// <summary>
 		/// 変更単位量
 		/// </summary>
@@ -69,7 +69,7 @@ namespace Effekseer.Data.Value
 			get { return Value != DefaultValue; }
 		}
 
-		internal Int(int value = 0, int max = int.MaxValue, int min = int.MinValue, int step = 1 )
+		internal Int(int value = 0, int max = int.MaxValue, int min = int.MinValue, int step = 1)
 		{
 			_max = max;
 			_min = min;
@@ -134,9 +134,26 @@ namespace Effekseer.Data.Value
 			CallChanged(_value, ChangedValueType.Execute);
 		}
 
+		public void ResetValue()
+		{
+			SetValue(DefaultValue);
+		}
+
 		public static implicit operator int(Int value)
 		{
 			return value._value;
+		}
+
+		public static explicit operator byte[](Int value)
+		{
+			return value.GetBytes();
+		}
+
+		public byte[] GetBytes()
+		{
+			byte[] values = new byte[sizeof(int) * 1];
+			BitConverter.GetBytes(Value).CopyTo(values, sizeof(int) * 0);
+			return values;
 		}
 	}
 }

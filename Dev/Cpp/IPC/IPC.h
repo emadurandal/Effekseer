@@ -25,8 +25,9 @@ struct CommandData
 {
 	CommandType Type;
 
-	union {
-		std::array<char, 260> str;
+	union
+	{
+		std::array<char, 1024> str;
 	};
 
 	bool SetStr(const char* s)

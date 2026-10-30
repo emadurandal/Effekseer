@@ -8,9 +8,11 @@
 #include <array>
 #include <assert.h>
 #include <atomic>
+#include <cmath>
 #include <cfloat>
 #include <climits>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <stdint.h>
 #include <stdio.h>
@@ -18,6 +20,11 @@
 #include <string>
 #include <thread>
 #include <vector>
+
+#if _WIN32
+#undef min
+#undef max
+#endif
 
 //----------------------------------------------------------------------------------
 //
@@ -33,11 +40,13 @@
 //----------------------------------------------------------------------------------
 
 #ifdef _WIN32
-//#include <windows.h>
+// #include <windows.h>
 #elif defined(_PSVITA)
 #elif defined(_PS4)
 #elif defined(_SWITCH)
 #elif defined(_XBOXONE)
+#elif defined(_PS5)
+#elif defined(_SWITCH2)
 #else
 #include <pthread.h>
 #include <sys/time.h>
@@ -73,6 +82,8 @@ class RibbonRenderer;
 class RingRenderer;
 class ModelRenderer;
 class TrackRenderer;
+class GpuTimer;
+class GpuParticleSystem;
 
 class EffectLoader;
 class TextureLoader;
@@ -80,6 +91,8 @@ class MaterialLoader;
 class SoundLoader;
 class ModelLoader;
 class CurveLoader;
+class VectorFieldLoader;
+class GpuParticleFactory;
 
 class Texture;
 class SoundData;
@@ -101,39 +114,6 @@ class Texture;
 }
 
 using ThreadNativeHandleType = std::thread::native_handle_type;
-
-/**
-	@brief	Memory Allocation function
-*/
-typedef void*(EFK_STDCALL* MallocFunc)(unsigned int size);
-
-/**
-	@brief	Memory Free function
-*/
-typedef void(EFK_STDCALL* FreeFunc)(void* p, unsigned int size);
-
-/**
-	@brief	AlignedMemory Allocation function
-*/
-typedef void*(EFK_STDCALL* AlignedMallocFunc)(unsigned int size, unsigned int alignment);
-
-/**
-	@brief	AlignedMemory Free function
-*/
-typedef void(EFK_STDCALL* AlignedFreeFunc)(void* p, unsigned int size);
-
-/**
-	@brief	Random Function
-*/
-typedef int(EFK_STDCALL* RandFunc)(void);
-
-/**
-	@brief	エフェクトのインスタンス破棄時のコールバックイベント
-	@param	manager	[in]	所属しているマネージャー
-	@param	handle	[in]	エフェクトのインスタンスのハンドル
-	@param	isRemovingManager	[in]	マネージャーを破棄したときにエフェクトのインスタンスを破棄しているか
-*/
-typedef void(EFK_STDCALL* EffectInstanceRemovingCallback)(Manager* manager, Handle handle, bool isRemovingManager);
 
 #define ES_SAFE_ADDREF(val)                                                                     \
 	static_assert(std::is_class<decltype(val)>::value != true, "val must not be class/struct"); \
@@ -160,7 +140,7 @@ typedef void(EFK_STDCALL* EffectInstanceRemovingCallback)(Manager* manager, Hand
 	static_assert(std::is_class<decltype(val)>::value != true, "val must not be class/struct"); \
 	if ((val) != nullptr)                                                                       \
 	{                                                                                           \
-		delete[](val);                                                                          \
+		delete[] (val);                                                                         \
 		(val) = nullptr;                                                                        \
 	}
 
@@ -168,6 +148,11 @@ typedef void(EFK_STDCALL* EffectInstanceRemovingCallback)(Manager* manager, Hand
 
 //! the maximum number of texture slot which can be specified by an user
 const int32_t UserTextureSlotMax = 6;
+
+//! the maximum number of uniform slot which can be specified by an user
+const int32_t UserUniformSlotMax = 16;
+
+const int32_t UserGradientSlotMax = 2;
 
 //! the maximum number of texture slot including textures system specified
 const int32_t TextureSlotMax = 8;
@@ -216,6 +201,7 @@ enum class TextureWrapType : int32_t
 {
 	Repeat = 0,
 	Clamp = 1,
+	Mirror = 2,
 };
 
 enum class CullingType : int32_t
@@ -234,6 +220,7 @@ enum class BillboardType : int32_t
 	YAxisFixed = 1,
 	Fixed = 2,
 	RotatedBillboard = 3,
+	DirectionalBillboard = 4,
 };
 
 enum class CoordinateSystem : int32_t
@@ -267,6 +254,7 @@ enum class TextureFormatType : int32_t
 	BC1,
 	BC2,
 	BC3,
+	BC7,
 };
 
 enum class ZSortType : int32_t
@@ -296,6 +284,18 @@ enum class ReloadingThreadType
 {
 	Main,
 	Render,
+};
+
+enum class TrailSmoothingType : int32_t
+{
+	Off = 0,
+	On = 1,
+};
+
+enum class TrailTimeType : int32_t
+{
+	FirstParticle = 0,
+	ParticleGroup = 1,
 };
 
 //----------------------------------------------------------------------------------
@@ -346,12 +346,27 @@ T Clamp(T t, U max_, V min_)
 	return t;
 }
 
+inline float AvoidZero(float value)
+{
+	float eps = 0.000001f;
+	if (std::fabs(value) < eps)
+	{
+		if (value > 0)
+		{
+			return eps;
+		}
+		return -eps;
+	}
+
+	return value;
+}
+
 /**
-    @brief    Convert UTF16 into UTF8
-    @param    dst    a pointer to destination buffer
-    @param    dst_size    a length of destination buffer
-    @param    src            a source buffer
-    @return    length except 0
+	@brief    Convert UTF16 into UTF8
+	@param    dst    a pointer to destination buffer
+	@param    dst_size    a length of destination buffer
+	@param    src            a source buffer
+	@return    length except 0
 */
 inline int32_t ConvertUtf16ToUtf8(char* dst, int32_t dst_size, const char16_t* src)
 {
@@ -379,14 +394,14 @@ inline int32_t ConvertUtf16ToUtf8(char* dst, int32_t dst_size, const char16_t* s
 		else if ((wc & ~0x7ff) == 0)
 		{
 			*cp++ = ((wc >> 6) & 0x1f) | 0xc0;
-			*cp++ = ((wc)&0x3f) | 0x80;
+			*cp++ = ((wc) & 0x3f) | 0x80;
 			cnt += 2;
 		}
 		else
 		{
 			*cp++ = ((wc >> 12) & 0xf) | 0xe0;
 			*cp++ = ((wc >> 6) & 0x3f) | 0x80;
-			*cp++ = ((wc)&0x3f) | 0x80;
+			*cp++ = ((wc) & 0x3f) | 0x80;
 			cnt += 3;
 		}
 	}
@@ -395,11 +410,11 @@ inline int32_t ConvertUtf16ToUtf8(char* dst, int32_t dst_size, const char16_t* s
 }
 
 /**
-    @brief    Convert UTF8 into UTF16
-    @param    dst    a pointer to destination buffer
-    @param    dst_size    a length of destination buffer
-    @param    src            a source buffer
-    @return    length except 0
+	@brief    Convert UTF8 into UTF16
+	@param    dst    a pointer to destination buffer
+	@param    dst_size    a length of destination buffer
+	@param    src            a source buffer
+	@return    length except 0
 */
 inline int32_t ConvertUtf8ToUtf16(char16_t* dst, int32_t dst_size, const char* src)
 {
@@ -487,11 +502,11 @@ public:
 class ReferenceObject : public IReference
 {
 private:
-	mutable std::atomic<int32_t> m_reference;
+	mutable std::atomic<int32_t> reference_;
 
 public:
 	ReferenceObject()
-		: m_reference(1)
+		: reference_(1)
 	{
 	}
 
@@ -501,26 +516,26 @@ public:
 
 	virtual int AddRef()
 	{
-		std::atomic_fetch_add_explicit(&m_reference, 1, std::memory_order_consume);
+		std::atomic_fetch_add_explicit(&reference_, 1, std::memory_order_consume);
 
-		return m_reference;
+		return reference_;
 	}
 
 	virtual int GetRef()
 	{
-		return m_reference;
+		return reference_;
 	}
 
 	virtual int Release()
 	{
-		bool destroy = std::atomic_fetch_sub_explicit(&m_reference, 1, std::memory_order_consume) == 1;
+		bool destroy = std::atomic_fetch_sub_explicit(&reference_, 1, std::memory_order_consume) == 1;
 		if (destroy)
 		{
 			delete this;
 			return 0;
 		}
 
-		return m_reference;
+		return reference_;
 	}
 };
 
@@ -708,6 +723,11 @@ public:
 		SafeAddRef(ptr);
 		return RefPtr<T>(ptr);
 	}
+
+	explicit operator bool() const
+	{
+		return ptr_ != nullptr;
+	};
 };
 
 template <class T, class U>
@@ -744,6 +764,9 @@ RefPtr<T> MakeRefPtr(Arg&&... args)
 	return RefPtr<T>(new T(args...));
 }
 
+class VectorField;
+class VectorFieldLoader;
+
 using SettingRef = RefPtr<Setting>;
 using ManagerRef = RefPtr<Manager>;
 using EffectRef = RefPtr<Effect>;
@@ -752,12 +775,15 @@ using SoundDataRef = RefPtr<SoundData>;
 using ModelRef = RefPtr<Model>;
 using MaterialRef = RefPtr<Material>;
 using CurveRef = RefPtr<Curve>;
+using VectorFieldRef = RefPtr<VectorField>;
 
 using SpriteRendererRef = RefPtr<SpriteRenderer>;
 using RibbonRendererRef = RefPtr<RibbonRenderer>;
 using RingRendererRef = RefPtr<RingRenderer>;
 using ModelRendererRef = RefPtr<ModelRenderer>;
 using TrackRendererRef = RefPtr<TrackRenderer>;
+using GpuTimerRef = RefPtr<GpuTimer>;
+using GpuParticleSystemRef = RefPtr<GpuParticleSystem>;
 using SoundPlayerRef = RefPtr<SoundPlayer>;
 
 using EffectLoaderRef = RefPtr<EffectLoader>;
@@ -766,7 +792,9 @@ using MaterialLoaderRef = RefPtr<MaterialLoader>;
 using SoundLoaderRef = RefPtr<SoundLoader>;
 using ModelLoaderRef = RefPtr<ModelLoader>;
 using CurveLoaderRef = RefPtr<CurveLoader>;
+using VectorFieldLoaderRef = RefPtr<VectorFieldLoader>;
 using ProceduralModelGeneratorRef = RefPtr<ProceduralModelGenerator>;
+using GpuParticleFactoryRef = RefPtr<GpuParticleFactory>;
 
 /**
 	@brief	This object generates random values.
@@ -867,6 +895,71 @@ void SetLogger(const std::function<void(LogType, const std::string&)>& logger);
 
 void Log(LogType logType, const std::string& message);
 
+struct Gradient
+{
+	static const int KeyMax = 8;
+
+	struct ColorKey
+	{
+		float Position;
+		std::array<float, 3> Color;
+		float Intensity;
+	};
+
+	struct AlphaKey
+	{
+		float Position;
+		float Alpha;
+	};
+
+	int ColorCount = 0;
+	int AlphaCount = 0;
+	std::array<ColorKey, KeyMax> Colors;
+	std::array<AlphaKey, KeyMax> Alphas;
+
+	std::array<float, 4> GetColor(float x) const;
+
+	std::array<float, 4> GetColorAndIntensity(float x) const;
+
+	float GetAlpha(float x) const;
+
+	Gradient()
+	{
+		for (auto& c : Colors)
+		{
+			c.Color.fill(1.0f);
+			c.Intensity = 1.0f;
+			c.Position = 0.0f;
+		}
+
+		for (auto& a : Alphas)
+		{
+			a.Alpha = 1.0f;
+			a.Position = 0.0f;
+		}
+	}
+};
+
+/**
+	@brief	A type of node
+*/
+enum class EffectNodeType : int32_t
+{
+	Root = -1,
+	NoneType = 0,
+	Sprite = 2,
+	Ribbon = 3,
+	Ring = 4,
+	Model = 5,
+	Track = 6,
+};
+
+enum class TextureColorType : int32_t
+{
+	Color,
+	Value,
+};
+
 enum class ColorSpaceType : int32_t
 {
 	Gamma,
@@ -888,6 +981,21 @@ enum class RendererMaterialType : int32_t
 	BackDistortion = 6,
 	Lighting = 7,
 	File = 128,
+};
+
+/**
+	@brief	texture type (except a File material type)
+*/
+enum class RendererTextureType : int32_t
+{
+	Color = 0,
+	Distortion = 0,
+	Normal = 1,
+	Alpha = 2,
+	UVDistortion = 3,
+	Blend = 4,
+	BlendAlpha = 5,
+	BlendUVDistortion = 6,
 };
 
 /**
@@ -915,6 +1023,9 @@ struct MaterialRenderData
 
 	//! used uniforms in MaterialType::File
 	std::vector<std::array<float, 4>> MaterialUniforms;
+
+	//! TODO improve
+	std::vector<std::shared_ptr<Gradient>> MaterialGradients;
 };
 
 /**
@@ -928,7 +1039,22 @@ struct NodeRendererDepthParameter
 	bool IsDepthOffsetScaledWithParticleScale = false;
 	ZSortType ZSort = ZSortType::None;
 	float SuppressionOfScalingByDepth = 1.0f;
-	float DepthClipping = FLT_MAX;
+	float DepthClipping = std::numeric_limits<float>::max();
+};
+
+/**
+	@brief	\~english	Flipbook parameter parameters which is passed into a renderer
+			\~japanese	レンダラーに渡されるフリップブックに関するパラメーター
+*/
+struct NodeRendererFlipbookParameter
+{
+	bool EnableInterpolation = false;
+	int32_t UVLoopType = 0;
+	int32_t InterpolationType = 0;
+	int32_t FlipbookDivideX = 1;
+	int32_t FlipbookDivideY = 1;
+	std::array<float, 2> OneSize = {0, 0};
+	std::array<float, 2> Offset = {0, 0};
 };
 
 /**
@@ -948,17 +1074,13 @@ struct NodeRendererBasicParameter
 	std::array<TextureFilterType, TextureSlotMax> TextureFilters;
 	std::array<TextureWrapType, TextureSlotMax> TextureWraps;
 
+	NodeRendererFlipbookParameter Flipbook;
+
 	float UVDistortionIntensity = 1.0f;
 
 	int32_t TextureBlendType = -1;
 
 	float BlendUVDistortionIntensity = 1.0f;
-
-	bool EnableInterpolation = false;
-	int32_t UVLoopType = 0;
-	int32_t InterpolationType = 0;
-	int32_t FlipbookDivideX = 1;
-	int32_t FlipbookDivideY = 1;
 
 	float EmissiveScaling = 1.0f;
 
@@ -994,7 +1116,7 @@ struct NodeRendererBasicParameter
 			}
 		}
 
-		if (EnableInterpolation)
+		if (Flipbook.EnableInterpolation)
 			return true;
 
 		if (TextureBlendType != -1)

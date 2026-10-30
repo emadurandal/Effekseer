@@ -1,7 +1,7 @@
 #include "../PlatformMisc.h"
 
-#include <windows.h>
 #include <string>
+#include <windows.h>
 
 namespace Effekseer
 {
@@ -18,6 +18,15 @@ SystemLanguage GetSystemLanguage()
 	else if (primaryLangID == LANG_ENGLISH)
 	{
 		return SystemLanguage::English;
+	}
+	else if (primaryLangID == LANG_CHINESE)
+	{
+		auto subLangID = SUBLANGID(localeID);
+		if (subLangID == SUBLANG_CHINESE_TRADITIONAL || subLangID == SUBLANG_CHINESE_HONGKONG || subLangID == SUBLANG_CHINESE_MACAU)
+		{
+			return SystemLanguage::TraditionalChinese;
+		}
+		return SystemLanguage::SimplifiedChinese;
 	}
 
 	return SystemLanguage::Unknown;

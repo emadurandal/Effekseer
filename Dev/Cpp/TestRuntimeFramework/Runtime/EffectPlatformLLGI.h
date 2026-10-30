@@ -1,0 +1,145 @@
+#pragma once
+
+#include "../3rdParty/LLGI/src/LLGI.Base.h"
+#include "../3rdParty/LLGI/src/LLGI.Graphics.h"
+#include "../3rdParty/LLGI/src/Utils/LLGI.CommandListPool.h"
+#include <EffekseerToolRuntime/GroundRendering.h>
+
+#include "EffectPlatform.h"
+
+#if defined(WIN32) || defined(__APPLE__) || defined(__linux__)
+
+#include <GLFW/glfw3.h>
+#include "../GLFWNativeWindow.h"
+
+class LLGIWindow : public LLGI::Window
+{
+	GLFWwindow* window_ = nullptr;
+
+public:
+	LLGIWindow(GLFWwindow* window)
+		: window_(window)
+	{
+	}
+
+	bool OnNewFrame() override
+	{
+		return glfwWindowShouldClose(window_) == GL_FALSE;
+	}
+
+	void* GetNativePtr(int32_t index) override
+	{
+		return GetGLFWNativeWindowPointer(window_, index);
+	}
+
+	LLGI::Vec2I GetWindowSize() const override
+	{
+		int w, h;
+		glfwGetWindowSize(window_, &w, &h);
+		return LLGI::Vec2I(w, h);
+	}
+};
+
+#endif
+
+class EffectPlatformLLGI : public EffectPlatform
+{
+private:
+#if defined(WIN32) || defined(__APPLE__) || defined(__linux__)
+	GLFWwindow* glfwWindow_ = nullptr;
+#endif
+protected:
+	struct SimpleVertex
+	{
+		LLGI::Vec3F Pos;
+		LLGI::Vec2F UV;
+		LLGI::Color8 Color;
+	};
+
+	virtual void CreateShaders()
+	{
+	}
+	void CreateGroundShaders();
+	void CreateResources();
+	void CreateCheckedTexture();
+	void CreateGroundResources();
+	void UpdateGroundVertexBuffer();
+	void DrawGround(Effekseer::ToolRuntime::GroundRenderPass pass);
+	void UpdateBackgroundTexture() override;
+	virtual Effekseer::Backend::TextureRef CreateEffekseerTexture(LLGI::Texture* texture);
+
+	LLGI::Window* llgiWindow_ = nullptr;
+
+	LLGI::Platform* platform_ = nullptr;
+	LLGI::Graphics* graphics_ = nullptr;
+	LLGI::SingleFrameMemoryPool* sfMemoryPool_ = nullptr;
+	std::shared_ptr<LLGI::CommandList> commandList_ = nullptr;
+	std::shared_ptr<LLGI::CommandListPool> commandListPool_ = nullptr;
+
+	Effekseer::RefPtr<EffekseerRenderer::CommandList> commandListEfk_ = nullptr;
+	void BindCommandList();
+	void OnRendererCreated() override;
+	void CopyBackgroundTexture(LLGI::Texture* destination);
+	Effekseer::RefPtr<EffekseerRenderer::SingleFrameMemoryPool> sfMemoryPoolEfk_ = nullptr;
+
+	LLGI::RenderPass* renderPass_ = nullptr;
+	LLGI::Texture* colorBuffer_ = nullptr;
+	LLGI::Texture* depthBuffer_ = nullptr;
+	LLGI::RenderPass* groundDepthRenderPass_ = nullptr;
+	LLGI::Texture* groundDepthColorBuffer_ = nullptr;
+	LLGI::Texture* groundDepthBuffer_ = nullptr;
+	LLGI::Shader* shader_vs_ = nullptr;
+	LLGI::Shader* shader_ps_ = nullptr;
+	LLGI::Shader* groundShader_vs_ = nullptr;
+	LLGI::Shader* groundShader_ps_ = nullptr;
+	LLGI::Shader* groundDepthShader_vs_ = nullptr;
+	LLGI::Shader* groundDepthShader_ps_ = nullptr;
+	LLGI::Buffer* vb_ = nullptr;
+	LLGI::Buffer* ib_ = nullptr;
+	LLGI::PipelineState* pip_ = nullptr;
+	LLGI::PipelineState* screenPip_ = nullptr;
+	LLGI::PipelineState* groundPip_ = nullptr;
+	LLGI::PipelineState* groundDepthPip_ = nullptr;
+	LLGI::RenderPassPipelineState* rppip_ = nullptr;
+	LLGI::RenderPassPipelineState* groundRppip_ = nullptr;
+	LLGI::RenderPassPipelineState* groundDepthRppip_ = nullptr;
+	LLGI::Texture* checkTexture_ = nullptr;
+	LLGI::Buffer* groundVb_ = nullptr;
+	LLGI::Buffer* groundIb_ = nullptr;
+	Effekseer::Backend::TextureRef groundDepthTextureForEffekseer_ = nullptr;
+	bool usesGpuGroundDepth_ = false;
+	LLGI::TextureFormatType screenFormat_ = LLGI::TextureFormatType::R8G8B8A8_UNORM;
+	LLGI::DeviceType deviceType_;
+	bool isCommandListBegun_ = false;
+	bool hasUnsubmittedCommandList_ = false;
+
+	void InitializeWindow() override;
+	void Present() override;
+	bool DoEvent() override;
+	void PreDestroyDevice() override;
+	void DestroyDevice() override;
+
+public:
+	EffectPlatformLLGI(LLGI::DeviceType deviceType);
+	virtual ~EffectPlatformLLGI();
+
+	virtual void BeginCompute() override;
+	virtual void EndCompute() override;
+	virtual void BeginRendering() override;
+	virtual void EndRendering() override;
+	void ResetBackgroundPattern() override;
+	void GenerateGroundDepth() override;
+
+	std::vector<uint8_t> CaptureScreenPixels();
+	bool TakeScreenshot(const char* path) override;
+
+	LLGI::Graphics* GetGraphics() const
+	{
+		return graphics_;
+	}
+
+	LLGI::CommandList* GetCurrentCommandList() const
+	{
+		return commandList_.get();
+	}
+};

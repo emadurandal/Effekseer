@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using static Effekseer.InternalScript.SSAGenerator;
 
 namespace Effekseer.Data.Value
 {
@@ -75,6 +76,11 @@ namespace Effekseer.Data.Value
 			X.ResetValue();
 			Y.ResetValue();
 			Z.ResetValue();
+			if (CanSelectDynamicEquation)
+			{
+				IsDynamicEquationEnabled.ResetValue();
+				DynamicEquation.SetValue(null);
+			}
 			Command.CommandManager.EndCollection();
 		}
 
@@ -85,16 +91,21 @@ namespace Effekseer.Data.Value
 			Z.ChangeDefaultValue(z);
 		}
 
-		public static explicit operator byte[](Vector3D value)
+		public byte[] GetBytes(float mul = 1.0f)
 		{
 			byte[] values = new byte[sizeof(float) * 3];
-			byte[] x = BitConverter.GetBytes(value.X.GetValue());
-			byte[] y = BitConverter.GetBytes(value.Y.GetValue());
-			byte[] z = BitConverter.GetBytes(value.Z.GetValue());
+			byte[] x = BitConverter.GetBytes(X.GetValue() * mul);
+			byte[] y = BitConverter.GetBytes(Y.GetValue() * mul);
+			byte[] z = BitConverter.GetBytes(Z.GetValue() * mul);
 			x.CopyTo(values, 0);
 			y.CopyTo(values, sizeof(float) * 1);
 			z.CopyTo(values, sizeof(float) * 2);
 			return values;
+		}
+
+		public static explicit operator byte[](Vector3D value)
+		{
+			return value.GetBytes();
 		}
 
 		public bool ValueEquals(object obj)
@@ -102,16 +113,16 @@ namespace Effekseer.Data.Value
 			var o = obj as Vector3D;
 			if (o == null)
 				return false;
-		
+
 			if (X.Value != o.X.Value)
 				return false;
-		
+
 			if (Y.Value != o.Y.Value)
 				return false;
-		
+
 			if (Z.Value != o.Z.Value)
 				return false;
-		
+
 			return true;
 		}
 

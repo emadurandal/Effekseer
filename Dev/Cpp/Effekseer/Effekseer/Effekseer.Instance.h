@@ -2,13 +2,11 @@
 #ifndef __EFFEKSEER_INSTANCE_H__
 #define __EFFEKSEER_INSTANCE_H__
 
-//----------------------------------------------------------------------------------
-// Include
-//----------------------------------------------------------------------------------
 #include "Effekseer.Base.h"
 
 #include "SIMD/Mat43f.h"
 #include "SIMD/Mat44f.h"
+#include "SIMD/Quaternionf.h"
 #include "SIMD/Vec2f.h"
 #include "SIMD/Vec3f.h"
 #include "SIMD/Vec4f.h"
@@ -24,44 +22,43 @@
 #include "Effekseer.EffectNodeRing.h"
 #include "Effekseer.EffectNodeSprite.h"
 #include "Effekseer.EffectNodeTrack.h"
-#include "ForceField/ForceFields.h"
+#include "ForceField/Effekseer.ForceFields.h"
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
+#include "Parameter/Effekseer.AlphaCutoff.h"
+#include "Parameter/Effekseer.Collisions.h"
+#include "Parameter/Effekseer.CustomData.h"
+#include "Parameter/Effekseer.Rotation.h"
+#include "Parameter/Effekseer.Scaling.h"
+#include "Parameter/Effekseer.UV.h"
+
 namespace Effekseer
 {
 
-struct InstanceCustomData
+struct InstanceSoundState
 {
-	union
-	{
-		struct
-		{
-			SIMD::Vec2f start;
-			SIMD::Vec2f end;
-		} easing;
-
-		struct
-		{
-			SIMD::Vec2f value;
-		} random;
-
-		struct
-		{
-			SIMD::Vec2f offset;
-		} fcruve;
-
-		struct
-		{
-			std::array<float, 4> offset;
-		} fcurveColor;
-	};
+	int32_t delay;
 };
 
-/**
-	@brief	エフェクトの実体
-*/
+class TimeSeriesMatrix
+{
+	SIMD::Mat43f previous_ = SIMD::Mat43f::Identity;
+	SIMD::Mat43f current_ = SIMD::Mat43f::Identity;
+	float previousTime_ = 0;
+	float currentTime_ = 0;
+	bool isCurrentMatrixSpecified_ = false;
+
+public:
+	void Reset(const SIMD::Mat43f& matrix, float time);
+
+	void Step(const SIMD::Mat43f& matrix, float time);
+
+	const SIMD::Mat43f& GetPrevious() const;
+
+	const SIMD::Mat43f& GetCurrent() const;
+
+	SIMD::Mat43f Get(float time) const;
+};
+
 class alignas(16) Instance : public IntrusiveList<Instance>::Node
 {
 	friend class Manager;
@@ -75,34 +72,38 @@ protected:
 	SIMD::Vec3f prevPosition_;
 	SIMD::Vec3f prevGlobalPosition_;
 
+	SIMD::Vec3f prevLocalVelocity_;
+
 	SIMD::Vec3f parentPosition_;
-	SIMD::Vec3f steeringVec_;
+
+	SIMD::Vec3f steering_vec_;
+
+	SIMD::Vec3f location_modify_global_;
+	SIMD::Vec3f velocity_modify_global_;
+
+	SIMD::Vec3f globalDirection_;
 
 public:
 	static const int32_t ChildrenMax = 16;
 
-	// マネージャ
-	ManagerImplemented* m_pManager;
+	ManagerImplemented* m_pManager = nullptr;
 
-	// パラメーター
-	EffectNodeImplemented* m_pEffectNode;
+	EffectNodeImplemented* m_pEffectNode = nullptr;
 
-	// コンテナ
-	InstanceContainer* m_pContainer;
+	InstanceContainer* m_pContainer = nullptr;
 
 	// a group which the instance belongs to
-	// 自分が所属するグループ
-	InstanceGroup* ownGroup_;
+	InstanceGroup* ownGroup_ = nullptr;
 
 	// a head of list in children group
-	// 子グループの連結リストの先頭
-	InstanceGroup* childrenGroups_;
+	InstanceGroup* childrenGroups_ = nullptr;
 
-	// 親
-	Instance* m_pParent;
+	Instance* m_pParent = nullptr;
 
 	// Random generator
 	RandObject m_randObject;
+
+	float spawnDeltaFrame_ = 0.0f;
 
 	LocalForceFieldInstance forceField_;
 
@@ -118,133 +119,11 @@ public:
 		float steeringSpeed;
 	} followParentParam;
 
-	union
-	{
-		struct
-		{
-			SIMD::Vec3f location;
-		} fixed;
+	InstanceTranslationState translation_state_;
 
-		struct
-		{
-			SIMD::Vec3f location;
-			SIMD::Vec3f velocity;
-			SIMD::Vec3f acceleration;
-		} random;
+	RotationState rotation_values;
 
-		InstanceEasing<SIMD::Vec3f> easing;
-		/*
-		struct
-		{
-			SIMD::Vec3f start;
-			SIMD::Vec3f end;
-		} easing;
-		*/
-
-		struct
-		{
-			SIMD::Vec3f offset;
-		} fcruve;
-
-		struct
-		{
-			float distance;
-		} view_offset;
-
-	} translation_values;
-
-	union
-	{
-		struct
-		{
-			SIMD::Vec3f rotation;
-		} fixed;
-
-		struct
-		{
-			SIMD::Vec3f rotation;
-			SIMD::Vec3f velocity;
-			SIMD::Vec3f acceleration;
-		} random;
-
-		InstanceEasing<SIMD::Vec3f> easing;
-		/*
-		struct
-		{
-			SIMD::Vec3f start;
-			SIMD::Vec3f end;
-		} easing;
-		*/
-
-		struct
-		{
-			float rotation;
-			SIMD::Vec3f axis;
-
-			union
-			{
-				struct
-				{
-					float rotation;
-					float velocity;
-					float acceleration;
-				} random;
-
-				InstanceEasing<float> easing;
-			};
-		} axis;
-
-		struct
-		{
-			SIMD::Vec3f offset;
-		} fcruve;
-
-	} rotation_values;
-
-	union
-	{
-		struct
-		{
-			SIMD::Vec3f scale;
-		} fixed;
-
-		struct
-		{
-			SIMD::Vec3f scale;
-			SIMD::Vec3f velocity;
-			SIMD::Vec3f acceleration;
-		} random;
-
-		InstanceEasing<SIMD::Vec3f> easing;
-
-		/*
-		struct
-		{
-			SIMD::Vec3f start;
-			SIMD::Vec3f end;
-		} easing;
-		*/
-
-		struct
-		{
-			float scale;
-			float velocity;
-			float acceleration;
-		} single_random;
-
-		InstanceEasing<float> single_easing;
-
-		struct
-		{
-			SIMD::Vec3f offset;
-		} fcruve;
-
-		struct
-		{
-			float offset;
-		} single_fcruve;
-
-	} scaling_values;
+	ScalingState scaling_values;
 
 	// 描画
 	union
@@ -256,142 +135,109 @@ public:
 		EffectNodeTrack::InstanceValues track;
 	} rendererValues;
 
-	// 音
-	union
-	{
-		int32_t delay;
-	} soundValues;
+	InstanceSoundState soundValues;
 
-	// 状態
-	eInstanceState m_State;
+	eInstanceState m_State = eInstanceState::INSTANCE_STATE_ACTIVE;
 
 	// 生存時間
-	float m_LivedTime;
+	float livedTime_ = 0;
 
 	// 生成されてからの時間
-	float m_LivingTime;
+	float livingTime_ = 0;
 
-	//! The time offset for UV animation
-	int32_t uvTimeOffsets[ParameterRendererCommon::UVParameterNum];
+	// 削除されてからの時間
+	float removingTime_ = 0;
 
-	// Scroll, FCurve area for UV
-	RectF uvAreaOffsets[ParameterRendererCommon::UVParameterNum];
-
-	// Scroll speed for UV
-	SIMD::Vec2f uvScrollSpeeds[ParameterRendererCommon::UVParameterNum];
+	std::array<InstanceUVState, ParameterRendererCommon::UVParameterNum> uvAnimationData_;
 
 	// Spawning Method matrix
-	SIMD::Mat43f m_GenerationLocation;
+	SIMD::Mat43f generationLocation_;
 
 	// a transform matrix in the world coordinate
-	SIMD::Mat43f m_GlobalMatrix43;
+	TimeSeriesMatrix globalMatrix_;
+
+	SIMD::Mat43f globalMatrix_rendered;
 
 	// parent's transform matrix
-	SIMD::Mat43f m_ParentMatrix;
+	SIMD::Mat43f parentMatrix_;
 
 	// FirstUpdate実行前
-	bool m_IsFirstTime;
+	bool isFirstTime_;
 
 	// 変換用行列が計算済かどうか
-	bool m_GlobalMatrix43Calculated;
+	bool m_GlobalMatrix43Calculated = false;
 
 	// 親の変換用行列が計算済かどうか
-	bool m_ParentMatrix43Calculated;
+	bool m_ParentMatrix43Calculated = false;
 
 	//! whether a time is allowed to pass
-	bool is_time_step_allowed;
+	bool is_time_step_allowed = false;
 
-	int32_t m_InstanceNumber;
+	int32_t m_InstanceNumber = 0;
 
-	/* 更新番号 */
-	uint32_t m_sequenceNumber;
+	uint32_t sequenceNumber_ = 0;
 
-	float m_flipbookIndexAndNextRate;
+	AlphaCuttoffState alphaCutoffValues_;
 
-	union
-	{
-		struct
-		{
-		} fixed;
+	float alphaThreshold_ = 0.0f;
 
-		struct
-		{
-			float begin_threshold;
-			int32_t transition_frame;
-			float no2_threshold;
-			float no3_threshold;
-			int32_t transition_frame2;
-			float end_threshold;
-		} four_point_interpolation;
+	CollisionsState collisionState_;
 
-		InstanceEasing<float> easing;
+	bool isUVFlippedH_ = false;
 
-		struct
-		{
-			float offset;
-		} fcurve;
+	int32_t gpuEmitterID_ = -1;
 
-	} alpha_cutoff_values;
-
-	float m_AlphaThreshold;
-
-	// コンストラクタ
 	Instance(ManagerImplemented* pManager, EffectNodeImplemented* pEffectNode, InstanceContainer* pContainer, InstanceGroup* pGroup);
 
-	// デストラクタ
 	virtual ~Instance();
 
-	void GenerateChildrenInRequired();
+	void GenerateChildrenIfRequired();
 
 	void UpdateChildrenGroupMatrix();
 
 	InstanceGlobal* GetInstanceGlobal();
 
 public:
-	bool IsFirstTime() const
+	float GetNormalizedLivetime() const
 	{
-		return m_IsFirstTime;
+		return Clamp(livingTime_ / livedTime_, 1.0f, 0.0f);
 	}
 
-	/**
-		@brief	状態の取得
-	*/
+	bool IsFirstTime() const
+	{
+		return isFirstTime_;
+	}
+
 	eInstanceState GetState() const;
 
-	/**
-		@brief	行列の取得
-	*/
-	const SIMD::Mat43f& GetGlobalMatrix43() const;
+	bool IsActive() const
+	{
+		return m_State <= eInstanceState::INSTANCE_STATE_REMOVING;
+	}
 
-	/**
-		@brief	初期化
-	*/
-	void Initialize(Instance* parent, int32_t instanceNumber, const SIMD::Mat43f& globalMatrix);
+	const TimeSeriesMatrix& GetGlobalMatrix() const;
 
-	/**
-		@brief	初回の更新
-	*/
+	const SIMD::Mat43f& GetRenderedGlobalMatrix() const;
+
+	void ResetGlobalMatrix(const SIMD::Mat43f& mat);
+
+	void UpdateGlobalMatrix(const SIMD::Mat43f& mat);
+
+	void ApplyBaseMatrix(const SIMD::Mat43f& baseMatrix);
+
+	void Initialize(Instance* parent, float spawnDeltaFrame, int32_t instanceNumber);
+
 	void FirstUpdate();
 
-	/**
-		@brief	更新
-	*/
 	void Update(float deltaFrame, bool shown);
 
-	/**
-		@brief	Draw instance
-	*/
-	void Draw(Instance* next, void* userData);
+	void Draw(Instance* next, int32_t index, void* userData);
 
-	/**
-		@brief	破棄
-	*/
 	void Kill();
 
-	/**
-		@brief	UVの位置取得
-	*/
 	RectF GetUV(const int32_t index) const;
+
+	RectF GetUV(const int32_t index, float livingTime, float livedTime) const;
 
 	//! get custom data
 	std::array<float, 4> GetCustomData(int32_t index) const;
@@ -402,31 +248,62 @@ public:
 		return m_randObject;
 	}
 
+	void SetUVFlippedH(bool isFlipped)
+	{
+		isUVFlippedH_ = isFlipped;
+	}
+
+	bool IsUVFlippedH() const
+	{
+		return isUVFlippedH_;
+	}
+
 	bool AreChildrenActive() const;
 
+	bool HasCollidedThisFrame() const;
+
+	float GetFlipbookIndexAndNextRate() const;
+
+	SIMD::Vec3f GetGlobalDirection() const;
+
 private:
-	/**
-		@brief	行列の更新
-	*/
-	void CalculateMatrix(float deltaFrame);
+	SIMD::Vec3f CalculateLocalAcceleration(const SIMD::Vec3f& localPosition,
+										   SIMD::Vec3f& steeringVec,
+										   InstanceTranslationState& translationState,
+										   RandObject& randObj,
+										   float livingTime,
+										   float livedTime,
+										   float deltaFrame,
+										   CoordinateSystem coordinateSystem);
 
-	/**
-		@brief	行列の更新
-	*/
-	void CalculateParentMatrix(float deltaFrame);
+	void InitializeGlobalDirection();
 
-	void ApplyDynamicParameterToFixedLocation();
+	void UpdateTransform(float deltaFrame);
 
-	void ApplyDynamicParameterToFixedRotation();
+	void UpdateParentMatrix(float deltaFrame);
 
-	void ApplyDynamicParameterToFixedScaling();
+	float GetFlipbookIndexAndNextRate(const UVAnimationType& UVType, const UVParameter& UV, const InstanceUVState& data) const;
+
+	float GetUVTime() const;
+
+	RectF ApplyUVHorizontalFlip(RectF uv) const;
+
+	EffectNode* GetEffectNode() const
+	{
+		return m_pEffectNode;
+	}
+
+	InstanceContainer* GetContainer() const
+	{
+		return m_pContainer;
+	}
+
+	InstanceGroup* GetOwnGroup() const
+	{
+		return ownGroup_;
+	}
 };
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
 } // namespace Effekseer
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
+
 #endif // __EFFEKSEER_INSTANCE_H__

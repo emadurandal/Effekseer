@@ -12,10 +12,10 @@
 
 			if (Core.IsChanged)
 			{
-				newTitle += Resources.GetString("UnsavedChanges");
+				newTitle += MultiLanguageTextProvider.GetText("UnsavedChanges");
 			}
 
-			if (swig.Native.IsDebugMode())
+			if (swig.NativeStatus.IsDebugMode())
 			{
 				newTitle += " - DebugMode";
 			}

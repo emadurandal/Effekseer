@@ -2,9 +2,7 @@
 #include <iostream>
 
 #include "../3rdParty/LLGI/src/DX12/LLGI.CompilerDX12.h"
-#include "../DirectX/ShaderGenerator.h"
-
-#undef min
+#include "../HLSLGenerator/ShaderGenerator.h"
 
 #pragma comment(lib, "d3dcompiler.lib")
 
@@ -46,9 +44,6 @@ static void Serialize(std::vector<uint8_t>& dst, const LLGI::CompilerResult& res
 
 namespace DX12
 {
-
-#define _DIRECTX12 1
-#include "../HLSL/HLSL.h"
 
 } // namespace DX12
 
@@ -121,13 +116,14 @@ public:
 	}
 };
 
-CompiledMaterialBinary* MaterialCompilerDX12::Compile(MaterialFile* materialFile, int32_t maximumTextureCount)
+CompiledMaterialBinary* MaterialCompilerDX12::Compile(MaterialFile* materialFile, int32_t maximumUniformCount, int32_t maximumTextureCount)
 {
 	auto compiler = LLGI::CreateSharedPtr(new LLGI::CompilerDX12());
 
 	auto binary = new CompiledMaterialBinaryDX12();
 
-	auto convertToVectorVS = [compiler](const std::string& str) -> std::vector<uint8_t> {
+	auto convertToVectorVS = [compiler](const std::string& str) -> std::vector<uint8_t>
+	{
 		std::vector<uint8_t> ret;
 
 		LLGI::CompilerResult result;
@@ -140,14 +136,15 @@ CompiledMaterialBinary* MaterialCompilerDX12::Compile(MaterialFile* materialFile
 		else
 		{
 			std::cout << "VertexShader Compile Error" << std::endl;
-			std::cout << result.Message << std::endl;
 			std::cout << str << std::endl;
+			std::cout << result.Message << std::endl;
 		}
 
 		return ret;
 	};
 
-	auto convertToVectorPS = [compiler](const std::string& str) -> std::vector<uint8_t> {
+	auto convertToVectorPS = [compiler](const std::string& str) -> std::vector<uint8_t>
+	{
 		std::vector<uint8_t> ret;
 
 		LLGI::CompilerResult result;
@@ -160,32 +157,18 @@ CompiledMaterialBinary* MaterialCompilerDX12::Compile(MaterialFile* materialFile
 		else
 		{
 			std::cout << "PixelShader Compile Error" << std::endl;
-			std::cout << result.Message << std::endl;
 			std::cout << str << std::endl;
+			std::cout << result.Message << std::endl;
 		}
 
 		return ret;
 	};
 
-	auto saveBinary = [&materialFile, &binary, &convertToVectorVS, &convertToVectorPS, &maximumTextureCount](MaterialShaderType type) {
-		auto generator = DirectX::ShaderGenerator(DX12::material_common_define,
-												  DX12::material_common_vs_functions,
-												  DX12::material_sprite_vs_pre,
-												  DX12::material_sprite_vs_pre_simple,
-												  DX12::model_vs_pre,
-												  DX12::material_sprite_vs_suf1,
-												  DX12::material_sprite_vs_suf1_simple,
-												  DX12::model_vs_suf1,
-												  DX12::material_sprite_vs_suf2,
-												  DX12::model_vs_suf2,
-												  DX12::g_material_ps_pre,
-												  DX12::g_material_ps_suf1,
-												  DX12::g_material_ps_suf2_lit,
-												  DX12::g_material_ps_suf2_unlit,
-												  DX12::g_material_ps_suf2_refraction,
-												  DirectX::ShaderGeneratorTarget::DirectX12);
+	auto saveBinary = [&materialFile, &binary, &convertToVectorVS, &convertToVectorPS, &maximumUniformCount, &maximumTextureCount](MaterialShaderType type)
+	{
+		auto generator = DirectX::ShaderGenerator(DirectX::ShaderGeneratorTarget::DirectX12);
 
-		auto shader = generator.GenerateShader(materialFile, type, maximumTextureCount, 0, DX12_InstanceCount);
+		auto shader = generator.GenerateShader(materialFile, type, maximumUniformCount, maximumTextureCount, 0, DX12_InstanceCount);
 		binary->SetVertexShaderData(type, convertToVectorVS(shader.CodeVS));
 		binary->SetPixelShaderData(type, convertToVectorPS(shader.CodePS));
 	};
@@ -204,7 +187,7 @@ CompiledMaterialBinary* MaterialCompilerDX12::Compile(MaterialFile* materialFile
 
 CompiledMaterialBinary* MaterialCompilerDX12::Compile(MaterialFile* materialFile)
 {
-	return Compile(materialFile, Effekseer::UserTextureSlotMax);
+	return Compile(materialFile, Effekseer::UserUniformSlotMax, Effekseer::UserTextureSlotMax);
 }
 
 } // namespace Effekseer

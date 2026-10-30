@@ -3,19 +3,21 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Runtime.InteropServices;
-using Effekseer.Utl;
+using Effekseer.Utils;
 using Effekseer.Data;
 
 namespace Effekseer.Binary
 {
 	class RotationValues
 	{
-		public static byte[] GetBytes(Data.RotationValues value, ExporterVersion version)
+		public static byte[] GetBytes(Data.RotationValues value)
 		{
-			List<byte[]> data = new List<byte[]>();
-			data.Add(value.Type.GetValueAsInt().GetBytes());
+			var rotationType = value.Type.GetValue();
 
-			if (value.Type.GetValue() == Data.RotationValues.ParamaterType.Fixed)
+			List<byte[]> data = new List<byte[]>();
+			data.Add(((int)rotationType).GetBytes());
+
+			if (rotationType == Data.RotationValues.ParamaterType.Fixed)
 			{
 				var refBuf = value.Fixed.Rotation.DynamicEquation.Index.GetBytes();
 				var mainBuf = Rotation_Fixed_Values.Create(value.Fixed).GetBytes();
@@ -23,7 +25,7 @@ namespace Effekseer.Binary
 				data.Add(refBuf);
 				data.Add(mainBuf);
 			}
-			else if (value.Type.GetValue() == Data.RotationValues.ParamaterType.PVA)
+			else if (rotationType == Data.RotationValues.ParamaterType.PVA)
 			{
 				var refBuf1_1 = value.PVA.Rotation.DynamicEquationMax.Index.GetBytes();
 				var refBuf1_2 = value.PVA.Rotation.DynamicEquationMin.Index.GetBytes();
@@ -46,11 +48,11 @@ namespace Effekseer.Binary
 				data.Add(refBuf3_2);
 				data.Add(mainBuf);
 			}
-			else if (value.Type.GetValue() == Data.RotationValues.ParamaterType.Easing)
+			else if (rotationType == Data.RotationValues.ParamaterType.Easing)
 			{
-				Utils.ExportEasing(value.Easing, (float)Math.PI / 180.0f, data, version);
+				Utils.ExportEasing(value.Easing, (float)Math.PI / 180.0f, data);
 			}
-			else if (value.Type.GetValue() == Data.RotationValues.ParamaterType.AxisPVA)
+			else if (rotationType == Data.RotationValues.ParamaterType.AxisPVA)
 			{
 				List<byte[]> _data = new List<byte[]>();
 				_data.Add(value.AxisPVA.Axis.GetBytes());
@@ -64,23 +66,40 @@ namespace Effekseer.Binary
 				data.Add(__data.Count().GetBytes());
 				data.Add(__data);
 			}
-			else if (value.Type.GetValue() == Data.RotationValues.ParamaterType.AxisEasing)
+			else if (rotationType == Data.RotationValues.ParamaterType.AxisEasing)
 			{
-				var easing = Utl.MathUtl.Easing((float)value.AxisEasing.Easing.StartSpeed.Value, (float)value.AxisEasing.Easing.EndSpeed.Value);
+				var easing = MathUtl.Easing((float)value.AxisEasing.Easing.StartSpeed.Value, (float)value.AxisEasing.Easing.EndSpeed.Value);
 
 				List<byte[]> _data = new List<byte[]>();
 				_data.Add(value.AxisEasing.Axis.GetBytes());
-				Utils.ExportEasing(value.AxisEasing.Easing, (float)Math.PI / 180.0f, _data, version, version >= ExporterVersion.Ver16Alpha9);
+				Utils.ExportEasing(value.AxisEasing.Easing, (float)Math.PI / 180.0f, _data, true);
 				var __data = _data.ToArray().ToArray();
 				data.Add(__data.Count().GetBytes());
 				data.Add(__data);
 			}
-			else if (value.Type.GetValue() == Data.RotationValues.ParamaterType.RotationFCurve)
+			else if (rotationType == Data.RotationValues.ParamaterType.RotationFCurve)
 			{
 				var bytes = value.RotationFCurve.FCurve.GetBytes(
 					(float)Math.PI / 180.0f);
 
 				List<byte[]> _data = new List<byte[]>();
+				data.Add(bytes.Count().GetBytes());
+				data.Add(bytes);
+			}
+			else if (rotationType == Data.RotationValues.ParamaterType.RotateToViewpoint)
+			{
+				var bytes = new byte[0];
+
+				List<byte[]> _data = new List<byte[]>();
+				data.Add(bytes.Count().GetBytes());
+				data.Add(bytes);
+			}
+			else if (rotationType == Data.RotationValues.ParamaterType.RotateToVelocity)
+			{
+				List<byte[]> _data = new List<byte[]>();
+				_data.Add(((int)value.Velocity.Axis.Value).GetBytes());
+				var bytes = _data.ToArray().ToArray();
+
 				data.Add(bytes.Count().GetBytes());
 				data.Add(bytes);
 			}

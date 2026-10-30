@@ -1,6 +1,6 @@
 Node_IsRendered_Name,Visibility
-Node_IsRendered_Desc,"Whether to draw the instance to the viewport.
-Has nothing to do with the final output."
+Node_IsRendered_Desc,"From here, you can set some global parameters for the particle node, such as its name, 
+the number of particles to be generated, and other particle settings."
 ,
 Node_Name_Name,Name
 Node_Name_Desc,The name of the node.
@@ -12,13 +12,13 @@ BasicSettings_RotationEffectType_Name,Inherit Rotation
 BasicSettings_RotationEffectType_Desc,When this instance should copy its parent node's rotation
 BasicSettings_ScaleEffectType_Name,Inherit Scale
 BasicSettings_ScaleEffectType_Desc,When this instance should copy its parent node's scale
-BasicSettings_RemoveWhenLifeIsExtinct_Name,Destroy after time
-BasicSettings_RemoveWhenLifeIsExtinct_Desc,
-BasicSettings_RemoveWhenParentIsRemoved_Name,Destroy with parent
-BasicSettings_RemoveWhenParentIsRemoved_Desc,
-BasicSettings_RemoveWhenAllChildrenAreRemoved_Name,"Destroy when no 
+BasicSettings_Removal_WhenLifeIsExtinct_Name,Destroy after time
+BasicSettings_Removal_WhenLifeIsExtinct_Desc,
+BasicSettings_Removal_WhenParentIsRemoved_Name,Destroy with parent
+BasicSettings_Removal_WhenParentIsRemoved_Desc,
+BasicSettings_Removal_WhenAllChildrenAreRemoved_Name,"Destroy when no 
 more children"
-BasicSettings_RemoveWhenAllChildrenAreRemoved_Desc,
+BasicSettings_Removal_WhenAllChildrenAreRemoved_Desc,
 BasicSettings_Life_Name,Time to live
 BasicSettings_Life_Desc,Length of time each instance survives
 BasicSettings_GenerationTime_Name,Spawn Rate
@@ -30,9 +30,34 @@ BasicSettings_ParentEffectType_NotBind_Name,Never
 BasicSettings_ParentEffectType_NotBind_Root_Name,Root dependent (deprecated)
 BasicSettings_ParentEffectType_WhenCreating_Name,Only on create
 BasicSettings_ParentEffectType_Already_Name,Always
-
+,
 BasicSettings_TranslationParentEffectType_NotBind_FollowParent_Name,Never-FollowParent
 BasicSettings_TranslationParentEffectType_WhenCreating_FollowParent_Name,Only on create-FollowParent
-
+,
 BasicSettings_SteeringBehaviorParemeter_MaxFollowSpeed_Name,Max Follow Speed
 BasicSettings_SteeringBehaviorParameter_SteeringSpeed_Name,Steering Speed(%)
+,
+TriggerType_None_Name,None
+TriggerType_Trigger0_Name,Trigger0
+TriggerType_Trigger1_Name,Trigger1
+TriggerType_Trigger2_Name,Trigger2
+TriggerType_Trigger3_Name,Trigger3
+TriggerType_ParentRemoved_Name,On Parent Removed
+TriggerType_ParentCollided_Name,On Parent Collision
+,
+BasicSettings_Generation_Enabled_Name,Spawn Enabled
+BasicSettings_Generation_Enabled_Desc,Whether generation is enabled at the start of playback.
+BasicSettings_Generation_StartTrigger_Name,Spawn Start Trigger
+BasicSettings_Generation_StartTrigger_Desc,Trigger to start instance generation.
+BasicSettings_Generation_StopTrigger_Name,Spawn Stop Trigger
+BasicSettings_Generation_StopTrigger_Desc,Trigger to stop instance generation.
+BasicSettings_Removal_TriggerToRemove_Name,Destroy on Trigger
+BasicSettings_Removal_TriggerToRemove_Desc,Destroys when the specified trigger fires.
+BasicSettings_GenerationTiming_Name,Generation Mode
+BasicSettings_GenerationTiming_Desc,Switch between continuous spawning and trigger-based bursts.
+BasicSettings_GenerationTiming_Continuous_Name,Continuous
+BasicSettings_GenerationTiming_Trigger_Name,Trigger
+BasicSettings_Generation_SpawnTrigger_Name,Spawn Trigger
+BasicSettings_Generation_SpawnTrigger_Desc,Trigger that spawns particles when generation mode is Trigger.
+BasicSettings_Generation_SpawnCount_Name,Particles per Trigger
+BasicSettings_Generation_SpawnCount_Desc,Number of particles generated each time the trigger fires.

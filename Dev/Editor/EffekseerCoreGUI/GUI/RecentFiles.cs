@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Effekseer.Utl;
+using Effekseer.Utils;
 
 namespace Effekseer.GUI
 {
@@ -67,9 +67,9 @@ namespace Effekseer.GUI
 		/// <param name="fullPath">絶対パス</param>
 		public static void AddRecentFile(string fullPath)
 		{
-			if(!Utils.Misc.IsFullPath(fullPath))
+			if (!Utils.Misc.IsFullPath(fullPath))
 			{
-				throw new Exception(Resources.GetString("NotAbsolutePathError"));
+				throw new Exception(MultiLanguageTextProvider.GetText("NotAbsolutePathError"));
 			}
 			fullPath = Utils.Misc.BackSlashToSlash(fullPath);
 

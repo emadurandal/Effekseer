@@ -51,14 +51,14 @@ namespace Effekseer.Data
 			private set;
 		}
 
-        [IO(Export = true)]
-        public DepthValues DepthValues
-        {
-            get;
-            private set;
-        }
+		[IO(Export = true)]
+		public DepthValues DepthValues
+		{
+			get;
+			private set;
+		}
 
-        [IO(Export = true)]
+		[IO(Export = true)]
 		public RendererCommonValues RendererCommonValues
 		{
 			get;
@@ -72,15 +72,36 @@ namespace Effekseer.Data
 			private set;
 		}
 
-        [IO(Export = true)]
-        public SoundValues SoundValues
-        {
-            get;
-            private set;
-        }
+		[IO(Export = true)]
+		public SoundValues SoundValues
+		{
+			get;
+			private set;
+		}
 
 		[IO(Export = true)]
 		public AdvancedRenderCommonValues AdvancedRendererCommonValuesValues
+		{
+			get;
+			private set;
+		}
+
+		[IO(Export = true)]
+		public KillRulesValues KillRulesValues
+		{
+			get;
+			private set;
+		}
+
+		[IO(Export = true)]
+		public CollisionsValues CollisionsValues
+		{
+			get;
+			private set;
+		} = new CollisionsValues();
+		
+		[IO(Export = true)]
+		public GpuParticlesValues GpuParticles
 		{
 			get;
 			private set;
@@ -90,7 +111,7 @@ namespace Effekseer.Data
 		/// コンストラクタ
 		/// </summary>
 		internal Node(NodeBase parent)
-			:base(parent)
+			: base(parent)
 		{
 			Path basepath = GetRoot().GetPath();
 
@@ -101,11 +122,13 @@ namespace Effekseer.Data
 			ScalingValues = new Data.ScaleValues();
 			LocationAbsValues = new Data.LocationAbsValues();
 			GenerationLocationValues = new Data.GenerationLocationValues(basepath);
-            DepthValues = new DepthValues();
+			DepthValues = new DepthValues();
 			RendererCommonValues = new Data.RendererCommonValues(basepath);
-            DrawingValues = new RendererValues(basepath);
-            SoundValues = new SoundValues(basepath);
+			DrawingValues = new RendererValues(basepath);
+			SoundValues = new SoundValues(basepath);
 			AdvancedRendererCommonValuesValues = new Data.AdvancedRenderCommonValues(basepath);
+			KillRulesValues = new KillRulesValues();
+			GpuParticles = new GpuParticlesValues(basepath);
 		}
 	}
 }

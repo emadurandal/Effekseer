@@ -26,7 +26,7 @@ bool InternalScript::IsValidRegister(int index) const
 	if (index < 0)
 		return false;
 
-	if (static_cast<uint32_t>(index) < registers.size())
+	if (static_cast<uint32_t>(index) < registers_.size())
 		return true;
 
 	if (0x1000 + 0 <= index && index <= 0x1000 + 3)
@@ -47,9 +47,9 @@ float InternalScript::GetRegisterValue(int index,
 									   const std::array<float, 5>& locals) const
 {
 	auto ind = static_cast<uint32_t>(index);
-	if (ind < registers.size())
+	if (ind < registers_.size())
 	{
-		return registers[ind];
+		return registers_[ind];
 	}
 	else if (0x1000 + 0 <= ind && ind <= 0x1000 + 3)
 	{
@@ -83,18 +83,15 @@ bool InternalScript::Load(uint8_t* data, int size)
 
 	int32_t registerCount = 0;
 
-	reader.Read(version_);
-	reader.Read(runningPhase);
-	reader.Read(registerCount);
-	reader.Read(operatorCount_);
-
-	for (size_t i = 0; i < 4; i++)
-		reader.Read(outputRegisters_[i]);
-
-	if (registerCount < 0)
+	if (!reader.Read(version_) || !reader.Read(runningPhase_) ||
+		!reader.Read(registerCount, 0, 65536) || !reader.Read(operatorCount_, 0, 65536))
 		return false;
 
-	registers.resize(registerCount);
+	for (size_t i = 0; i < 4; i++)
+		if (!reader.Read(outputRegisters_[i]))
+			return false;
+
+	registers_.resize(registerCount);
 
 	for (size_t i = 0; i < 4; i++)
 	{
@@ -104,40 +101,44 @@ bool InternalScript::Load(uint8_t* data, int size)
 		}
 	}
 
-	reader.Read(operators, static_cast<int32_t>(size - reader.GetOffset()));
+	if (reader.GetOffset() > static_cast<size_t>(size) ||
+		!reader.Read(operators_, static_cast<int32_t>(static_cast<size_t>(size) - reader.GetOffset())))
+		return false;
 
 	if (reader.GetStatus() == BinaryReaderStatus::Failed)
 		return false;
 
 	// check operators
-	auto operatorReader = BinaryReader<true>(operators.data(), operators.size());
+	auto operatorReader = BinaryReader<true>(operators_.data(), operators_.size());
 
 	for (int i = 0; i < operatorCount_; i++)
 	{
 		// type
 		OperatorType type;
-		operatorReader.Read(type);
-
-		if (reader.GetStatus() == BinaryReaderStatus::Failed)
+		if (!operatorReader.Read(type))
 			return false;
 
 		if (!IsValidOperator((int)type))
 			return false;
 
 		int32_t inputCount = 0;
-		operatorReader.Read(inputCount);
+		if (!operatorReader.Read(inputCount, 0, 65536))
+			return false;
 
 		int32_t outputCount = 0;
-		operatorReader.Read(outputCount);
+		if (!operatorReader.Read(outputCount, 0, 65536))
+			return false;
 
 		int32_t attributeCount = 0;
-		operatorReader.Read(attributeCount);
+		if (!operatorReader.Read(attributeCount, 0, 65536))
+			return false;
 
 		// input
 		for (int j = 0; j < inputCount; j++)
 		{
 			int index = 0;
-			operatorReader.Read(index);
+			if (!operatorReader.Read(index))
+				return false;
 			if (!IsValidRegister(index))
 			{
 				return false;
@@ -148,8 +149,9 @@ bool InternalScript::Load(uint8_t* data, int size)
 		for (int j = 0; j < outputCount; j++)
 		{
 			int index = 0;
-			operatorReader.Read(index);
-			if ((index < 0 || index >= static_cast<int32_t>(registers.size())))
+			if (!operatorReader.Read(index))
+				return false;
+			if ((index < 0 || index >= static_cast<int32_t>(registers_.size())))
 			{
 				return false;
 			}
@@ -159,7 +161,8 @@ bool InternalScript::Load(uint8_t* data, int size)
 		for (int j = 0; j < attributeCount; j++)
 		{
 			int index = 0;
-			operatorReader.Read(index);
+			if (!operatorReader.Read(index))
+				return false;
 		}
 	}
 
@@ -176,8 +179,11 @@ std::array<float, 4> InternalScript::Execute(const std::array<float, 4>& externa
 											 const std::array<float, 5>& locals,
 											 RandFuncCallback* randFuncCallback,
 											 RandWithSeedFuncCallback* randSeedFuncCallback,
-											 void* userData)
+											 void* userData) const
 {
+	// Because this is a temporary registers
+	auto& registers = const_cast<std::vector<float>&>(registers_);
+
 	std::array<float, 4> ret;
 	ret.fill(0.0f);
 
@@ -191,19 +197,19 @@ std::array<float, 4> InternalScript::Execute(const std::array<float, 4>& externa
 	{
 		// type
 		OperatorType type;
-		memcpy(&type, operators.data() + offset, sizeof(OperatorType));
+		memcpy(&type, operators_.data() + offset, sizeof(OperatorType));
 		offset += sizeof(int);
 
 		int32_t inputCount = 0;
-		memcpy(&inputCount, operators.data() + offset, sizeof(int));
+		memcpy(&inputCount, operators_.data() + offset, sizeof(int));
 		offset += sizeof(int);
 
 		int32_t outputCount = 0;
-		memcpy(&outputCount, operators.data() + offset, sizeof(int));
+		memcpy(&outputCount, operators_.data() + offset, sizeof(int));
 		offset += sizeof(int);
 
 		int32_t attributeCount = 0;
-		memcpy(&attributeCount, operators.data() + offset, sizeof(int));
+		memcpy(&attributeCount, operators_.data() + offset, sizeof(int));
 		offset += sizeof(int);
 
 		auto inputOffset = offset;
@@ -218,7 +224,7 @@ std::array<float, 4> InternalScript::Execute(const std::array<float, 4>& externa
 		for (int j = 0; j < inputCount; j++)
 		{
 			int index = 0;
-			memcpy(&index, operators.data() + inputOffset, sizeof(int));
+			memcpy(&index, operators_.data() + inputOffset, sizeof(int));
 			inputOffset += sizeof(int);
 
 			tempInputs[j] = GetRegisterValue(index, externals, globals, locals);
@@ -227,7 +233,7 @@ std::array<float, 4> InternalScript::Execute(const std::array<float, 4>& externa
 		for (int j = 0; j < outputCount; j++)
 		{
 			int index = 0;
-			memcpy(&index, operators.data() + outputOffset, sizeof(int));
+			memcpy(&index, operators_.data() + outputOffset, sizeof(int));
 			outputOffset += sizeof(int);
 
 			if (type == OperatorType::Add)
@@ -275,7 +281,7 @@ std::array<float, 4> InternalScript::Execute(const std::array<float, 4>& externa
 			else if (type == OperatorType::Constant)
 			{
 				float att = 0;
-				memcpy(&att, operators.data() + attributeOffset, sizeof(int));
+				memcpy(&att, operators_.data() + attributeOffset, sizeof(int));
 				registers[index] = att;
 			}
 		}

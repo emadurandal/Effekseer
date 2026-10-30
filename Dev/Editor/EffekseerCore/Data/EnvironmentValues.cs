@@ -11,6 +11,10 @@ namespace Effekseer.Data
 		[Undo(Undo = false)]
 		public Value.Boolean IsShown { get; private set; } = new Value.Boolean(false);
 
+		[Key(key = "EnvironmentGround_IsCollisionEnabled")]
+		[Undo(Undo = false)]
+		public Value.Boolean IsCollisionEnabled { get; private set; } = new Value.Boolean(false);
+
 		[Key(key = "EnvironmentGround_Height")]
 		[Undo(Undo = false)]
 		public Value.Float Height { get; private set; } = new Value.Float(0.0f, 1000.0f, -1000.0f);
@@ -43,7 +47,7 @@ namespace Effekseer.Data
 			{
 				if (LasyBackgroundImage == null)
 				{
-					LasyBackgroundImage = new Value.PathForImage(null, Resources.GetString("ImageFilter"), false, "");
+					LasyBackgroundImage = new Value.PathForImage(null, new MultiLanguageString("ImageFilter"), false, "");
 				}
 				return LasyBackgroundImage;
 			}
@@ -230,7 +234,7 @@ namespace Effekseer.Data
 	public class EnvironmentValues
 	{
 		[IO(Export = true, Import = true)]
-		[TreeNode(key ="Environment_Background", id = "Environment_Background")]
+		[TreeNode(key = "Environment_Background", id = "Environment_Background")]
 		public EnvironmentBackgroundValues Background { get; private set; }
 
 		[IO(Export = true, Import = true)]
@@ -238,7 +242,7 @@ namespace Effekseer.Data
 		public EnvironmentGroundValues Ground { get; private set; } = new EnvironmentGroundValues();
 
 		[IO(Export = true, Import = true)]
-		[TreeNode(key= "Environment_Lighting", id = "Environment_Lighting")]
+		[TreeNode(key = "Environment_Lighting", id = "Environment_Lighting")]
 		public EnvironmentLightingValues Lighting { get; private set; }
 
 		[IO(Export = true, Import = true)]

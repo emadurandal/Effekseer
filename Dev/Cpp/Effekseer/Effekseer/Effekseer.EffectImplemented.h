@@ -9,8 +9,8 @@
 #include "Effekseer.Effect.h"
 #include "Effekseer.InternalScript.h"
 #include "Effekseer.Vector3D.h"
-#include "Model/ProceduralModelParameter.h"
-#include "Utils/BinaryVersion.h"
+#include "Model/Effekseer.ProceduralModelParameter.h"
+#include "Utils/Effekseer.BinaryVersion.h"
 #include "Utils/Effekseer.CustomAllocator.h"
 #include <assert.h>
 #include <memory>
@@ -104,7 +104,7 @@ class EffectImplemented : public Effect, public ReferenceObject
 	friend class EffectFactory;
 	friend class Instance;
 
-	static const int32_t SupportBinaryVersion = Version16;
+	static const int32_t SupportBinaryVersion = Version18;
 
 protected:
 	SettingRef m_setting;
@@ -182,6 +182,13 @@ protected:
 
 	} Culling;
 
+	struct
+	{
+		float distance1;
+		float distance2;
+		float distance3;
+	} LODs;
+
 	//! a flag to reload
 	bool isReloadingOnRenderingThread = false;
 
@@ -226,6 +233,11 @@ public:
 	void SetLoadingParameter(ReferenceObject* obj);
 
 	std::vector<InternalScript>& GetDynamicEquation()
+	{
+		return dynamicEquation;
+	}
+
+	const std::vector<InternalScript>& GetDynamicEquation() const
 	{
 		return dynamicEquation;
 	}
@@ -340,6 +352,11 @@ public:
 	const EffectImplemented* GetImplemented() const override
 	{
 		return this;
+	}
+
+	std::array<float, 4> GetDefaultDynamicInputs() const override
+	{
+		return defaultDynamicInputs;
 	}
 };
 //----------------------------------------------------------------------------------

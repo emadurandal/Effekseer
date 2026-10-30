@@ -264,7 +264,7 @@ namespace ImGui
 		NormalizeKeyValues(pos0, cp0m, cp1m, pos1);
 
 		window->DrawList->PathLineTo(pos0);
-		window->DrawList->PathBezierCurveTo(cp0m, cp1m, pos1, 0);
+		window->DrawList->PathBezierCubicCurveTo(cp0m, cp1m, pos1, 0);
 
 		bool isHovered = false;
 
@@ -566,12 +566,13 @@ namespace ImGui
 		const bool isKeyAutoZoomMode = min_kv.x <= max_kv.x;
 		const auto isAutoZoomMode = isKeyAutoZoomMode || isValueAutoZoomMode;
 
-		if (!BeginChildFrame(id, size, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
+		const bool childVisible = BeginChild(id, size, ImGuiChildFlags_FrameStyle, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+		ImGuiWindow* window = GetCurrentWindow();
+		if (!childVisible)
 		{
 			return false;
 		}
 
-		ImGuiWindow* window = GetCurrentWindow();
 		if (window->SkipItems)
 		{
 			return false;
@@ -871,7 +872,7 @@ namespace ImGui
 
 		context.Store(window);
 
-		EndChildFrame();
+		EndChild();
 	}
 
 	bool StartSelectingAreaFCurve()
@@ -1729,7 +1730,7 @@ namespace ImGui
 						auto v2s = transform_f2s(v2);
 						NormalizeKeyValues(v1s, cp1s, cp2s, v2s);
 
-						window->DrawList->AddBezierCurve(
+						window->DrawList->AddBezierCubic(
 							v1s,
 							cp1s,
 							cp2s,
@@ -1765,7 +1766,7 @@ namespace ImGui
 						auto v2s = transform_f2s(v2);
 						NormalizeKeyValues(v1s, cp1s, cp2s, v2s);
 
-						window->DrawList->AddBezierCurve(
+						window->DrawList->AddBezierCubic(
 							v1s,
 							cp1s,
 							cp2s,

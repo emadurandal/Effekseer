@@ -2,7 +2,7 @@
 #ifndef __EFFEKSEER_COMPILED_MATERIAL_H__
 #define __EFFEKSEER_COMPILED_MATERIAL_H__
 
-#include "../Utils/BinaryVersion.h"
+#include "../Utils/Effekseer.BinaryVersion.h"
 #include "Effekseer.MaterialCompiler.h"
 #include <array>
 #include <assert.h>
@@ -27,14 +27,15 @@ enum class CompiledMaterialPlatformType : int32_t
 	Switch = 50,
 	XBoxOne = 60,
 	PS5 = 70,
-
+	Switch2 = 80,
+	WebGPU = 90,
 };
 
 class CompiledMaterial
 {
-	static const int32_t Version = CompiledMaterialVersion16;
-	static const int32_t LatestSupportVersion = CompiledMaterialVersion16;
-	static const int32_t OldestSupportVersion = CompiledMaterialVersion16;
+	static const int32_t Version = CompiledMaterialVersion162;
+	static const int32_t LatestSupportVersion = CompiledMaterialVersion162;
+	static const int32_t OldestSupportVersion = CompiledMaterialVersion162;
 
 	std::map<CompiledMaterialPlatformType, std::unique_ptr<CompiledMaterialBinary, ReferenceDeleter<CompiledMaterialBinary>>> platforms;
 	std::vector<uint8_t> originalData_;

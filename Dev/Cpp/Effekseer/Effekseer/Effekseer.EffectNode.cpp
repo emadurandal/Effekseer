@@ -21,41 +21,130 @@
 #include "Effekseer.EffectNodeSprite.h"
 #include "Effekseer.Resource.h"
 #include "Effekseer.Setting.h"
+#include "Parameter/Effekseer.GpuParticlesParameter.h"
 #include "Sound/Effekseer.SoundPlayer.h"
 #include "Utils/Effekseer.BinaryReader.h"
+#include "Utils/Effekseer.Compatiblity.h"
 
-#include "Utils/Compatiblity.h"
+#include <limits>
 
 //----------------------------------------------------------------------------------
 //
 //----------------------------------------------------------------------------------
 namespace Effekseer
 {
-
-bool operator==(const TranslationParentBindType& lhs, const BindType& rhs)
+namespace
 {
-	return (lhs == static_cast<TranslationParentBindType>(rhs));
+bool IsInfiniteUVAnimation(const UVParameter& uv)
+{
+	return uv.Type == UVAnimationType::Animation && UVFunctions::IsInfiniteValue(uv.Animation.FrameLength);
 }
+} // namespace
 
 //----------------------------------------------------------------------------------
 //
 //----------------------------------------------------------------------------------
-EffectNodeImplemented::EffectNodeImplemented(Effect* effect, unsigned char*& pos)
+EffectNodeImplemented::EffectNodeImplemented(Effect* effect, BinaryReader<true>& pos)
 	: m_effect(effect)
-	, generation_(0)
-	, IsRendered(true)
-	, TranslationFCurve(nullptr)
-	, RotationFCurve(nullptr)
-	, ScalingFCurve(nullptr)
-	, SoundType(ParameterSoundType_None)
-	, RenderingOrder(RenderingOrder_FirstCreatedInstanceIsFirst)
 {
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
-void EffectNodeImplemented::LoadParameter(unsigned char*& pos, EffectNode* parent, const SettingRef& setting)
+void EffectNodeImplemented::AdjustSettings(const SettingRef& setting)
+{
+	auto ef = static_cast<EffectImplemented*>(m_effect);
+
+	if (ef->IsDyanamicMagnificationValid())
+	{
+		KillParam.Magnify(m_effect->GetMaginification());
+		TranslationParam.Magnify(m_effect->GetMaginification(), DynamicFactor);
+	}
+
+	if (ef->IsDyanamicMagnificationValid())
+	{
+		if (GenerationLocation.type == ParameterGenerationLocation::TYPE_POINT)
+		{
+			GenerationLocation.point.location.min *= m_effect->GetMaginification();
+			GenerationLocation.point.location.max *= m_effect->GetMaginification();
+		}
+		else if (GenerationLocation.type == ParameterGenerationLocation::TYPE_LINE)
+		{
+			GenerationLocation.line.position_end.min *= m_effect->GetMaginification();
+			GenerationLocation.line.position_end.max *= m_effect->GetMaginification();
+			GenerationLocation.line.position_start.min *= m_effect->GetMaginification();
+			GenerationLocation.line.position_start.max *= m_effect->GetMaginification();
+			GenerationLocation.line.position_noize.min *= m_effect->GetMaginification();
+			GenerationLocation.line.position_noize.max *= m_effect->GetMaginification();
+		}
+		else if (GenerationLocation.type == ParameterGenerationLocation::TYPE_SPHERE)
+		{
+			GenerationLocation.sphere.radius.min *= m_effect->GetMaginification();
+			GenerationLocation.sphere.radius.max *= m_effect->GetMaginification();
+		}
+		else if (GenerationLocation.type == ParameterGenerationLocation::TYPE_CIRCLE)
+		{
+			GenerationLocation.circle.radius.min *= m_effect->GetMaginification();
+			GenerationLocation.circle.radius.max *= m_effect->GetMaginification();
+		}
+	}
+
+	{
+		if (ef->IsDyanamicMagnificationValid())
+		{
+			DepthValues.DepthOffset *= m_effect->GetMaginification();
+			DepthValues.SoftParticle *= m_effect->GetMaginification();
+
+			if (DepthValues.DepthParameter.DepthClipping < std::numeric_limits<float>::max() / 10)
+			{
+				DepthValues.DepthParameter.DepthClipping *= m_effect->GetMaginification();
+			}
+		}
+
+		DepthValues.DepthParameter.DepthOffset = DepthValues.DepthOffset;
+		DepthValues.DepthParameter.IsDepthOffsetScaledWithCamera = DepthValues.IsDepthOffsetScaledWithCamera;
+		DepthValues.DepthParameter.IsDepthOffsetScaledWithParticleScale = DepthValues.IsDepthOffsetScaledWithParticleScale;
+		DepthValues.DepthParameter.ZSort = DepthValues.ZSort;
+	}
+
+	// Convert right handle coordinate system into left handle coordinate system
+	if (setting->GetCoordinateSystem() == CoordinateSystem::LH)
+	{
+		DynamicFactor.Tra[2] *= -1.0f;
+
+		TranslationParam.MakeLeftCoordinate();
+
+		// Rotation
+		DynamicFactor.Rot[0] *= -1.0f;
+		DynamicFactor.Rot[1] *= -1.0f;
+
+		RotationParam.MakeCoordinateSystemLH();
+		GenerationLocation.MakeCoordinateSystemLH();
+		KillParam.MakeCoordinateSystemLH();
+	}
+
+	// generate inversed parameter
+	for (size_t i = 0; i < DynamicFactor.Tra.size(); i++)
+	{
+		DynamicFactor.TraInv[i] = 1.0f / DynamicFactor.Tra[i];
+	}
+
+	for (size_t i = 0; i < DynamicFactor.Rot.size(); i++)
+	{
+		DynamicFactor.RotInv[i] = 1.0f / DynamicFactor.Rot[i];
+	}
+
+	for (size_t i = 0; i < DynamicFactor.Scale.size(); i++)
+	{
+		DynamicFactor.ScaleInv[i] = 1.0f / DynamicFactor.Scale[i];
+	}
+
+	// rescale intensity after 1.5
+#ifndef __EFFEKSEER_FOR_UE4__ // Hack for EffekseerForUE4
+	RendererCommon.BasicParameter.DistortionIntensity *= m_effect->GetMaginification();
+	RendererCommon.DistortionIntensity *= m_effect->GetMaginification();
+#endif // !__EFFEKSEER_FOR_UE4__
+}
+
+void EffectNodeImplemented::LoadParameter(BinaryReader<true>& pos, EffectNode* parent, const SettingRef& setting)
 {
 	int size = 0;
 	int node_type = 0;
@@ -70,14 +159,14 @@ void EffectNodeImplemented::LoadParameter(unsigned char*& pos, EffectNode* paren
 		generation_ = 0;
 	}
 
-	memcpy(&node_type, pos, sizeof(int));
-	pos += sizeof(int);
+	if (!pos.Peek(&node_type, sizeof(int)))
+	{
+		return pos.MarkFailed();
+	}
+	pos.Skip(sizeof(int));
 
 	if (node_type == -1)
 	{
-		TranslationType = ParameterTranslationType_None;
-		RotationType = ParameterRotationType_None;
-		ScalingType = ParameterScalingType_None;
 		CommonValues.MaxGeneration = 1;
 
 		GenerationLocation.EffectsRotation = 0;
@@ -91,8 +180,11 @@ void EffectNodeImplemented::LoadParameter(unsigned char*& pos, EffectNode* paren
 		if (m_effect->GetVersion() >= 10)
 		{
 			int32_t rendered = 0;
-			memcpy(&rendered, pos, sizeof(int32_t));
-			pos += sizeof(int32_t);
+			if (!pos.Peek(&rendered, sizeof(int32_t)))
+			{
+				return pos.MarkFailed();
+			}
+			pos.Skip(sizeof(int32_t));
 
 			IsRendered = rendered != 0;
 		}
@@ -100,575 +192,59 @@ void EffectNodeImplemented::LoadParameter(unsigned char*& pos, EffectNode* paren
 		// To render with priority, nodes are assigned a list.
 		if (m_effect->GetVersion() >= 13)
 		{
-			memcpy(&RenderingPriority, pos, sizeof(int32_t));
-			pos += sizeof(int32_t);
+			if (!pos.Peek(&RenderingPriority, sizeof(int32_t)))
+			{
+				return pos.MarkFailed();
+			}
+			pos.Skip(sizeof(int32_t));
 		}
 		else
 		{
 			RenderingPriority = -1;
 		}
 
-		memcpy(&size, pos, sizeof(int));
-		pos += sizeof(int);
-
-		if (ef->GetVersion() >= 14)
-		{
-			assert(size == sizeof(ParameterCommonValues));
-			memcpy(&CommonValues, pos, size);
-			pos += size;
-		}
-		else if (m_effect->GetVersion() >= 9)
-		{
-			memcpy(&CommonValues.MaxGeneration, pos, size);
-			pos += size;
-		}
-		else
-		{
-			assert(size == sizeof(ParameterCommonValues_8));
-			ParameterCommonValues_8 param_8;
-			memcpy(&param_8, pos, size);
-			pos += size;
-
-			CommonValues.MaxGeneration = param_8.MaxGeneration;
-			CommonValues.TranslationBindType = static_cast<TranslationParentBindType>(param_8.TranslationBindType);
-
-			CommonValues.RotationBindType = param_8.RotationBindType;
-			CommonValues.ScalingBindType = param_8.ScalingBindType;
-			CommonValues.RemoveWhenLifeIsExtinct = param_8.RemoveWhenLifeIsExtinct;
-			CommonValues.RemoveWhenParentIsRemoved = param_8.RemoveWhenParentIsRemoved;
-			CommonValues.RemoveWhenChildrenIsExtinct = param_8.RemoveWhenChildrenIsExtinct;
-			CommonValues.life = param_8.life;
-			CommonValues.GenerationTime.max = param_8.GenerationTime;
-			CommonValues.GenerationTime.min = param_8.GenerationTime;
-			CommonValues.GenerationTimeOffset.max = param_8.GenerationTimeOffset;
-			CommonValues.GenerationTimeOffset.min = param_8.GenerationTimeOffset;
-		}
+		CommonValues.Load(pos, ef);
 
 		if (ef->GetVersion() >= 1600)
 		{
 			if (CommonValues.TranslationBindType == TranslationParentBindType::NotBind_FollowParent ||
 				CommonValues.TranslationBindType == TranslationParentBindType::WhenCreating_FollowParent)
 			{
-				memcpy(&SteeringBehaviorParam, pos, sizeof(SteeringBehaviorParameter));
-				pos += sizeof(SteeringBehaviorParameter);
-			}
-		}
-
-		memcpy(&TranslationType, pos, sizeof(int));
-		pos += sizeof(int);
-
-		if (TranslationType == ParameterTranslationType_Fixed)
-		{
-			int32_t translationSize = 0;
-			memcpy(&translationSize, pos, sizeof(int));
-			pos += sizeof(int);
-
-			if (ef->GetVersion() >= 14)
-			{
-				memcpy(&TranslationFixed, pos, sizeof(ParameterTranslationFixed));
-			}
-			else
-			{
-				memcpy(&(TranslationFixed.Position), pos, sizeof(float) * 3);
-
-				// make invalid
-				if (TranslationFixed.Position.X == 0.0f && TranslationFixed.Position.Y == 0.0f && TranslationFixed.Position.Z == 0.0f)
+				if (!pos.Peek(&SteeringBehaviorParam, sizeof(SteeringBehaviorParameter)))
 				{
-					TranslationType = ParameterTranslationType_None;
-					EffekseerPrintDebug("LocationType Change None\n");
+					return pos.MarkFailed();
 				}
+				pos.Skip(sizeof(SteeringBehaviorParameter));
 			}
-
-			pos += translationSize;
 		}
-		else if (TranslationType == ParameterTranslationType_PVA)
+
+		if (ef->GetVersion() < Version18Alpha3)
 		{
-			if (ef->GetVersion() >= 14)
+			TriggerParam.Load(pos, ef->GetVersion());
+
+			CommonValues.Generation.TriggerToStart = TriggerParam.ToStartGeneration;
+			CommonValues.Generation.TriggerToStop = TriggerParam.ToStopGeneration;
+			CommonValues.Removal.TriggerToRemove = TriggerParam.ToRemove;
+
+			if (CommonValues.Removal.TriggerToRemove.type != TriggerType::None)
 			{
-				memcpy(&size, pos, sizeof(int));
-				pos += sizeof(int);
-				assert(size == sizeof(ParameterTranslationPVA));
-				memcpy(&TranslationPVA, pos, size);
-				pos += size;
-			}
-			else
-			{
-				memcpy(&size, pos, sizeof(int));
-				pos += sizeof(int);
-				memcpy(&TranslationPVA.location, pos, size);
-				pos += size;
+				CommonValues.Removal.Flags = static_cast<RemovalTiming>(static_cast<int32_t>(CommonValues.Removal.Flags) |
+																		static_cast<int32_t>(RemovalTiming::WhenTriggered));
 			}
 		}
-		else if (TranslationType == ParameterTranslationType_Easing)
+
+		LODsParam.Load(pos, ef->GetVersion());
+		TranslationParam.Load(pos, ef->GetVersion());
+		if (!LocalForceField.Load(pos, ef->GetVersion()))
 		{
-			memcpy(&size, pos, sizeof(int));
-			pos += sizeof(int);
-			TranslationEasing.Load(pos, size, ef->GetVersion());
-			pos += size;
+			return pos.MarkFailed();
 		}
-		else if (TranslationType == ParameterTranslationType_FCurve)
-		{
-			memcpy(&size, pos, sizeof(int));
-			pos += sizeof(int);
-
-			TranslationFCurve = new FCurveVector3D();
-			pos += TranslationFCurve->Load(pos, m_effect->GetVersion());
-		}
-		else if (TranslationType == ParameterTranslationType_NurbsCurve)
-		{
-			memcpy(&TranslationNurbsCurve, pos, sizeof(ParameterTranslationNurbsCurve));
-			pos += sizeof(ParameterTranslationNurbsCurve);
-		}
-		else if (TranslationType == ParameterTranslationType_ViewOffset)
-		{
-			memcpy(&TranslationViewOffset, pos, sizeof(ParameterTranslationViewOffset));
-			pos += sizeof(ParameterTranslationViewOffset);
-		}
-
-		/* 位置拡大処理 */
-		if (ef->IsDyanamicMagnificationValid())
-		{
-			DynamicFactor.Tra[0] *= m_effect->GetMaginification();
-			DynamicFactor.Tra[1] *= m_effect->GetMaginification();
-			DynamicFactor.Tra[2] *= m_effect->GetMaginification();
-
-			if (TranslationType == ParameterTranslationType_Fixed)
-			{
-				TranslationFixed.Position *= m_effect->GetMaginification();
-			}
-			else if (TranslationType == ParameterTranslationType_PVA)
-			{
-				TranslationPVA.location.min *= m_effect->GetMaginification();
-				TranslationPVA.location.max *= m_effect->GetMaginification();
-				TranslationPVA.velocity.min *= m_effect->GetMaginification();
-				TranslationPVA.velocity.max *= m_effect->GetMaginification();
-				TranslationPVA.acceleration.min *= m_effect->GetMaginification();
-				TranslationPVA.acceleration.max *= m_effect->GetMaginification();
-			}
-			else if (TranslationType == ParameterTranslationType_Easing)
-			{
-				TranslationEasing.start.min *= m_effect->GetMaginification();
-				TranslationEasing.start.max *= m_effect->GetMaginification();
-				TranslationEasing.end.min *= m_effect->GetMaginification();
-				TranslationEasing.end.max *= m_effect->GetMaginification();
-			}
-			else if (TranslationType == ParameterTranslationType_FCurve)
-			{
-				TranslationFCurve->X.Maginify(m_effect->GetMaginification());
-				TranslationFCurve->Y.Maginify(m_effect->GetMaginification());
-				TranslationFCurve->Z.Maginify(m_effect->GetMaginification());
-			}
-		}
-
-		// Local force field
-		if (ef->GetVersion() >= 1500)
-		{
-			LocalForceField.Load(pos, ef->GetVersion());
-		}
-
-		// for compatiblity of location abs
-		if (ef->GetVersion() <= Version16Alpha1)
-		{
-			LocationAbsParameter LocationAbs;
-
-			memcpy(&LocationAbs.type, pos, sizeof(int));
-			pos += sizeof(int);
-
-			// Calc attraction forces
-			if (LocationAbs.type == LocationAbsType::None)
-			{
-				memcpy(&size, pos, sizeof(int));
-				pos += sizeof(int);
-				assert(size == 0);
-				memcpy(&LocationAbs.none, pos, size);
-				pos += size;
-			}
-			else if (LocationAbs.type == LocationAbsType::Gravity)
-			{
-				memcpy(&size, pos, sizeof(int));
-				pos += sizeof(int);
-				assert(size == sizeof(vector3d));
-				memcpy(&LocationAbs.gravity, pos, size);
-				pos += size;
-			}
-			else if (LocationAbs.type == LocationAbsType::AttractiveForce)
-			{
-				memcpy(&size, pos, sizeof(int));
-				pos += sizeof(int);
-				assert(size == sizeof(LocationAbs.attractiveForce));
-				memcpy(&LocationAbs.attractiveForce, pos, size);
-				pos += size;
-			}
-
-			if (LocationAbs.type == LocationAbsType::Gravity)
-			{
-				LocalForceField.MaintainGravityCompatibility(LocationAbs.gravity);
-			}
-			else if (LocationAbs.type == LocationAbsType::AttractiveForce)
-			{
-				LocalForceField.MaintainAttractiveForceCompatibility(
-					LocationAbs.attractiveForce.force,
-					LocationAbs.attractiveForce.control,
-					LocationAbs.attractiveForce.minRange,
-					LocationAbs.attractiveForce.maxRange);
-			}
-		}
-
-		memcpy(&RotationType, pos, sizeof(int));
-		pos += sizeof(int);
-		EffekseerPrintDebug("RotationType %d\n", RotationType);
-		if (RotationType == ParameterRotationType_Fixed)
-		{
-			memcpy(&size, pos, sizeof(int));
-			pos += sizeof(int);
-
-			if (ef->GetVersion() >= 14)
-			{
-				assert(size == sizeof(ParameterRotationFixed));
-				memcpy(&RotationFixed, pos, size);
-			}
-			else
-			{
-				memcpy(&RotationFixed.Position, pos, size);
-			}
-			pos += size;
-
-			// make invalid
-			if (RotationFixed.RefEq < 0 && RotationFixed.Position.X == 0.0f && RotationFixed.Position.Y == 0.0f &&
-				RotationFixed.Position.Z == 0.0f)
-			{
-				RotationType = ParameterRotationType_None;
-				EffekseerPrintDebug("RotationType Change None\n");
-			}
-		}
-		else if (RotationType == ParameterRotationType_PVA)
-		{
-			memcpy(&size, pos, sizeof(int));
-			pos += sizeof(int);
-			if (ef->GetVersion() >= 14)
-			{
-				assert(size == sizeof(ParameterRotationPVA));
-				memcpy(&RotationPVA, pos, size);
-			}
-			else
-			{
-				memcpy(&RotationPVA.rotation, pos, size);
-			}
-			pos += size;
-		}
-		else if (RotationType == ParameterRotationType_Easing)
-		{
-			memcpy(&size, pos, sizeof(int));
-			pos += sizeof(int);
-			RotationEasing.Load(pos, size, ef->GetVersion());
-			pos += size;
-		}
-		else if (RotationType == ParameterRotationType_AxisPVA)
-		{
-			memcpy(&size, pos, sizeof(int));
-			pos += sizeof(int);
-			assert(size == sizeof(ParameterRotationAxisPVA));
-			memcpy(&RotationAxisPVA, pos, size);
-			pos += size;
-		}
-		else if (RotationType == ParameterRotationType_AxisEasing)
-		{
-			memcpy(&size, pos, sizeof(int));
-			pos += sizeof(int);
-
-			memcpy(&RotationAxisEasing.axis, pos, sizeof(RotationAxisEasing.axis));
-			pos += sizeof(RotationAxisEasing.axis);
-
-			LoadFloatEasing(RotationAxisEasing.easing, pos, m_effect->GetVersion());
-		}
-		else if (RotationType == ParameterRotationType_FCurve)
-		{
-			memcpy(&size, pos, sizeof(int));
-			pos += sizeof(int);
-
-			RotationFCurve = new FCurveVector3D();
-			pos += RotationFCurve->Load(pos, m_effect->GetVersion());
-		}
-
-		memcpy(&ScalingType, pos, sizeof(int));
-		pos += sizeof(int);
-		EffekseerPrintDebug("ScalingType %d\n", ScalingType);
-		if (ScalingType == ParameterScalingType_Fixed)
-		{
-			memcpy(&size, pos, sizeof(int));
-			pos += sizeof(int);
-
-			if (ef->GetVersion() >= 14)
-			{
-				assert(size == sizeof(ParameterScalingFixed));
-				memcpy(&ScalingFixed, pos, size);
-				pos += size;
-			}
-			else
-			{
-				memcpy(&ScalingFixed.Position, pos, size);
-				pos += size;
-			}
-
-			// make invalid
-			if (ScalingFixed.RefEq < 0 && ScalingFixed.Position.X == 1.0f && ScalingFixed.Position.Y == 1.0f &&
-				ScalingFixed.Position.Z == 1.0f)
-			{
-				ScalingType = ParameterScalingType_None;
-				EffekseerPrintDebug("ScalingType Change None\n");
-			}
-		}
-		else if (ScalingType == ParameterScalingType_PVA)
-		{
-			memcpy(&size, pos, sizeof(int));
-			pos += sizeof(int);
-			if (ef->GetVersion() >= 14)
-			{
-				assert(size == sizeof(ParameterScalingPVA));
-				memcpy(&ScalingPVA, pos, size);
-			}
-			else
-			{
-				memcpy(&ScalingPVA.Position, pos, size);
-			}
-			pos += size;
-		}
-		else if (ScalingType == ParameterScalingType_Easing)
-		{
-			memcpy(&size, pos, sizeof(int));
-			pos += sizeof(int);
-			ScalingEasing.Load(pos, size, ef->GetVersion());
-			pos += size;
-		}
-		else if (ScalingType == ParameterScalingType_SinglePVA)
-		{
-			memcpy(&size, pos, sizeof(int));
-			pos += sizeof(int);
-			assert(size == sizeof(ParameterScalingSinglePVA));
-			memcpy(&ScalingSinglePVA, pos, size);
-			pos += size;
-		}
-		else if (ScalingType == ParameterScalingType_SingleEasing)
-		{
-			memcpy(&size, pos, sizeof(int));
-			pos += sizeof(int);
-
-			ScalingSingleEasing.Load(pos, size, m_effect->GetVersion());
-			pos += size;
-		}
-		else if (ScalingType == ParameterScalingType_FCurve)
-		{
-			memcpy(&size, pos, sizeof(int));
-			pos += sizeof(int);
-
-			ScalingFCurve = new FCurveVector3D();
-			pos += ScalingFCurve->Load(pos, m_effect->GetVersion());
-			ScalingFCurve->X.SetDefaultValue(1.0f);
-			ScalingFCurve->Y.SetDefaultValue(1.0f);
-			ScalingFCurve->Z.SetDefaultValue(1.0f);
-		}
-		else if (ScalingType == ParameterScalingType_SingleFCurve)
-		{
-			memcpy(&size, pos, sizeof(int));
-			pos += sizeof(int);
-
-			ScalingSingleFCurve = new FCurveScalar();
-			pos += ScalingSingleFCurve->Load(pos, m_effect->GetVersion());
-			ScalingSingleFCurve->S.SetDefaultValue(1.0f);
-		}
-
-		/* Spawning Method */
-		GenerationLocation.load(pos, m_effect->GetVersion());
-
-		/* Spawning Method 拡大処理*/
-		if (ef->IsDyanamicMagnificationValid()
-			/* && (this->CommonValues.ScalingBindType == BindType::NotBind || parent->GetType() == EFFECT_NODE_TYPE_ROOT)*/)
-		{
-			if (GenerationLocation.type == ParameterGenerationLocation::TYPE_POINT)
-			{
-				GenerationLocation.point.location.min *= m_effect->GetMaginification();
-				GenerationLocation.point.location.max *= m_effect->GetMaginification();
-			}
-			else if (GenerationLocation.type == ParameterGenerationLocation::TYPE_LINE)
-			{
-				GenerationLocation.line.position_end.min *= m_effect->GetMaginification();
-				GenerationLocation.line.position_end.max *= m_effect->GetMaginification();
-				GenerationLocation.line.position_start.min *= m_effect->GetMaginification();
-				GenerationLocation.line.position_start.max *= m_effect->GetMaginification();
-				GenerationLocation.line.position_noize.min *= m_effect->GetMaginification();
-				GenerationLocation.line.position_noize.max *= m_effect->GetMaginification();
-			}
-			else if (GenerationLocation.type == ParameterGenerationLocation::TYPE_SPHERE)
-			{
-				GenerationLocation.sphere.radius.min *= m_effect->GetMaginification();
-				GenerationLocation.sphere.radius.max *= m_effect->GetMaginification();
-			}
-			else if (GenerationLocation.type == ParameterGenerationLocation::TYPE_CIRCLE)
-			{
-				GenerationLocation.circle.radius.min *= m_effect->GetMaginification();
-				GenerationLocation.circle.radius.max *= m_effect->GetMaginification();
-			}
-		}
-
-		// Load depth values
-		if (m_effect->GetVersion() >= 12)
-		{
-			memcpy(&DepthValues.DepthOffset, pos, sizeof(float));
-			pos += sizeof(float);
-
-			auto IsDepthOffsetScaledWithCamera = 0;
-			memcpy(&IsDepthOffsetScaledWithCamera, pos, sizeof(int32_t));
-			pos += sizeof(int32_t);
-
-			DepthValues.IsDepthOffsetScaledWithCamera = IsDepthOffsetScaledWithCamera > 0;
-
-			auto IsDepthOffsetScaledWithParticleScale = 0;
-			memcpy(&IsDepthOffsetScaledWithParticleScale, pos, sizeof(int32_t));
-			pos += sizeof(int32_t);
-
-			DepthValues.IsDepthOffsetScaledWithParticleScale = IsDepthOffsetScaledWithParticleScale > 0;
-
-			if (m_effect->GetVersion() >= 15)
-			{
-				memcpy(&DepthValues.DepthParameter.SuppressionOfScalingByDepth, pos, sizeof(float));
-				pos += sizeof(float);
-
-				memcpy(&DepthValues.DepthParameter.DepthClipping, pos, sizeof(float));
-				pos += sizeof(float);
-			}
-
-			if (m_effect->GetVersion() >= 13)
-			{
-				memcpy(&DepthValues.ZSort, pos, sizeof(int32_t));
-				pos += sizeof(int32_t);
-
-				memcpy(&DepthValues.DrawingPriority, pos, sizeof(int32_t));
-				pos += sizeof(int32_t);
-			}
-
-			memcpy(&DepthValues.SoftParticle, pos, sizeof(float));
-			pos += sizeof(float);
-
-			DepthValues.DepthOffset *= m_effect->GetMaginification();
-			DepthValues.SoftParticle *= m_effect->GetMaginification();
-
-			if (DepthValues.DepthParameter.DepthClipping < FLT_MAX / 10)
-			{
-				DepthValues.DepthParameter.DepthClipping *= m_effect->GetMaginification();
-			}
-
-			DepthValues.DepthParameter.DepthOffset = DepthValues.DepthOffset;
-			DepthValues.DepthParameter.IsDepthOffsetScaledWithCamera = DepthValues.IsDepthOffsetScaledWithCamera;
-			DepthValues.DepthParameter.IsDepthOffsetScaledWithParticleScale = DepthValues.IsDepthOffsetScaledWithParticleScale;
-			DepthValues.DepthParameter.ZSort = DepthValues.ZSort;
-		}
-
-		// Convert right handle coordinate system into left handle coordinate system
-		if (setting->GetCoordinateSystem() == CoordinateSystem::LH)
-		{
-			// Translation
-			DynamicFactor.Tra[2] *= -1.0f;
-
-			if (TranslationType == ParameterTranslationType_Fixed)
-			{
-				TranslationFixed.Position.Z *= -1.0f;
-			}
-			else if (TranslationType == ParameterTranslationType_PVA)
-			{
-				TranslationPVA.location.max.z *= -1.0f;
-				TranslationPVA.location.min.z *= -1.0f;
-				TranslationPVA.velocity.max.z *= -1.0f;
-				TranslationPVA.velocity.min.z *= -1.0f;
-				TranslationPVA.acceleration.max.z *= -1.0f;
-				TranslationPVA.acceleration.min.z *= -1.0f;
-			}
-			else if (TranslationType == ParameterTranslationType_Easing)
-			{
-				TranslationEasing.start.max.z *= -1.0f;
-				TranslationEasing.start.min.z *= -1.0f;
-				TranslationEasing.end.max.z *= -1.0f;
-				TranslationEasing.end.min.z *= -1.0f;
-			}
-
-			// Rotation
-			DynamicFactor.Rot[0] *= -1.0f;
-			DynamicFactor.Rot[1] *= -1.0f;
-
-			if (RotationType == ParameterRotationType_Fixed)
-			{
-				RotationFixed.Position.X *= -1.0f;
-				RotationFixed.Position.Y *= -1.0f;
-			}
-			else if (RotationType == ParameterRotationType_PVA)
-			{
-				RotationPVA.rotation.max.x *= -1.0f;
-				RotationPVA.rotation.min.x *= -1.0f;
-				RotationPVA.rotation.max.y *= -1.0f;
-				RotationPVA.rotation.min.y *= -1.0f;
-				RotationPVA.velocity.max.x *= -1.0f;
-				RotationPVA.velocity.min.x *= -1.0f;
-				RotationPVA.velocity.max.y *= -1.0f;
-				RotationPVA.velocity.min.y *= -1.0f;
-				RotationPVA.acceleration.max.x *= -1.0f;
-				RotationPVA.acceleration.min.x *= -1.0f;
-				RotationPVA.acceleration.max.y *= -1.0f;
-				RotationPVA.acceleration.min.y *= -1.0f;
-			}
-			else if (RotationType == ParameterRotationType_Easing)
-			{
-				RotationEasing.start.max.x *= -1.0f;
-				RotationEasing.start.min.x *= -1.0f;
-				RotationEasing.start.max.y *= -1.0f;
-				RotationEasing.start.min.y *= -1.0f;
-				RotationEasing.end.max.x *= -1.0f;
-				RotationEasing.end.min.x *= -1.0f;
-				RotationEasing.end.max.y *= -1.0f;
-				RotationEasing.end.min.y *= -1.0f;
-			}
-			else if (RotationType == ParameterRotationType_AxisPVA)
-			{
-				RotationAxisPVA.axis.max.z *= -1.0f;
-				RotationAxisPVA.axis.min.z *= -1.0f;
-			}
-			else if (RotationType == ParameterRotationType_AxisEasing)
-			{
-				RotationAxisEasing.axis.max.z *= -1.0f;
-				RotationAxisEasing.axis.min.z *= -1.0f;
-			}
-			else if (RotationType == ParameterRotationType_FCurve)
-			{
-				RotationFCurve->X.ChangeCoordinate();
-				RotationFCurve->Y.ChangeCoordinate();
-			}
-
-			// GenerationLocation
-			if (GenerationLocation.type == ParameterGenerationLocation::TYPE_POINT)
-			{
-			}
-			else if (GenerationLocation.type == ParameterGenerationLocation::TYPE_SPHERE)
-			{
-				GenerationLocation.sphere.rotation_x.max *= -1.0f;
-				GenerationLocation.sphere.rotation_x.min *= -1.0f;
-				GenerationLocation.sphere.rotation_y.max *= -1.0f;
-				GenerationLocation.sphere.rotation_y.min *= -1.0f;
-			}
-		}
-
-		// generate inversed parameter
-		for (size_t i = 0; i < DynamicFactor.Tra.size(); i++)
-		{
-			DynamicFactor.TraInv[i] = 1.0f / DynamicFactor.Tra[i];
-		}
-
-		for (size_t i = 0; i < DynamicFactor.Rot.size(); i++)
-		{
-			DynamicFactor.RotInv[i] = 1.0f / DynamicFactor.Rot[i];
-		}
-
-		for (size_t i = 0; i < DynamicFactor.Scale.size(); i++)
-		{
-			DynamicFactor.ScaleInv[i] = 1.0f / DynamicFactor.Scale[i];
-		}
+		RotationParam.Load(pos, ef->GetVersion());
+		ScalingParam.Load(pos, ef->GetVersion());
+		GenerationLocation.load(pos, ef->GetVersion());
+		DepthValues.Load(pos, ef->GetVersion());
+		KillParam.Load(pos, ef->GetVersion());
+		Collisions.Load(pos, ef->GetVersion());
 
 		if (m_effect->GetVersion() >= 3)
 		{
@@ -686,8 +262,11 @@ void EffectNodeImplemented::LoadParameter(unsigned char*& pos, EffectNode* paren
 			if (m_effect->GetVersion() >= Version16Alpha6)
 			{
 				int32_t AlphaCutoffFlag = 0;
-				memcpy(&AlphaCutoffFlag, pos, sizeof(int));
-				pos += sizeof(int);
+				if (!pos.Peek(&AlphaCutoffFlag, sizeof(int)))
+				{
+					return pos.MarkFailed();
+				}
+				pos.Skip(sizeof(int));
 				alphaCutoffEnabled = (AlphaCutoffFlag == 1);
 			}
 			RendererCommon.BasicParameter.IsAlphaCutoffEnabled = alphaCutoffEnabled;
@@ -709,73 +288,100 @@ void EffectNodeImplemented::LoadParameter(unsigned char*& pos, EffectNode* paren
 		if (m_effect->GetVersion() >= Version16Alpha3)
 		{
 			int FalloffFlag = 0;
-			memcpy(&FalloffFlag, pos, sizeof(int));
-			pos += sizeof(int);
+			if (!pos.Peek(&FalloffFlag, sizeof(int)))
+			{
+				return pos.MarkFailed();
+			}
+			pos.Skip(sizeof(int));
 			EnableFalloff = (FalloffFlag == 1);
 
 			if (EnableFalloff)
 			{
-				memcpy(&FalloffParam, pos, sizeof(FalloffParameter));
-				pos += sizeof(FalloffParameter);
+				if (!pos.Peek(&FalloffParam, sizeof(FalloffParameter)))
+				{
+					return pos.MarkFailed();
+				}
+				pos.Skip(sizeof(FalloffParameter));
 			}
 		}
 
 		if (m_effect->GetVersion() >= Version16Alpha4)
 		{
-			memcpy(&RendererCommon.BasicParameter.SoftParticleDistanceFar, pos, sizeof(float));
-			pos += sizeof(float);
+			if (!pos.Peek(&RendererCommon.BasicParameter.SoftParticleDistanceFar, sizeof(float)))
+			{
+				return pos.MarkFailed();
+			}
+			pos.Skip(sizeof(float));
 		}
 
 		if (m_effect->GetVersion() >= Version16Alpha5)
 		{
-			memcpy(&RendererCommon.BasicParameter.SoftParticleDistanceNear, pos, sizeof(float));
-			pos += sizeof(float);
-			memcpy(&RendererCommon.BasicParameter.SoftParticleDistanceNearOffset, pos, sizeof(float));
-			pos += sizeof(float);
+			if (!pos.Peek(&RendererCommon.BasicParameter.SoftParticleDistanceNear, sizeof(float)))
+			{
+				return pos.MarkFailed();
+			}
+			pos.Skip(sizeof(float));
+			if (!pos.Peek(&RendererCommon.BasicParameter.SoftParticleDistanceNearOffset, sizeof(float)))
+			{
+				return pos.MarkFailed();
+			}
+			pos.Skip(sizeof(float));
 		}
 
 		LoadRendererParameter(pos, m_effect->GetSetting());
 
-		// rescale intensity after 1.5
-#ifndef __EFFEKSEER_FOR_UE4__ // Hack for EffekseerForUE4
-		RendererCommon.BasicParameter.DistortionIntensity *= m_effect->GetMaginification();
-		RendererCommon.DistortionIntensity *= m_effect->GetMaginification();
-#endif // !__EFFEKSEER_FOR_UE4__
+		Sound.Load(pos, ef->GetVersion());
 
-		if (m_effect->GetVersion() >= 1)
+		if (m_effect->GetVersion() >= Version18Alpha1)
 		{
-			// Sound
-			memcpy(&SoundType, pos, sizeof(int));
-			pos += sizeof(int);
-			if (SoundType == ParameterSoundType_Use)
+			int gpuParticleEnabled = 0;
+			if (!pos.Peek(&gpuParticleEnabled, sizeof(int)))
 			{
-				memcpy(&Sound.WaveId, pos, sizeof(int32_t));
-				pos += sizeof(int32_t);
-				memcpy(&Sound.Volume, pos, sizeof(random_float));
-				pos += sizeof(random_float);
-				memcpy(&Sound.Pitch, pos, sizeof(random_float));
-				pos += sizeof(random_float);
-				memcpy(&Sound.PanType, pos, sizeof(ParameterSoundPanType));
-				pos += sizeof(ParameterSoundPanType);
-				memcpy(&Sound.Pan, pos, sizeof(random_float));
-				pos += sizeof(random_float);
-				memcpy(&Sound.Distance, pos, sizeof(float));
-				pos += sizeof(float);
-				memcpy(&Sound.Delay, pos, sizeof(random_int));
-				pos += sizeof(random_int);
+				return pos.MarkFailed();
+			}
+			pos.Skip(sizeof(int));
+
+			if (gpuParticleEnabled)
+			{
+				auto gpuParticlesParamSet = LoadGpuParticlesParameter(pos, ef->GetVersion(), m_effect->GetMaginification(), setting->GetCoordinateSystem());
+
+				if (pos.GetStatus() == BinaryReaderStatus::Failed)
+				{
+					return pos.MarkFailed();
+				}
+
+				if (auto factory = setting->GetGpuParticleFactory())
+				{
+					GpuParticlesResource = factory->CreateResource(gpuParticlesParamSet, m_effect);
+				}
 			}
 		}
+
+		AdjustSettings(setting);
 	}
 
-	// ノード
 	int nodeCount = 0;
-	memcpy(&nodeCount, pos, sizeof(int));
-	pos += sizeof(int);
+	if (!pos.Peek(&nodeCount, sizeof(int)))
+	{
+		return pos.MarkFailed();
+	}
+	pos.Skip(sizeof(int));
+	if (nodeCount < 0 || nodeCount > 1024 || !pos.CanReadElements(nodeCount, sizeof(int32_t) * 2))
+	{
+		isLoadingValid_ = false;
+		return pos.MarkFailed();
+	}
 	EffekseerPrintDebug("ChildrenCount : %d\n", nodeCount);
 	m_Nodes.resize(nodeCount);
 	for (size_t i = 0; i < m_Nodes.size(); i++)
 	{
 		m_Nodes[i] = EffectNodeImplemented::Create(m_effect, this, pos);
+		if (m_Nodes[i] == nullptr)
+		{
+			m_Nodes.resize(i);
+			isLoadingValid_ = false;
+			return pos.MarkFailed();
+		}
 	}
 }
 
@@ -788,11 +394,6 @@ EffectNodeImplemented::~EffectNodeImplemented()
 	{
 		ES_SAFE_DELETE(m_Nodes[i]);
 	}
-
-	ES_SAFE_DELETE(TranslationFCurve);
-	ES_SAFE_DELETE(RotationFCurve);
-	ES_SAFE_DELETE(ScalingFCurve);
-	ES_SAFE_DELETE(ScalingSingleFCurve);
 }
 
 void EffectNodeImplemented::CalcCustomData(const Instance* instance, std::array<float, 4>& customData1, std::array<float, 4>& customData2)
@@ -818,15 +419,89 @@ void EffectNodeImplemented::CalcCustomData(const Instance* instance, std::array<
 	}
 }
 
-bool EffectNodeImplemented::Traverse(const std::function<bool(EffectNodeImplemented*)>& visitor)
+void EffectNodeImplemented::ApplyRendererCommonUVHorizontalFlip(Instance& instance, IRandObject& rand) const
 {
-	if (!visitor(this)) return false;	// cancel
+	bool isFlipped = false;
 
-	for (EffectNodeImplemented* child : m_Nodes) {
-		if (!child->Traverse(visitor)) return false;
+	const int32_t probability = RendererCommon.UVHorizontalFlipProbability;
+	if (probability > 0)
+	{
+		const auto threshold = static_cast<float>(probability);
+		isFlipped = rand.GetRand() * 100.0f < threshold;
 	}
 
-	return true;	// continue
+	instance.SetUVFlippedH(isFlipped);
+}
+
+void EffectNodeImplemented::InitializeTrailUVAnimationCache(TrailUVAnimationCache& cache)
+{
+	for (int32_t i = 0; i < ParameterRendererCommon::UVParameterNum; i++)
+	{
+		cache.IsInfiniteUVInitialized[i] = false;
+	}
+
+	cache.InfiniteFlipbookIndexAndNextRate = 0.0f;
+	cache.IsInfiniteFlipbookIndexAndNextRateInitialized = false;
+}
+
+RectF EffectNodeImplemented::GetTrailUV(TrailUVAnimationCache& cache,
+										Instance* groupFirst,
+										const ParameterRendererCommon& rendererCommon,
+										int32_t index,
+										float livingTime,
+										float livedTime)
+{
+	if (IsInfiniteUVAnimation(rendererCommon.UVs[index]))
+	{
+		if (!cache.IsInfiniteUVInitialized[index])
+		{
+			const auto uv = groupFirst->GetUV(index, livingTime, livedTime);
+			cache.InfiniteUVs[index][0] = uv.X;
+			cache.InfiniteUVs[index][1] = uv.Y;
+			cache.InfiniteUVs[index][2] = uv.Width;
+			cache.InfiniteUVs[index][3] = uv.Height;
+			cache.IsInfiniteUVInitialized[index] = true;
+		}
+
+		return RectF(cache.InfiniteUVs[index][0],
+					 cache.InfiniteUVs[index][1],
+					 cache.InfiniteUVs[index][2],
+					 cache.InfiniteUVs[index][3]);
+	}
+
+	return groupFirst->GetUV(index, livingTime, livedTime);
+}
+
+float EffectNodeImplemented::GetTrailFlipbookIndexAndNextRate(TrailUVAnimationCache& cache,
+															  Instance* groupFirst,
+															  const ParameterRendererCommon& rendererCommon)
+{
+	if (IsInfiniteUVAnimation(rendererCommon.UVs[0]))
+	{
+		if (!cache.IsInfiniteFlipbookIndexAndNextRateInitialized)
+		{
+			cache.InfiniteFlipbookIndexAndNextRate = groupFirst->GetFlipbookIndexAndNextRate();
+			cache.IsInfiniteFlipbookIndexAndNextRateInitialized = true;
+		}
+
+		return cache.InfiniteFlipbookIndexAndNextRate;
+	}
+
+	return groupFirst->GetFlipbookIndexAndNextRate();
+}
+
+bool EffectNodeImplemented::Traverse(const std::function<bool(EffectNodeImplemented*)>& visitor)
+{
+	if (!visitor(this))
+		return false; // cancel
+
+	for (EffectNodeImplemented* child : m_Nodes)
+	{
+		if (!child->Traverse(visitor))
+			return false;
+	}
+
+	return true; // continue
 }
 
 //----------------------------------------------------------------------------------
@@ -860,40 +535,18 @@ EffectNode* EffectNodeImplemented::GetChild(int index) const
 	return m_Nodes[index];
 }
 
-EffectBasicRenderParameter EffectNodeImplemented::GetBasicRenderParameter()
+EffectBasicRenderParameter EffectNodeImplemented::GetBasicRenderParameter() const
 {
 	EffectBasicRenderParameter param;
 	param.MaterialIndex = RendererCommon.MaterialData.MaterialIndex;
 
-	param.ColorTextureIndex = RendererCommon.ColorTextureIndex;
-	param.AlphaTextureIndex = RendererCommon.AlphaTextureIndex;
-	param.AlphaTexWrapType = RendererCommon.WrapTypes[2];
+	param.TextureIndexes = RendererCommon.TextureIndexes;
+	param.TextureFilters = RendererCommon.TextureFilters;
+	param.TextureWraps = RendererCommon.TextureWraps;
 
-	param.UVDistortionIndex = RendererCommon.UVDistortionTextureIndex;
-	param.UVDistortionTexWrapType = RendererCommon.WrapTypes[3];
-
-	param.BlendTextureIndex = RendererCommon.BlendTextureIndex;
-	param.BlendTexWrapType = RendererCommon.WrapTypes[4];
-
-	param.BlendAlphaTextureIndex = RendererCommon.BlendAlphaTextureIndex;
-	param.BlendAlphaTexWrapType = RendererCommon.WrapTypes[5];
-
-	param.BlendUVDistortionTextureIndex = RendererCommon.BlendUVDistortionTextureIndex;
-	param.BlendUVDistortionTexWrapType = RendererCommon.WrapTypes[6];
-
-	if (RendererCommon.UVTypes[0] == ParameterRendererCommon::UV_ANIMATION && RendererCommon.UVs[0].Animation.InterpolationType != 0)
+	if (RendererCommon.UVs[0].Type == UVAnimationType::Animation && RendererCommon.UVs[0].Animation.InterpolationType != 0)
 	{
-		param.FlipbookParams.Enable = true;
-		param.FlipbookParams.LoopType = RendererCommon.UVs[0].Animation.LoopType;
-		param.FlipbookParams.DivideX = RendererCommon.UVs[0].Animation.FrameCountX;
-		param.FlipbookParams.DivideY = RendererCommon.UVs[0].Animation.FrameCountY;
-	}
-	else
-	{
-		param.FlipbookParams.Enable = false;
-		param.FlipbookParams.LoopType = 0;
-		param.FlipbookParams.DivideX = 0;
-		param.FlipbookParams.DivideY = 0;
+		param.FlipbookParams = UVFunctions::ToFlipbookParameter(RendererCommon.UVs[0]);
 	}
 
 	param.MaterialType = RendererCommon.MaterialType;
@@ -904,9 +557,9 @@ EffectBasicRenderParameter EffectNodeImplemented::GetBasicRenderParameter()
 
 	param.BlendUVDistortionIntensity = RendererCommon.BlendUVDistortionIntensity;
 
-	if (GetType() == eEffectNodeType::EFFECT_NODE_TYPE_MODEL)
+	if (GetType() == EffectNodeType::Model)
 	{
-		EffectNodeModel* pNodeModel = static_cast<EffectNodeModel*>(this);
+		auto pNodeModel = static_cast<const EffectNodeModel*>(this);
 		param.EnableFalloff = pNodeModel->EnableFalloff;
 		param.FalloffParam.ColorBlendType = static_cast<int32_t>(pNodeModel->FalloffParam.ColorBlendType);
 		param.FalloffParam.BeginColor[0] = static_cast<float>(pNodeModel->FalloffParam.BeginColor.R) / 255.0f;
@@ -938,8 +591,6 @@ EffectBasicRenderParameter EffectNodeImplemented::GetBasicRenderParameter()
 	param.AlphaBlend = RendererCommon.AlphaBlend;
 	param.Distortion = RendererCommon.Distortion;
 	param.DistortionIntensity = RendererCommon.DistortionIntensity;
-	param.FilterType = RendererCommon.FilterTypes[0];
-	param.WrapType = RendererCommon.WrapTypes[0];
 	param.ZTest = RendererCommon.ZTest;
 	param.ZWrite = RendererCommon.ZWrite;
 
@@ -952,23 +603,21 @@ EffectBasicRenderParameter EffectNodeImplemented::GetBasicRenderParameter()
 
 void EffectNodeImplemented::SetBasicRenderParameter(EffectBasicRenderParameter param)
 {
-	RendererCommon.ColorTextureIndex = param.ColorTextureIndex;
-	RendererCommon.AlphaTextureIndex = param.AlphaTextureIndex;
-	RendererCommon.WrapTypes[2] = param.AlphaTexWrapType;
+	RendererCommon.TextureIndexes = param.TextureIndexes;
+	RendererCommon.TextureFilters = param.TextureFilters;
+	RendererCommon.TextureWraps = param.TextureWraps;
 
-	RendererCommon.UVDistortionTextureIndex = param.UVDistortionIndex;
-	RendererCommon.WrapTypes[3] = param.UVDistortionTexWrapType;
-
-	RendererCommon.BlendTextureIndex = param.BlendTextureIndex;
-	RendererCommon.WrapTypes[4] = param.BlendTexWrapType;
-
-	if (param.FlipbookParams.Enable)
+	if (param.FlipbookParams.EnableInterpolation)
 	{
-		RendererCommon.UVTypes[0] = ParameterRendererCommon::UV_ANIMATION;
+		RendererCommon.UVs[0].Type = UVAnimationType::Animation;
 		RendererCommon.UVs[0].Animation.LoopType =
-			static_cast<decltype(RendererCommon.UVs[0].Animation.LoopType)>(param.FlipbookParams.LoopType);
-		RendererCommon.UVs[0].Animation.FrameCountX = param.FlipbookParams.DivideX;
-		RendererCommon.UVs[0].Animation.FrameCountY = param.FlipbookParams.DivideY;
+			static_cast<decltype(RendererCommon.UVs[0].Animation.LoopType)>(param.FlipbookParams.InterpolationType);
+		RendererCommon.UVs[0].Animation.FrameCountX = param.FlipbookParams.FlipbookDivideX;
+		RendererCommon.UVs[0].Animation.FrameCountY = param.FlipbookParams.FlipbookDivideY;
+		RendererCommon.UVs[0].Animation.Position.x = param.FlipbookParams.Offset[0];
+		RendererCommon.UVs[0].Animation.Position.y = param.FlipbookParams.Offset[1];
+		RendererCommon.UVs[0].Animation.Position.w = param.FlipbookParams.OneSize[0];
+		RendererCommon.UVs[0].Animation.Position.h = param.FlipbookParams.OneSize[1];
 	}
 
 	RendererCommon.UVDistortionIntensity = param.UVDistortionIntensity;
@@ -978,41 +627,37 @@ void EffectNodeImplemented::SetBasicRenderParameter(EffectBasicRenderParameter p
 	RendererCommon.AlphaBlend = param.AlphaBlend;
 	RendererCommon.Distortion = param.Distortion;
 	RendererCommon.DistortionIntensity = param.DistortionIntensity;
-	RendererCommon.FilterTypes[0] = param.FilterType;
-	RendererCommon.WrapTypes[0] = param.WrapType;
 	RendererCommon.ZTest = param.ZTest;
 	RendererCommon.ZWrite = param.ZWrite;
 }
 
 EffectModelParameter EffectNodeImplemented::GetEffectModelParameter()
 {
-	EffectModelParameter param;
-	param.Lighting = false;
-
-	if (GetType() == EFFECT_NODE_TYPE_MODEL)
-	{
-		param.Lighting = RendererCommon.MaterialType == RendererMaterialType::Lighting;
-	}
-
-	return param;
+	return {};
 }
 
 //----------------------------------------------------------------------------------
 //
 //----------------------------------------------------------------------------------
-void EffectNodeImplemented::LoadRendererParameter(unsigned char*& pos, const SettingRef& setting)
+void EffectNodeImplemented::LoadRendererParameter(BinaryReader<true>& pos, const SettingRef& setting)
 {
-	int32_t type = 0;
-	memcpy(&type, pos, sizeof(int));
-	pos += sizeof(int);
-	assert(type == GetType());
+	EffectNodeType type = EffectNodeType::NoneType;
+	if (!pos.Peek(&type, sizeof(int)))
+	{
+		return pos.MarkFailed();
+	}
+	pos.Skip(sizeof(int));
+	if (type != GetType())
+	{
+		return pos.MarkFailed();
+	}
 	EffekseerPrintDebug("Renderer : None\n");
 }
 
 //----------------------------------------------------------------------------------
 //
 //----------------------------------------------------------------------------------
-void EffectNodeImplemented::BeginRendering(int32_t count, Manager* manager, void* userData)
+void EffectNodeImplemented::BeginRendering(int32_t count, Manager* manager, const InstanceGlobal* global, void* userData)
 {
 }
 
@@ -1027,10 +672,7 @@ void EffectNodeImplemented::EndRenderingGroup(InstanceGroup* group, Manager* man
 {
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
-void EffectNodeImplemented::Rendering(const Instance& instance, const Instance* next_instance, Manager* manager, void* userData)
+void EffectNodeImplemented::Rendering(const Instance& instance, const Instance* next_instance, int index, Manager* manager, void* userData)
 {
 }
 
@@ -1062,32 +704,44 @@ void EffectNodeImplemented::UpdateRenderedInstance(Instance& instance, InstanceG
 {
 }
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
-float EffectNodeImplemented::GetFadeAlpha(const Instance& instance)
+float EffectNodeImplemented::GetFadeAlpha(const Instance& instance) const
 {
 	float alpha = 1.0f;
+	float eps = 0.0001f;
 
-	if (RendererCommon.FadeInType == ParameterRendererCommon::FADEIN_ON && instance.m_LivingTime < RendererCommon.FadeIn.Frame)
+	if (RendererCommon.FadeInType == ParameterRendererCommon::FADEIN_ON && instance.livingTime_ < RendererCommon.FadeIn.Frame)
 	{
+		const auto fadeIn = Max(eps, static_cast<float>(RendererCommon.FadeIn.Frame));
 		float v = 1.0f;
-		RendererCommon.FadeIn.Value.setValueToArg(v, 0.0f, 1.0f, (float)instance.m_LivingTime / (float)RendererCommon.FadeIn.Frame);
-
+		RendererCommon.FadeIn.Value.setValueToArg(v, 0.0f, 1.0f, instance.livingTime_ / fadeIn);
 		alpha *= v;
 	}
 
-	if (RendererCommon.FadeOutType == ParameterRendererCommon::FADEOUT_ON &&
-		instance.m_LivingTime + RendererCommon.FadeOut.Frame > instance.m_LivedTime)
+	if (RendererCommon.FadeOutType == ParameterRendererCommon::FADEOUT_WITHIN_LIFETIME)
 	{
-		float v = 1.0f;
-		RendererCommon.FadeOut.Value.setValueToArg(v,
-												   1.0f,
-												   0.0f,
-												   (float)(instance.m_LivingTime + RendererCommon.FadeOut.Frame - instance.m_LivedTime) /
-													   (float)RendererCommon.FadeOut.Frame);
-
-		alpha *= v;
+		if (instance.livingTime_ + RendererCommon.FadeOut.Frame > instance.livedTime_)
+		{
+			const auto fadeOut = Max(eps, static_cast<float>(RendererCommon.FadeOut.Frame));
+			float v = 1.0f;
+			RendererCommon.FadeOut.Value.setValueToArg(v,
+													   1.0f,
+													   0.0f,
+													   (instance.livingTime_ + fadeOut - instance.livedTime_) / fadeOut);
+			alpha *= v;
+		}
+	}
+	else if (RendererCommon.FadeOutType == ParameterRendererCommon::FADEOUT_AFTER_REMOVED)
+	{
+		if (instance.IsActive())
+		{
+			const auto fadeOut = Max(eps, static_cast<float>(RendererCommon.FadeOut.Frame));
+			float v = 1.0f;
+			RendererCommon.FadeOut.Value.setValueToArg(v,
+													   1.0f,
+													   0.0f,
+													   instance.removingTime_ / fadeOut);
+			alpha *= v;
+		}
 	}
 
 	return Clamp(alpha, 1.0f, 0.0f);
@@ -1097,15 +751,19 @@ EffectInstanceTerm EffectNodeImplemented::CalculateInstanceTerm(EffectInstanceTe
 {
 	EffectInstanceTerm ret;
 
-	auto addWithClip = [](int v1, int v2) -> int {
+	const int int_max = std::numeric_limits<int>::max();
+	const int half_int_max = int_max / 2;
+
+	auto addWithClip = [half_int_max, int_max](int v1, int v2) -> int
+	{
 		v1 = Max(v1, 0);
 		v2 = Max(v2, 0);
 
-		if (v1 >= INT_MAX / 2)
-			return INT_MAX;
+		if (v1 >= half_int_max)
+			return int_max;
 
-		if (v2 >= INT_MAX / 2)
-			return INT_MAX;
+		if (v2 >= half_int_max)
+			return int_max;
 
 		return v1 + v2;
 	};
@@ -1113,35 +771,41 @@ EffectInstanceTerm EffectNodeImplemented::CalculateInstanceTerm(EffectInstanceTe
 	int lifeMin = CommonValues.life.min;
 	int lifeMax = CommonValues.life.max;
 
-	if (CommonValues.RemoveWhenLifeIsExtinct <= 0)
+	if (!HasRemovalTiming(CommonValues.Removal.Flags, RemovalTiming::WhenLifeIsExtinct))
 	{
-		lifeMin = INT_MAX;
-		lifeMax = INT_MAX;
+		lifeMin = int_max;
+		lifeMax = int_max;
 	}
 
-	auto firstBeginMin = static_cast<int32_t>(CommonValues.GenerationTimeOffset.min);
-	auto firstBeginMax = static_cast<int32_t>(CommonValues.GenerationTimeOffset.max);
+	auto firstBeginMin = static_cast<int32_t>(CommonValues.Generation.Offset.min);
+	auto firstBeginMax = static_cast<int32_t>(CommonValues.Generation.Offset.max);
 	auto firstEndMin = addWithClip(firstBeginMin, lifeMin);
 	auto firstEndMax = addWithClip(firstBeginMax, lifeMax);
 
 	auto lastBeginMin = 0;
 	auto lastBeginMax = 0;
-	if (CommonValues.MaxGeneration > INT_MAX / 2)
+	if (CommonValues.MaxGeneration > half_int_max)
 	{
-		lastBeginMin = INT_MAX / 2;
+		lastBeginMin = half_int_max;
 	}
 	else
 	{
-		lastBeginMin = firstBeginMin + static_cast<int32_t>((CommonValues.MaxGeneration - 1) * CommonValues.GenerationTime.min);
+		lastBeginMin = firstBeginMin + static_cast<int32_t>((CommonValues.MaxGeneration - 1) * CommonValues.Generation.Interval.min);
 	}
 
-	if (CommonValues.MaxGeneration > INT_MAX / 2)
+	if (CommonValues.MaxGeneration > half_int_max)
 	{
-		lastBeginMax = INT_MAX / 2;
+		lastBeginMax = half_int_max;
 	}
 	else
 	{
-		lastBeginMax = firstBeginMax + static_cast<int32_t>((CommonValues.MaxGeneration - 1) * CommonValues.GenerationTime.max);
+		lastBeginMax = firstBeginMax + static_cast<int32_t>((CommonValues.MaxGeneration - 1) * CommonValues.Generation.Interval.max);
+	}
+
+	if (CommonValues.Generation.Type == GenerationTiming::Trigger)
+	{
+		lastBeginMin = half_int_max;
+		lastBeginMax = half_int_max;
 	}
 
 	auto lastEndMin = addWithClip(lastBeginMin, lifeMin);
@@ -1152,7 +816,7 @@ EffectInstanceTerm EffectNodeImplemented::CalculateInstanceTerm(EffectInstanceTe
 	auto parentLastTermMin = parentTerm.LastInstanceEndMin - parentTerm.LastInstanceStartMin;
 	auto parentLastTermMax = parentTerm.LastInstanceEndMax - parentTerm.LastInstanceStartMax;
 
-	if (CommonValues.RemoveWhenParentIsRemoved > 0)
+	if (HasRemovalTiming(CommonValues.Removal.Flags, RemovalTiming::WhenParentIsRemoved))
 	{
 		if (firstEndMin - firstBeginMin > parentFirstTermMin)
 			firstEndMin = firstBeginMin + parentFirstTermMin;
@@ -1160,7 +824,7 @@ EffectInstanceTerm EffectNodeImplemented::CalculateInstanceTerm(EffectInstanceTe
 		if (firstEndMax - firstBeginMax > parentFirstTermMax)
 			firstEndMax = firstBeginMax + parentFirstTermMax;
 
-		if (lastEndMin > INT_MAX / 2)
+		if (lastEndMin > half_int_max)
 		{
 			lastBeginMin = parentLastTermMin;
 			lastEndMin = parentLastTermMin;
@@ -1170,7 +834,7 @@ EffectInstanceTerm EffectNodeImplemented::CalculateInstanceTerm(EffectInstanceTe
 			lastEndMin = lastBeginMin + parentLastTermMin;
 		}
 
-		if (lastEndMax > INT_MAX / 2)
+		if (lastEndMax > half_int_max)
 		{
 			lastBeginMax = parentLastTermMax;
 			lastEndMax = parentLastTermMax;
@@ -1192,7 +856,7 @@ EffectInstanceTerm EffectNodeImplemented::CalculateInstanceTerm(EffectInstanceTe
 	ret.LastInstanceEndMax = addWithClip(parentTerm.LastInstanceStartMax, lastEndMax);
 
 	// check children
-	if (CommonValues.RemoveWhenChildrenIsExtinct > 0)
+	if (HasRemovalTiming(CommonValues.Removal.Flags, RemovalTiming::WhenChildrenIsExtinct))
 	{
 		int childFirstEndMin = 0;
 		int childFirstEndMax = 0;
@@ -1218,54 +882,71 @@ EffectInstanceTerm EffectNodeImplemented::CalculateInstanceTerm(EffectInstanceTe
 	return ret;
 }
 
-EffectNodeImplemented* EffectNodeImplemented::Create(Effect* effect, EffectNode* parent, unsigned char*& pos)
+EffectNodeImplemented* EffectNodeImplemented::Create(Effect* effect, EffectNode* parent, BinaryReader<true>& pos)
 {
+	// Keep malformed recursive trees from exhausting the stack.
+	if (parent != nullptr && parent->GetGeneration() >= 255)
+	{
+		pos.MarkFailed();
+		return nullptr;
+	}
+
 	EffectNodeImplemented* effectnode = nullptr;
 
-	int node_type = 0;
-	memcpy(&node_type, pos, sizeof(int));
+	EffectNodeType node_type = EffectNodeType::NoneType;
+	if (!pos.Peek(&node_type, sizeof(int)))
+	{
+		return nullptr;
+	}
 
-	if (node_type == EFFECT_NODE_TYPE_ROOT)
+	if (node_type == EffectNodeType::Root)
 	{
 		EffekseerPrintDebug("* Create : EffectNodeRoot\n");
 		effectnode = new EffectNodeRoot(effect, pos);
 	}
-	else if (node_type == EFFECT_NODE_TYPE_NONE)
+	else if (node_type == EffectNodeType::NoneType)
 	{
 		EffekseerPrintDebug("* Create : EffectNodeNone\n");
 		effectnode = new EffectNodeImplemented(effect, pos);
 	}
-	else if (node_type == EFFECT_NODE_TYPE_SPRITE)
+	else if (node_type == EffectNodeType::Sprite)
 	{
 		EffekseerPrintDebug("* Create : EffectNodeSprite\n");
 		effectnode = new EffectNodeSprite(effect, pos);
 	}
-	else if (node_type == EFFECT_NODE_TYPE_RIBBON)
+	else if (node_type == EffectNodeType::Ribbon)
 	{
 		EffekseerPrintDebug("* Create : EffectNodeRibbon\n");
 		effectnode = new EffectNodeRibbon(effect, pos);
 	}
-	else if (node_type == EFFECT_NODE_TYPE_RING)
+	else if (node_type == EffectNodeType::Ring)
 	{
 		EffekseerPrintDebug("* Create : EffectNodeRing\n");
 		effectnode = new EffectNodeRing(effect, pos);
 	}
-	else if (node_type == EFFECT_NODE_TYPE_MODEL)
+	else if (node_type == EffectNodeType::Model)
 	{
 		EffekseerPrintDebug("* Create : EffectNodeModel\n");
 		effectnode = new EffectNodeModel(effect, pos);
 	}
-	else if (node_type == EFFECT_NODE_TYPE_TRACK)
+	else if (node_type == EffectNodeType::Track)
 	{
 		EffekseerPrintDebug("* Create : EffectNodeTrack\n");
 		effectnode = new EffectNodeTrack(effect, pos);
 	}
 	else
 	{
-		assert(0);
+		return nullptr;
 	}
 
+	if (effectnode == nullptr)
+		return nullptr;
 	effectnode->LoadParameter(pos, parent, effect->GetSetting());
+	if (!effectnode->isLoadingValid_ || pos.GetStatus() == BinaryReaderStatus::Failed)
+	{
+		delete effectnode;
+		return nullptr;
+	}
 
 	return effectnode;
 }

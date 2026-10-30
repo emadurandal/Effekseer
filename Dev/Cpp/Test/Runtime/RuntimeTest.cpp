@@ -1,153 +1,40 @@
 #ifdef _WIN32
 
 #ifdef __EFFEKSEER_BUILD_DX12__
-#include "EffectPlatformDX12.h"
+#include <Runtime/EffectPlatformDX12.h>
 #endif
 
-#include "EffectPlatformDX11.h"
-#include "EffectPlatformDX9.h"
-#include "EffectPlatformGL.h"
+#include <Runtime/EffectPlatformDX11.h>
+#include <Runtime/EffectPlatformDX9.h>
 #elif defined(__APPLE__)
-#include "EffectPlatformGL.h"
-#include "EffectPlatformMetal.h"
+#include <Runtime/EffectPlatformMetal.h>
 #else
-#include "EffectPlatformGL.h"
 #endif
+
+#include <Runtime/EffectPlatformGL.h>
 
 #ifdef __EFFEKSEER_BUILD_VULKAN__
-#include "EffectPlatformVulkan.h"
+#include <Runtime/EffectPlatformVulkan.h>
+#endif
+
+#ifdef __EFFEKSEER_BUILD_WEBGPU__
+#include <Runtime/EffectPlatformWebGPU.h>
 #endif
 
 #include "../Effekseer/Effekseer/Effekseer.Base.h"
-#include "../Effekseer/Effekseer/Noise/CurlNoise.h"
+#include "../Effekseer/Effekseer/Noise/Effekseer.CurlNoise.h"
 #include "../TestHelper.h"
 #include <iostream>
-
-void BasicRuntimeTestPlatform(EffectPlatform* platform, std::string baseResultPath, std::string suffix)
-{
-	EffectPlatformInitializingParameter param;
-	platform->Initialize(param);
-
-	auto single10Test = [&](const char16_t* name, const char* savename) -> void {
-		srand(0);
-		platform->Play((GetDirectoryPathAsU16(__FILE__) + u"../../../../TestData/Effects/10/" + name + u".efk").c_str());
-
-		for (size_t i = 0; i < 30; i++)
-		{
-			platform->Update();
-		}
-		platform->TakeScreenshot((std::string(baseResultPath) + savename + suffix + ".png").c_str());
-		platform->StopAllEffects();
-	};
-
-	auto single14Test = [&](const char16_t* name, const char* savename) -> void {
-		srand(0);
-		platform->Play((GetDirectoryPathAsU16(__FILE__) + u"../../../../TestData/Effects/14/" + name + u".efk").c_str());
-
-		for (size_t i = 0; i < 30; i++)
-		{
-			platform->Update();
-		}
-		platform->TakeScreenshot((std::string(baseResultPath) + savename + suffix + ".png").c_str());
-		platform->StopAllEffects();
-	};
-
-	auto single15Test = [&](const char16_t* name, const char* savename) -> void {
-		srand(0);
-		platform->Play((GetDirectoryPathAsU16(__FILE__) + u"../../../../TestData/Effects/15/" + name + u".efkefc").c_str());
-
-		for (size_t i = 0; i < 30; i++)
-		{
-			platform->Update();
-		}
-		platform->TakeScreenshot((std::string(baseResultPath) + savename + suffix + ".png").c_str());
-		platform->StopAllEffects();
-	};
-
-	auto single16Test = [&](const char16_t* name, const char* savename) -> void {
-		srand(0);
-		platform->Play((GetDirectoryPathAsU16(__FILE__) + u"../../../../TestData/Effects/16/" + name + u".efkefc").c_str());
-
-		for (size_t i = 0; i < 30; i++)
-		{
-			platform->Update();
-		}
-		platform->TakeScreenshot((std::string(baseResultPath) + savename + suffix + ".png").c_str());
-		platform->StopAllEffects();
-	};
-
-	single10Test(u"SimpleLaser", "SimpleLaser");
-	single10Test(u"FCurve_Parameters1", "FCurve_Parameters1");
-	single10Test(u"Ribbon_Parameters1", "Ribbon_Parameters1");
-	single10Test(u"Ring_Parameters1", "Ring_Parameters1");
-	single10Test(u"Track_Parameters1", "Track_Parameters1");
-	single10Test(u"Sprite_Parameters1", "Sprite_Parameters1");
-	single10Test(u"Distortions1", "Distortions1");
-
-	single14Test(u"Model_Parameters1", "Model_Parameters1");
-	single15Test(u"Lighing_Parameters1", "Lighing_Parameters1");
-	single15Test(u"DynamicParameter1", "DynamicParameter1");
-	single15Test(u"Material_Sampler1", "Material_Sampler1");
-	single15Test(u"Material_Refraction", "Material_Refraction");
-	single15Test(u"Material_WorldPositionOffset", "Material_WorldPositionOffset");
-	single15Test(u"BasicRenderSettings_Blend", "BasicRenderSettings_Blend");
-	single15Test(u"BasicRenderSettings_Inherit_Color", "BasicRenderSettings_Inherit_Color");
-	single15Test(u"ForceFieldLocal_Turbulence1", "ForceFieldLocal_Turbulence1");
-	single15Test(u"ForceFieldLocal_Old", "ForceFieldLocal_Old");
-	single15Test(u"Material_FresnelRotatorPolarCoords", "Material_FresnelRotatorPolarCoords");
-
-	single15Test(u"Update_Easing", "Update_Easing");
-	single15Test(u"Update_MultiModel", "Update_MultiModel");
-
-	single15Test(u"Material_UV1", "Material_UV1");
-	single15Test(u"Material_UV2", "Material_UV2");
-
-	{
-		single16Test(u"AlphaBlendTexture01", "AlphaBlendTexture01");
-		single16Test(u"AlphaCutoffEdgeColor01", "AlphaCutoffEdgeColor01");
-		single16Test(u"BasicRenderSettings_Emissive", "BasicRenderSettings_Emissive");
-		single16Test(u"Curve01", "Curve01");
-		single16Test(u"EdgeFallOff01", "EdgeFallOff01");
-		single16Test(u"Flip01", "Flip01");
-		single16Test(u"ForceFieldLocal02", "ForceFieldLocal02");
-		single16Test(u"Material_EffectScale", "Material_EffectScale");
-		single16Test(u"TGA01", "TGA01");
-		single16Test(u"ProcedualModel01", "ProcedualModel01");
-		single16Test(u"ProcedualModel02", "ProcedualModel02");
-		single16Test(u"ProcedualModel03", "ProcedualModel03");
-	}
-
-	{
-		auto cameraMat = platform->GetRenderer()->GetCameraMatrix();
-
-		Effekseer::Matrix44 mat;
-		mat.LookAtRH({0, 0, 10}, {0, 0, 0}, {0, 1, 0});
-		platform->GetRenderer()->SetCameraMatrix(mat);
-		platform->GenerateDepth();
-
-		single16Test(u"SoftParticle01", "SoftParticle01_NotFlipped");
-
-		platform->GetRenderer()->SetCameraMatrix(cameraMat);
-	}
-
-	{
-		auto cameraMat = platform->GetRenderer()->GetCameraMatrix();
-
-		Effekseer::Matrix44 mat;
-		mat.LookAtRH({0, 0, 10}, {0, 0, 0}, {0, 1, 0});
-		platform->GetRenderer()->SetCameraMatrix(mat);
-		platform->GetRenderer()->SetBackgroundTextureUVStyle(EffekseerRenderer::UVStyle::VerticalFlipped);
-		platform->GenerateDepth();
-
-		single16Test(u"SoftParticle01", "SoftParticle01_Flipped");
-
-		platform->GetRenderer()->SetCameraMatrix(cameraMat);
-	}
-}
 
 void BasicRuntimeDeviceLostTest()
 {
 #ifdef _WIN32
+	auto logStage = [](const std::string& stage)
+	{
+		std::cout << "[DeviceLost] " << stage << std::endl;
+	};
+
+	logStage("create DX9 platform");
 	auto platform = std::make_shared<EffectPlatformDX9>();
 
 	srand(0);
@@ -155,35 +42,47 @@ void BasicRuntimeDeviceLostTest()
 	EffectPlatformInitializingParameter param;
 	// To make fullscreen enabled
 	param.WindowSize = {640, 480};
+	logStage("initialize DX9 platform");
 	platform->Initialize(param);
 
+	logStage("play SimpleLaser.efk");
 	platform->Play((GetDirectoryPathAsU16(__FILE__) + u"../../../../TestData/Effects/10/SimpleLaser.efk").c_str());
+	logStage("play Model_Parameters1.efk");
 	platform->Play((GetDirectoryPathAsU16(__FILE__) + u"../../../../TestData/Effects/14/Model_Parameters1.efk").c_str());
+	logStage("play ProcedualModel01.efkefc");
 	platform->Play((GetDirectoryPathAsU16(__FILE__) + u"../../../../TestData/Effects/16/ProcedualModel01.efkefc").c_str());
 
-	for (size_t i = 0; i < 20; i++)
+	auto updateFrames = [&](const char* phase)
 	{
-		platform->Update();
-	}
+		logStage(std::string("update phase=") + phase + " begin");
+		for (size_t i = 0; i < 20; i++)
+		{
+			platform->Update();
+		}
+		logStage(std::string("update phase=") + phase + " complete");
+	};
+
+	updateFrames("windowed-before-reset");
+	logStage("take screenshot 0_Lost1.png");
 	platform->TakeScreenshot("0_Lost1.png");
 
+	logStage("set fullscreen=true");
 	platform->SetFullscreen(true);
 
-	for (size_t i = 0; i < 20; i++)
-	{
-		platform->Update();
-	}
+	updateFrames("fullscreen-after-reset");
+	logStage("take screenshot 0_Lost2.png");
 	platform->TakeScreenshot("0_Lost2.png");
 
+	logStage("set fullscreen=false");
 	platform->SetFullscreen(false);
 
-	for (size_t i = 0; i < 20; i++)
-	{
-		platform->Update();
-	}
+	updateFrames("windowed-after-reset");
+	logStage("take screenshot 0_Lost3.png");
 	platform->TakeScreenshot("0_Lost3.png");
 
+	logStage("terminate DX9 platform");
 	platform->Terminate();
+	logStage("completed");
 #endif
 }
 
@@ -520,7 +419,7 @@ void ReloadTest()
 
 		platform->GetEffects()[0]->Reload(&manager, 1, effectData.data(), static_cast<int32_t>(effectData.size()));
 
-		//platform->Update();
+		// platform->Update();
 
 		platform->Draw();
 
@@ -588,76 +487,6 @@ void UpdateToMoveTest()
 	}
 }
 
-void BasicRuntimeTest()
-{
-
-#ifdef _WIN32
-	{
-		auto platform = std::make_shared<EffectPlatformDX11>();
-		BasicRuntimeTestPlatform(platform.get(), "", "_DX11");
-		platform->Terminate();
-	}
-#endif
-
-#if !defined(__FROM_CI__)
-#ifdef __EFFEKSEER_BUILD_VULKAN__
-	{
-		auto platform = std::make_shared<EffectPlatformVulkan>();
-		BasicRuntimeTestPlatform(platform.get(), "", "_Vulkan");
-		platform->Terminate();
-	}
-#endif
-
-#ifdef _WIN32
-	{
-
-#ifdef __EFFEKSEER_BUILD_DX12__
-		{
-			auto platform = std::make_shared<EffectPlatformDX12>();
-			BasicRuntimeTestPlatform(platform.get(), "", "_DX12");
-			platform->Terminate();
-		}
-#endif
-
-		{
-			auto platform = std::make_shared<EffectPlatformDX9>();
-			BasicRuntimeTestPlatform(platform.get(), "", "_DX9");
-			platform->Terminate();
-		}
-
-		{
-			auto platform = std::make_shared<EffectPlatformGL>();
-			BasicRuntimeTestPlatform(platform.get(), "", "_GL");
-			platform->Terminate();
-		}
-	}
-
-#elif defined(__APPLE__)
-
-	{
-		auto platform = std::make_shared<EffectPlatformMetal>();
-		BasicRuntimeTestPlatform(platform.get(), "", "_Metal");
-		platform->Terminate();
-	}
-
-	{
-		auto platform = std::make_shared<EffectPlatformGL>();
-		BasicRuntimeTestPlatform(platform.get(), "", "_GL");
-		platform->Terminate();
-	}
-
-#else
-#ifndef __EFFEKSEER_BUILD_VERSION16__
-	{
-		auto platform = std::make_shared<EffectPlatformGL>();
-		BasicRuntimeTestPlatform(platform.get(), "", "_GL");
-		platform->Terminate();
-	}
-#endif
-#endif
-#endif
-}
-
 void InstanceDisposeTestPlatform(EffectPlatform* platform)
 {
 	EffectPlatformInitializingParameter param;
@@ -685,6 +514,14 @@ void InstanceDisposeTest()
 #ifdef __EFFEKSEER_BUILD_VULKAN__
 	{
 		auto platform = std::make_shared<EffectPlatformVulkan>();
+		InstanceDisposeTestPlatform(platform.get());
+		platform->Terminate();
+	}
+#endif
+
+#ifdef __EFFEKSEER_BUILD_WEBGPU__
+	{
+		auto platform = std::make_shared<EffectPlatformWebGPU>();
 		InstanceDisposeTestPlatform(platform.get());
 		platform->Terminate();
 	}
@@ -732,34 +569,6 @@ void CustomAllocatorTest()
 
 	Effekseer::CustomMap<int, int> m;
 	m[1] = 10;
-}
-
-void StringAndPathHelperTest()
-{
-
-	if (Effekseer::StringHelper::To<char16_t>("hoge") != std::u16string(u"hoge"))
-		throw "";
-
-	if (Effekseer::StringHelper::To<char32_t>("hoge") != std::u32string(U"hoge"))
-		throw "";
-
-	if (Effekseer::PathHelper::Normalize(std::u16string(u"/a/../b/c")) != std::u16string(u"/b/c"))
-		throw "";
-
-	if (Effekseer::PathHelper::Normalize(std::u16string(u"a/../b/c")) != std::u16string(u"b/c"))
-		throw "";
-
-	if (Effekseer::PathHelper::Normalize(std::u16string(u"../b/c")) != std::u16string(u"../b/c"))
-		throw "";
-
-	if (Effekseer::PathHelper::Absolute(std::u16string(u"d/c"), std::u16string(u"/a/b/c")) != std::u16string(u"/a/b/d/c"))
-		throw "";
-
-	if (Effekseer::PathHelper::Absolute(std::u16string(u"../d/c"), std::u16string(u"/a/b/c")) != std::u16string(u"/a/d/c"))
-		throw "";
-
-	if (Effekseer::PathHelper::Relative(std::u16string(u"/a/b/e"), std::u16string(u"/a/b/c")) != std::u16string(u"e"))
-		throw "";
 }
 
 void DX11DefferedContextTest()
@@ -878,6 +687,13 @@ void RenderLimitTest()
 	}
 #endif
 
+#ifdef __EFFEKSEER_BUILD_WEBGPU__
+	{
+		auto platform = std::make_shared<EffectPlatformWebGPU>();
+		test(platform.get());
+	}
+#endif
+
 #ifdef _WIN32
 	{
 
@@ -922,38 +738,260 @@ void RenderLimitTest()
 #endif
 }
 
+void SRGBLinearTestPlatform(EffectPlatform* platform, std::string baseResultPath, std::string suffix)
+{
+	EffectPlatformInitializingParameter param;
+	platform->Initialize(param);
+	platform->GetRenderer()->SetMaintainGammaColorInLinearColorSpace(true);
+
+	auto single10Test = [&](const char16_t* name, const char* savename) -> void
+	{
+		srand(0);
+		platform->Play((GetDirectoryPathAsU16(__FILE__) + u"../../../../TestData/Effects/10/" + name + u".efk").c_str());
+
+		for (size_t i = 0; i < 30; i++)
+		{
+			platform->Update();
+		}
+		platform->TakeScreenshot((std::string(baseResultPath) + savename + suffix + ".png").c_str());
+		platform->StopAllEffects();
+	};
+
+	auto single14Test = [&](const char16_t* name, const char* savename) -> void
+	{
+		srand(0);
+		platform->Play((GetDirectoryPathAsU16(__FILE__) + u"../../../../TestData/Effects/14/" + name + u".efk").c_str());
+
+		for (size_t i = 0; i < 30; i++)
+		{
+			platform->Update();
+		}
+		platform->TakeScreenshot((std::string(baseResultPath) + savename + suffix + ".png").c_str());
+		platform->StopAllEffects();
+	};
+
+	auto single15Test = [&](const char16_t* name, const char* savename) -> void
+	{
+		srand(0);
+		platform->Play((GetDirectoryPathAsU16(__FILE__) + u"../../../../TestData/Effects/15/" + name + u".efkefc").c_str());
+
+		for (size_t i = 0; i < 30; i++)
+		{
+			platform->Update();
+		}
+		platform->TakeScreenshot((std::string(baseResultPath) + savename + suffix + ".png").c_str());
+		platform->StopAllEffects();
+	};
+
+	auto single16Test = [&](const char16_t* name, const char* savename) -> void
+	{
+		srand(0);
+		platform->Play((GetDirectoryPathAsU16(__FILE__) + u"../../../../TestData/Effects/16/" + name + u".efkefc").c_str());
+
+		for (size_t i = 0; i < 30; i++)
+		{
+			platform->Update();
+		}
+		platform->TakeScreenshot((std::string(baseResultPath) + savename + suffix + ".png").c_str());
+		platform->StopAllEffects();
+	};
+
+	single10Test(u"SimpleLaser", "SL_SimpleLaser");
+	single10Test(u"Sprite_Parameters1", "SL_Sprite_Parameters1");
+	single10Test(u"Distortions1", "SL_Distortions1");
+
+	single14Test(u"Model_Parameters1", "SL_Model_Parameters1");
+	single15Test(u"Lighing_Parameters1", "SL_Lighing_Parameters1");
+	single15Test(u"Material_Sampler1", "SL_Material_Sampler1");
+	single15Test(u"Material_Refraction", "SL_Material_Refraction");
+	single15Test(u"Material_WorldPositionOffset", "SL_Material_WorldPositionOffset");
+
+	single15Test(u"Material_UV1", "SL_Material_UV1");
+
+	{
+		single16Test(u"AlphaBlendTexture01", "SL_AlphaBlendTexture01");
+		single16Test(u"AlphaCutoffEdgeColor01", "SL_AlphaCutoffEdgeColor01");
+	}
+}
+
+void SRGBLinearTest()
+{
+
+#ifdef _WIN32
+	{
+		auto platform = std::make_shared<EffectPlatformDX11>();
+		SRGBLinearTestPlatform(platform.get(), "", "_DX11");
+		platform->Terminate();
+	}
+#endif
+
+#if !defined(__FROM_CI__)
+#ifdef __EFFEKSEER_BUILD_VULKAN__
+	{
+		auto platform = std::make_shared<EffectPlatformVulkan>();
+		SRGBLinearTestPlatform(platform.get(), "", "_Vulkan");
+		platform->Terminate();
+	}
+#endif
+
+#ifdef __EFFEKSEER_BUILD_WEBGPU__
+	{
+		auto platform = std::make_shared<EffectPlatformWebGPU>();
+		SRGBLinearTestPlatform(platform.get(), "", "_WebGPU");
+		platform->Terminate();
+	}
+#endif
+
+#ifdef _WIN32
+	{
+
+#ifdef __EFFEKSEER_BUILD_DX12__
+		{
+			auto platform = std::make_shared<EffectPlatformDX12>();
+			SRGBLinearTestPlatform(platform.get(), "", "_DX12");
+			platform->Terminate();
+		}
+#endif
+
+		{
+			auto platform = std::make_shared<EffectPlatformDX9>();
+			SRGBLinearTestPlatform(platform.get(), "", "_DX9");
+			platform->Terminate();
+		}
+
+		{
+			auto platform = std::make_shared<EffectPlatformGL>();
+			SRGBLinearTestPlatform(platform.get(), "", "_GL");
+			platform->Terminate();
+		}
+	}
+
+#elif defined(__APPLE__)
+
+	{
+		auto platform = std::make_shared<EffectPlatformMetal>();
+		SRGBLinearTestPlatform(platform.get(), "", "_Metal");
+		platform->Terminate();
+	}
+
+	{
+		auto platform = std::make_shared<EffectPlatformGL>();
+		SRGBLinearTestPlatform(platform.get(), "", "_GL");
+		platform->Terminate();
+	}
+
+#else
+#ifndef __EFFEKSEER_BUILD_VERSION16__
+	{
+		auto platform = std::make_shared<EffectPlatformGL>();
+		SRGBLinearTestPlatform(platform.get(), "", "_GL");
+		platform->Terminate();
+	}
+#endif
+#endif
+#endif
+}
+
+void LODsTest()
+{
+	{
+		srand(0);
+#ifdef _WIN32
+		auto platform = std::make_shared<EffectPlatformDX11>();
+#else
+		auto platform = std::make_shared<EffectPlatformGL>();
+#endif
+		EffectPlatformInitializingParameter param;
+
+		platform->Initialize(param);
+
+		auto h = platform->Play((GetDirectoryPathAsU16(__FILE__) + u"../../../../TestData/Effects/LODs/SimpleLODs.efkefc").c_str());
+
+		auto setDistanceToEffect = [platform, h](double distance)
+		{
+			auto cameraFrontDirection = platform->GetRenderer()->GetCameraFrontDirection();
+			auto cameraPosition = platform->GetRenderer()->GetCameraPosition();
+			platform->GetManager()->SetLocation(h, cameraPosition - cameraFrontDirection * distance);
+		};
+
+		platform->Update();
+
+		setDistanceToEffect(1.0); // Level 0 starts from distance 0
+		platform->Update();
+		platform->Update();
+		platform->TakeScreenshot("LOD_Level_0.png");
+		assert(platform->GetManager()->GetCurrentLOD(h) == 0b0001);
+
+		setDistanceToEffect(6.0); // Level 1 starts from distance 4
+		platform->Update();
+		platform->Update();
+		platform->TakeScreenshot("LOD_Level_1.png");
+		assert(platform->GetManager()->GetCurrentLOD(h) == 0b0010);
+
+		setDistanceToEffect(10.0); // Level 2 starts from distance 8
+		platform->Update();
+		platform->Update();
+		platform->TakeScreenshot("LOD_Level_2.png");
+		assert(platform->GetManager()->GetCurrentLOD(h) == 0b0100);
+
+		setDistanceToEffect(14.0); // Level 3 starts from distance 12
+		platform->Update();
+		platform->Update();
+		platform->TakeScreenshot("LOD_Level_3.png");
+		assert(platform->GetManager()->GetCurrentLOD(h) == 0b1000);
+
+		platform->Terminate();
+	}
+}
+
 #if defined(__linux__) || defined(__APPLE__) || defined(WIN32)
 
-TestRegister Runtime_StringAndPathHelperTest("Runtime.StringAndPathHelperTest", []() -> void { StringAndPathHelperTest(); });
+TestRegister Runtime_CustomAllocatorTest("Runtime.CustomAllocatorTest", []() -> void
+										 { CustomAllocatorTest(); });
 
-TestRegister Runtime_CustomAllocatorTest("Runtime.CustomAllocatorTest", []() -> void { CustomAllocatorTest(); });
+TestRegister Runtime_InstanceDisposeTest("Runtime.InstanceDisposeTest", []() -> void
+										 { InstanceDisposeTest(); });
 
-TestRegister Runtime_InstanceDisposeTest("Runtime.InstanceDisposeTest", []() -> void { InstanceDisposeTest(); });
+TestRegister Runtime_ReloadTest("Runtime.ReloadTest", []() -> void
+								{ ReloadTest(); });
 
-TestRegister Runtime_ReloadTest("Runtime.ReloadTest", []() -> void { ReloadTest(); });
+TestRegister Runtime_UpdateToMoveTest("Runtime.UpdateToMoveTest", []() -> void
+									  { UpdateToMoveTest(); });
 
-TestRegister Runtime_UpdateToMoveTest("Runtime.UpdateToMoveTest", []() -> void { UpdateToMoveTest(); });
+TestRegister Runtime_MassPlayTest("Runtime.MassPlayTest", []() -> void
+								  { MassPlayTest(); });
 
-TestRegister Runtime_MassPlayTest("Runtime.MassPlayTest", []() -> void { MassPlayTest(); });
+TestRegister Runtime_PlaybackSpeedTest("Runtime.PlaybackSpeedTest", []() -> void
+									   { PlaybackSpeedTest(); });
 
-TestRegister Runtime_PlaybackSpeedTest("Runtime.PlaybackSpeedTest", []() -> void { PlaybackSpeedTest(); });
+TestRegister Runtime_PlaybackRandomSeedTest("Runtime.PlaybackRandomSeedTest", []() -> void
+											{ PlaybackRandomSeedTest(); });
 
-TestRegister Runtime_PlaybackRandomSeedTest("Runtime.PlaybackRandomSeedTest", []() -> void { PlaybackRandomSeedTest(); });
+TestRegister Runtime_StartingFrameTest("Runtime.StartingFrameTest", []() -> void
+									   { StartingFrameTest(); });
 
-TestRegister Runtime_StartingFrameTest("Runtime.StartingFrameTest", []() -> void { StartingFrameTest(); });
+TestRegister Runtime_UpdateHandleTest("Runtime.UpdateHandleTest", []() -> void
+									  { UpdateHandleTest(); });
 
-TestRegister Runtime_UpdateHandleTest("Runtime.UpdateHandleTest", []() -> void { UpdateHandleTest(); });
+TestRegister Runtime_DX11DefferedContextTest("Runtime.DX11DefferedContextTest", []() -> void
+											 { DX11DefferedContextTest(); });
 
-TestRegister Runtime_BasicRuntimeTest("Runtime.BasicRuntimeTest", []() -> void { BasicRuntimeTest(); });
+TestRegister Runtime_BasicRuntimeDeviceLostTest("Runtime.BasicRuntimeDeviceLostTest", []() -> void
+												{ BasicRuntimeDeviceLostTest(); });
 
-TestRegister Runtime_DX11DefferedContextTest("Runtime.DX11DefferedContextTest", []() -> void { DX11DefferedContextTest(); });
+TestRegister Runtime_ProceduralModelCacheTest("Runtime.ProceduralModelCacheTest", []() -> void
+											  { ProceduralModelCacheTest(); });
 
-TestRegister Runtime_BasicRuntimeDeviceLostTest("Runtime.BasicRuntimeDeviceLostTest", []() -> void { BasicRuntimeDeviceLostTest(); });
+TestRegister Runtime_CullingTest("Runtime.CullingTest", []() -> void
+								 { CullingTest(); });
 
-TestRegister Runtime_ProceduralModelCacheTest("Runtime.ProceduralModelCacheTest", []() -> void { ProceduralModelCacheTest(); });
+TestRegister Runtime_RenderLimitTest("Runtime.RenderLimitTest", []() -> void
+									 { RenderLimitTest(); });
 
-TestRegister Runtime_CullingTest("Runtime.CullingTest", []() -> void { CullingTest(); });
+TestRegister Runtime_SRGBLinearTest("Runtime.SRGBLinearTest", []() -> void
+									{ SRGBLinearTest(); });
 
-TestRegister Runtime_RenderLimitTest("Runtime.RenderLimitTest", []() -> void { RenderLimitTest(); });
+TestRegister Runtime_LODsTest("Runtime.LODsTest", []() -> void
+							  { LODsTest(); });
 
 #endif

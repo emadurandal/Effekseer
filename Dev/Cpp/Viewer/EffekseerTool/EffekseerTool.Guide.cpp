@@ -4,24 +4,23 @@
 namespace EffekseerRenderer
 {
 
-Guide::Guide(efk::Graphics* graphics, const EffekseerRenderer::RendererRef& renderer)
+Guide::Guide(Effekseer::Backend::GraphicsDeviceRef graphicsDevice)
 {
-	imageRenderer = efk::ImageRenderer::Create(graphics, renderer);
+	imageRenderer_ = Effekseer::ToolRuntime::ImageRenderer::Create(graphicsDevice);
 }
 
 Guide::~Guide()
 {
-	ES_SAFE_DELETE(imageRenderer);
 }
 
-Guide* Guide::Create(efk::Graphics* graphics, const EffekseerRenderer::RendererRef& renderer)
+Guide* Guide::Create(Effekseer::Backend::GraphicsDeviceRef graphicsDevice)
 {
-	return new Guide(graphics, renderer);
+	return new Guide(graphicsDevice);
 }
 
 void Guide::Rendering(int32_t width, int32_t height, int32_t guide_width, int32_t guide_height)
 {
-	imageRenderer->ClearCache();
+	imageRenderer_->ClearCache();
 
 	float ul_x = 0;
 	float ul_y = 0;
@@ -78,7 +77,7 @@ void Guide::Rendering(int32_t width, int32_t height, int32_t guide_width, int32_
 			pos[i].Y = 1.0f - pos[i].Y / (float)height * 2.0f;
 		}
 
-		imageRenderer->Draw(pos, uv, colors, nullptr);
+		imageRenderer_->Draw(pos, uv, colors, nullptr);
 	}
 
 	{
@@ -103,7 +102,7 @@ void Guide::Rendering(int32_t width, int32_t height, int32_t guide_width, int32_
 			pos[i].Y = 1.0f - pos[i].Y / (float)height * 2.0f;
 		}
 
-		imageRenderer->Draw(pos, uv, colors, nullptr);
+		imageRenderer_->Draw(pos, uv, colors, nullptr);
 	}
 
 	{
@@ -128,7 +127,7 @@ void Guide::Rendering(int32_t width, int32_t height, int32_t guide_width, int32_
 			pos[i].Y = 1.0f - pos[i].Y / (float)height * 2.0f;
 		}
 
-		imageRenderer->Draw(pos, uv, colors, nullptr);
+		imageRenderer_->Draw(pos, uv, colors, nullptr);
 	}
 
 	{
@@ -153,10 +152,10 @@ void Guide::Rendering(int32_t width, int32_t height, int32_t guide_width, int32_
 			pos[i].Y = 1.0f - pos[i].Y / (float)height * 2.0f;
 		}
 
-		imageRenderer->Draw(pos, uv, colors, nullptr);
+		imageRenderer_->Draw(pos, uv, colors, nullptr);
 	}
 
-	imageRenderer->Render();
+	imageRenderer_->Render();
 }
 
 } // namespace EffekseerRenderer

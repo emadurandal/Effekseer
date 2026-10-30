@@ -1,3 +1,4 @@
+using Effekseer.GUI.BindableComponent;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,8 +7,8 @@ using System.Threading.Tasks;
 
 namespace Effekseer.GUI.Dock
 {
-    public class DockPanel : GroupControl, IRemovableControl, IDroppableControl
-    {
+	public class DockPanel : GroupControl, IRemovableControl, IDroppableControl
+	{
 		public string Label { get; set; } = string.Empty;
 
 		public string TabLabel
@@ -22,6 +23,44 @@ namespace Effekseer.GUI.Dock
 			}
 		}
 
+		string tabDisplayLabel = null;
+
+		public string TabDisplayLabel
+		{
+			get
+			{
+				if (tabDisplayLabel != null)
+				{
+					return tabDisplayLabel;
+				}
+
+				if (AllowsShortTab && !string.IsNullOrEmpty(Label))
+				{
+					return Label.Substring(0, 1);
+				}
+
+				return string.Empty;
+			}
+			set
+			{
+				tabDisplayLabel = value;
+			}
+		}
+
+		public string DocPage { get; set; } = string.Empty;
+
+		public string DocURL
+		{
+			get
+			{
+				if (!string.IsNullOrEmpty(DocPage))
+				{
+					return Core.GetToolReferenceURL(DocPage);
+				}
+				return string.Empty;
+			}
+		}
+
 		public string WindowID { get { return Label.Substring(Label.IndexOf("###")); } }
 
 		internal swig.Vec2 InitialDockSize = new swig.Vec2(0, 0);
@@ -30,7 +69,9 @@ namespace Effekseer.GUI.Dock
 
 		bool opened = true;
 
-		internal swig.Vec2 IconSize { get
+		internal swig.Vec2 IconSize
+		{
+			get
 			{
 				float scale = Manager.DpiScale;
 				return new swig.Vec2(18 * scale, 18 * scale);
@@ -38,6 +79,8 @@ namespace Effekseer.GUI.Dock
 		}
 
 		protected internal string TabToolTip = string.Empty;
+
+		protected internal BindableComponent.CopyAndPaste CopyAndPaste = null;
 
 		internal int IsInitialized = -1;
 
@@ -55,10 +98,12 @@ namespace Effekseer.GUI.Dock
 
 		public override void Update()
 		{
-			if(opened)
+			if (opened)
 			{
 				if (Manager.IsDockMode())
 				{
+					float dpiScale = Manager.DpiScale;
+
 					if (IsInitialized < 0)
 					{
 						IsInitialized++;
@@ -77,18 +122,27 @@ namespace Effekseer.GUI.Dock
 						flags = swig.WindowFlags.NoScrollbar;
 					}
 
-					if (NoPadding) Manager.NativeManager.PushStyleVar(swig.ImGuiStyleVarFlags.WindowPadding, new swig.Vec2(0.0f, 0.0f));
+					var windowPadding = (NoPadding) ? new swig.Vec2(0.0f, 0.0f) : new swig.Vec2(4.0f * dpiScale, 2.0f * dpiScale);
+
+					Manager.NativeManager.PushStyleVar(swig.ImGuiStyleVarFlags.WindowPadding, windowPadding);
+
+					if (HasToolBar())
+					{
+						flags |= swig.WindowFlags.MenuBar;
+					}
 
 					bool dockEnabled = Manager.NativeManager.BeginDock(
-						Label, TabLabel, ref opened, Visibled && Windowed && !NoCloseButton, flags);
+						Label, TabLabel, TabDisplayLabel, ref opened, Visibled && Windowed && !NoCloseButton, flags);
 
 					Visibled = Manager.NativeManager.IsDockVisibled();
 					Windowed = Manager.NativeManager.IsDockWindowed();
 
-					if (NoPadding) Manager.NativeManager.PopStyleVar();
+					Manager.NativeManager.PopStyleVar();
 
 					if (dockEnabled)
 					{
+						UpdateToolbar();
+
 						UpdateInternal();
 
 						Controls.Lock();
@@ -100,7 +154,7 @@ namespace Effekseer.GUI.Dock
 
 						Controls.Unlock();
 					}
-					
+
 					Manager.NativeManager.EndDock();
 				}
 				else
@@ -108,7 +162,6 @@ namespace Effekseer.GUI.Dock
 					if (Manager.NativeManager.Begin(Label, ref opened))
 					{
 						UpdateInternal();
-
 
 						Controls.Lock();
 
@@ -152,7 +205,41 @@ namespace Effekseer.GUI.Dock
 		}
 
 		protected virtual void UpdateInternal()
-        {
-        }
-    }
+		{
+		}
+
+		protected virtual void UpdateToolbar()
+		{
+			if (Manager.NativeManager.BeginMenuBar())
+			{
+				Manager.NativeManager.PushStyleColor(swig.ImGuiColFlags.Button, 0);
+
+				if (CopyAndPaste != null)
+				{
+					CopyAndPaste.Update();
+				}
+
+				if (!string.IsNullOrEmpty(DocPage))
+				{
+					if (Manager.NativeManager.IconButton(Icons.Help))
+					{
+						Commands.ShowURL(DocURL);
+					}
+
+					if (Functions.CanShowTip())
+					{
+						Manager.NativeManager.SetTooltip(MultiLanguageTextProvider.GetText("Panel_Help_Desc"));
+					}
+				}
+
+				Manager.NativeManager.PopStyleColor();
+				Manager.NativeManager.EndMenuBar();
+			}
+		}
+
+		private bool HasToolBar()
+		{
+			return (CopyAndPaste != null) || !string.IsNullOrEmpty(DocPage);
+		}
+	}
 }

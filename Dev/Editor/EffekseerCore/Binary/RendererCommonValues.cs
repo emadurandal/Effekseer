@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Effekseer.Binary.RenderData;
 using Effekseer.Data;
 using Effekseer.Data.Group;
-using Effekseer.Utl;
+using Effekseer.Utils;
 
 namespace Effekseer.Binary
 {
@@ -17,7 +17,7 @@ namespace Effekseer.Binary
 			SortedDictionary<string, int> normalTexture_and_index,
 			SortedDictionary<string, int> distortionTexture_and_index,
 			SortedDictionary<string, int> material_and_index,
-			ExporterVersion version)
+			System.Func<string, string> convertLoadingFilePath)
 		{
 			List<byte[]> data = new List<byte[]>();
 
@@ -26,7 +26,6 @@ namespace Effekseer.Binary
 
 			data.Add(((int)value.Material.Value).GetBytes());
 
-			if (version >= ExporterVersion.Ver16Alpha1)
 			{
 				if (value.Material.Value == Data.RendererCommonValues.MaterialType.Default ||
 				value.Material.Value == Data.RendererCommonValues.MaterialType.Lighting)
@@ -41,8 +40,8 @@ namespace Effekseer.Binary
 				normalTexture_and_index,
 				distortionTexture_and_index,
 				material_and_index,
-				version,
-				texInfoRepo));
+				texInfoRepo,
+				convertLoadingFilePath));
 
 			data.Add(value.AlphaBlend);
 			data.Add(value.Filter);
@@ -51,7 +50,6 @@ namespace Effekseer.Binary
 			data.Add(value.Filter2);
 			data.Add(value.Wrap2);
 
-			if (version >= ExporterVersion.Ver16Alpha1)
 			{
 				data.Add(advanceValue.AlphaTextureParam.Filter);
 				data.Add(advanceValue.AlphaTextureParam.Wrap);
@@ -73,35 +71,35 @@ namespace Effekseer.Binary
 			data.Add(value.ZWrite.GetValue() ? 1.GetBytes() : 0.GetBytes());
 
 			data.Add(value.FadeInType);
-			if (value.FadeInType.Value == Data.RendererCommonValues.FadeType.Use)
+			if (value.FadeInType.Value == Data.RendererCommonValues.FadeInMethod.Use)
 			{
 				data.Add(value.FadeIn.Frame.GetBytes());
 
-				var easing = Utl.MathUtl.Easing((float)value.FadeIn.StartSpeed.Value, (float)value.FadeIn.EndSpeed.Value);
+				var easing = MathUtl.Easing((float)value.FadeIn.StartSpeed.Value, (float)value.FadeIn.EndSpeed.Value);
 				data.Add(BitConverter.GetBytes(easing[0]));
 				data.Add(BitConverter.GetBytes(easing[1]));
 				data.Add(BitConverter.GetBytes(easing[2]));
 			}
 
 			data.Add(value.FadeOutType);
-			if (value.FadeOutType.Value == Data.RendererCommonValues.FadeType.Use)
+			if (value.FadeOutType.Value == Data.RendererCommonValues.FadeOutMethod.WithinLifetime ||
+				value.FadeOutType.Value == Data.RendererCommonValues.FadeOutMethod.AfterRemoved)
 			{
 				data.Add(value.FadeOut.Frame.GetBytes());
 
-				var easing = Utl.MathUtl.Easing((float)value.FadeOut.StartSpeed.Value, (float)value.FadeOut.EndSpeed.Value);
+				var easing = MathUtl.Easing((float)value.FadeOut.StartSpeed.Value, (float)value.FadeOut.EndSpeed.Value);
 				data.Add(BitConverter.GetBytes(easing[0]));
 				data.Add(BitConverter.GetBytes(easing[1]));
 				data.Add(BitConverter.GetBytes(easing[2]));
 			}
 
-			data.Add(new BasicUvSerializer(value, version).SerializeUv(texInfo));
+			data.Add(new BasicUvSerializer(value).SerializeUv(texInfo));
 
-
-			if (version >= ExporterVersion.Ver16Alpha1)
 			{
 				AddUvBytes(advanceValue, data, texInfoRepo);
 			}
 
+			data.Add(BitConverter.GetBytes(value.UVFlipHorizontalProbability.Value));
 
 			// Inheritance
 			data.Add(value.ColorInheritType.GetValueAsInt().GetBytes());
@@ -124,7 +122,7 @@ namespace Effekseer.Binary
 			}
 			else if (value.CustomData1.CustomData.Value == Data.CustomDataType.Easing2D)
 			{
-				var easing = Utl.MathUtl.Easing((float)value.CustomData1.Easing.StartSpeed.Value, (float)value.CustomData1.Easing.EndSpeed.Value);
+				var easing = MathUtl.Easing((float)value.CustomData1.Easing.StartSpeed.Value, (float)value.CustomData1.Easing.EndSpeed.Value);
 
 				List<byte[]> _data = new List<byte[]>();
 				_data.Add(value.CustomData1.Easing.Start.GetBytes(1.0f));
@@ -169,7 +167,7 @@ namespace Effekseer.Binary
 			}
 			else if (value.CustomData2.CustomData.Value == Data.CustomDataType.Easing2D)
 			{
-				var easing = Utl.MathUtl.Easing((float)value.CustomData2.Easing.StartSpeed.Value, (float)value.CustomData2.Easing.EndSpeed.Value);
+				var easing = MathUtl.Easing((float)value.CustomData2.Easing.StartSpeed.Value, (float)value.CustomData2.Easing.EndSpeed.Value);
 
 				List<byte[]> _data = new List<byte[]>();
 				_data.Add(value.CustomData2.Easing.Start.GetBytes(1.0f));
@@ -199,27 +197,18 @@ namespace Effekseer.Binary
 				data.Add(bytes);
 			}
 
-			if (version >= ExporterVersion.Ver16Alpha1)
 			{
-				if (version >= ExporterVersion.Ver16Alpha6)
+				if (advanceValue.AlphaCutoffParam.Enabled)
 				{
-					if (advanceValue.AlphaCutoffParam.Enabled)
-					{
-						data.Add((1).GetBytes());
-						data.Add(AlphaCutoffValues.GetBytes(advanceValue.AlphaCutoffParam, version));
-					}
-					else
-					{
-						data.Add((0).GetBytes());
-					}
+					data.Add((1).GetBytes());
+					data.Add(AlphaCutoffValues.GetBytes(advanceValue.AlphaCutoffParam));
 				}
 				else
 				{
-					data.Add(AlphaCutoffValues.GetBytes(advanceValue.AlphaCutoffParam, version));
+					data.Add((0).GetBytes());
 				}
 			}
 
-			if (version >= ExporterVersion.Ver16Alpha3)
 			{
 				if (advanceValue.FalloffParam.Enabled)
 				{
@@ -238,11 +227,9 @@ namespace Effekseer.Binary
 
 			if (advanceValue.SoftParticleParams.Enabled)
 			{
-				if (version >= ExporterVersion.Ver16Alpha4)
 				{
 					data.Add(advanceValue.SoftParticleParams.Distance.GetBytes());
 				}
-				if (version >= ExporterVersion.Ver16Alpha5)
 				{
 					data.Add(advanceValue.SoftParticleParams.DistanceNear.GetBytes());
 					data.Add(advanceValue.SoftParticleParams.DistanceNearOffset.GetBytes());
@@ -250,11 +237,9 @@ namespace Effekseer.Binary
 			}
 			else
 			{
-				if (version >= ExporterVersion.Ver16Alpha4)
 				{
 					data.Add((0.0f).GetBytes());
 				}
-				if (version >= ExporterVersion.Ver16Alpha5)
 				{
 					data.Add((0.0f).GetBytes());
 					data.Add((0.0f).GetBytes());
@@ -271,11 +256,11 @@ namespace Effekseer.Binary
 			SortedDictionary<string, int> normalTexture_and_index,
 			SortedDictionary<string, int> distortionTexture_and_index,
 			SortedDictionary<string, int> material_and_index,
-			ExporterVersion version,
-			TextureInformationRepository texInfoRepo)
+			TextureInformationRepository texInfoRepo,
+			System.Func<string, string> convertLoadingFilePath)
 		{
-			var aggregator = new TextureValuesAggregator(value, advanceValue, texInfoRepo);
-			MaterialSerializerInstance.AddMaterialData(version, value, aggregator,
+			var aggregator = new TextureValuesAggregator(value, advanceValue, texInfoRepo, convertLoadingFilePath);
+			MaterialSerializerInstance.AddMaterialData(value, aggregator,
 				texture_and_index, distortionTexture_and_index, normalTexture_and_index, material_and_index);
 			return aggregator.CurrentData;
 		}
@@ -287,7 +272,9 @@ namespace Effekseer.Binary
 			data.Add(GetUvBytes(repo.UvDistortion, advanceValue.UVDistortionTextureParam));
 
 			// uv distortion intensity
-			data.Add(advanceValue.UVDistortionTextureParam.UVDistortionIntensity.GetBytes());
+			data.Add(advanceValue.UVDistortionTextureParam.Enabled.GetValue()
+				? advanceValue.UVDistortionTextureParam.UVDistortionIntensity.GetBytes()
+				: 0.0f.GetBytes());
 
 			data.Add(GetUvBytes(repo.Blend, advanceValue.BlendTextureParams.BlendTextureParam));
 
@@ -306,7 +293,9 @@ namespace Effekseer.Binary
 			data.Add(GetUvBytes(repo.BlendUvDistortion, advanceValue.BlendTextureParams.BlendUVDistortionTextureParam));
 
 			// blend uv distortion intensity
-			data.Add(advanceValue.BlendTextureParams.BlendUVDistortionTextureParam.UVDistortionIntensity.GetBytes());
+			data.Add(advanceValue.BlendTextureParams.EnableBlendUVDistortionTexture.GetValue()
+				? advanceValue.BlendTextureParams.BlendUVDistortionTextureParam.UVDistortionIntensity.GetBytes()
+				: 0.0f.GetBytes());
 		}
 
 		private static byte[] GetUvBytes(TextureInformation texInfoL, IUvCommandValues param)

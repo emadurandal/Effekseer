@@ -6,54 +6,6 @@
 
 namespace efk
 {
-RenderTextureDX11::RenderTextureDX11(Graphics* graphics)
-	: graphics(graphics)
-{
-}
-
-RenderTextureDX11::~RenderTextureDX11()
-{
-}
-
-bool RenderTextureDX11::Initialize(Effekseer::Tool::Vector2DI size, Effekseer::Backend::TextureFormatType format, uint32_t multisample)
-{
-	auto g = (GraphicsDX11*)graphics;
-	auto gd = g->GetGraphicsDevice().DownCast<EffekseerRendererDX11::Backend::GraphicsDevice>();
-
-	Effekseer::Backend::RenderTextureParameter param;
-	param.Format = format;
-	param.SamplingCount = multisample;
-	param.Size = {size.X, size.Y};
-	texture_ = gd->CreateRenderTexture(param).DownCast<EffekseerRendererDX11::Backend::Texture>();
-
-	this->size_ = size;
-	this->samplingCount_ = multisample;
-	this->format_ = format;
-
-	return texture_ != nullptr;
-}
-
-DepthTextureDX11::DepthTextureDX11(Graphics* graphics)
-	: graphics(graphics)
-{
-}
-
-DepthTextureDX11::~DepthTextureDX11()
-{
-}
-
-bool DepthTextureDX11::Initialize(int32_t width, int32_t height, uint32_t multisample)
-{
-	auto g = (GraphicsDX11*)graphics;
-	auto gd = g->GetGraphicsDevice().DownCast<EffekseerRendererDX11::Backend::GraphicsDevice>();
-
-	Effekseer::Backend::DepthTextureParameter param;
-	param.Format = Effekseer::Backend::TextureFormatType::D24S8;
-	param.SamplingCount = multisample;
-	param.Size = {width, height};
-	texture_ = gd->CreateDepthTexture(param).DownCast<EffekseerRendererDX11::Backend::Texture>();
-	return texture_ != nullptr;
-}
 
 GraphicsDX11::GraphicsDX11()
 {
@@ -65,8 +17,8 @@ GraphicsDX11::~GraphicsDX11()
 	// assert(recordingTarget == nullptr);
 	//
 
-	//ES_SAFE_RELEASE(backTexture);
-	//ES_SAFE_RELEASE(backTextureSRV);
+	// ES_SAFE_RELEASE(backTexture);
+	// ES_SAFE_RELEASE(backTextureSRV);
 
 	ES_SAFE_RELEASE(defaultRenderTarget);
 	ES_SAFE_RELEASE(defaultDepthStencil);
@@ -79,9 +31,6 @@ GraphicsDX11::~GraphicsDX11()
 	ES_SAFE_RELEASE(dxgiDevice);
 	ES_SAFE_RELEASE(context);
 	ES_SAFE_RELEASE(device_);
-
-	ES_SAFE_RELEASE(rasterizerState);
-	ES_SAFE_RELEASE(savedRasterizerState);
 
 	if (d3dDebug != nullptr)
 	{
@@ -215,20 +164,10 @@ bool GraphicsDX11::Initialize(void* windowHandle, int32_t windowWidth, int32_t w
 	this->windowWidth = windowWidth;
 	this->windowHeight = windowHeight;
 
-	D3D11_RASTERIZER_DESC rasterizerDesc;
-	ZeroMemory(&rasterizerDesc, sizeof(rasterizerDesc));
-	rasterizerDesc.FillMode = D3D11_FILL_SOLID;
-	rasterizerDesc.CullMode = D3D11_CULL_NONE;
-	rasterizerDesc.ScissorEnable = false;
-	rasterizerDesc.DepthClipEnable = false;
-	rasterizerDesc.MultisampleEnable = true;
-	device_->CreateRasterizerState(&rasterizerDesc, &rasterizerState);
-
 	graphicsDevice_ = Effekseer::MakeRefPtr<EffekseerRendererDX11::Backend::GraphicsDevice>(device_, context);
 
 	return true;
 End:
-	ES_SAFE_RELEASE(rasterizerState);
 	ES_SAFE_RELEASE(renderTargetView);
 	ES_SAFE_RELEASE(defaultRenderTarget);
 	ES_SAFE_RELEASE(depthStencilView);
@@ -249,13 +188,13 @@ End:
 
 void GraphicsDX11::CopyTo(Effekseer::Backend::TextureRef src, Effekseer::Backend::TextureRef dst)
 {
-	if (src->GetSize() != dst->GetSize())
+	if (src->GetParameter().Size != dst->GetParameter().Size)
 		return;
 
-	if (src->GetFormat() != dst->GetFormat())
+	if (src->GetParameter().Format != dst->GetParameter().Format)
 		return;
 
-	if (src->GetSamplingCount() != dst->GetSamplingCount())
+	if (src->GetParameter().SampleCount != dst->GetParameter().SampleCount)
 	{
 		ResolveRenderTarget(src, dst);
 	}
@@ -285,19 +224,6 @@ bool GraphicsDX11::Present()
 	}
 
 	return true;
-}
-
-void GraphicsDX11::BeginScene()
-{
-	assert(savedRasterizerState == nullptr);
-	context->RSGetState(&savedRasterizerState);
-	context->RSSetState(rasterizerState);
-}
-
-void GraphicsDX11::EndScene()
-{
-	context->RSSetState(savedRasterizerState);
-	ES_SAFE_RELEASE(savedRasterizerState);
 }
 
 void GraphicsDX11::SetRenderTarget(std::vector<Effekseer::Backend::TextureRef> renderTextures, Effekseer::Backend::TextureRef depthTexture)
@@ -342,8 +268,8 @@ void GraphicsDX11::SetRenderTarget(std::vector<Effekseer::Backend::TextureRef> r
 		{
 			vp.TopLeftX = 0;
 			vp.TopLeftY = 0;
-			vp.Width = static_cast<float>(renderTextures[0]->GetSize()[0]);
-			vp.Height = static_cast<float>(renderTextures[0]->GetSize()[1]);
+			vp.Width = static_cast<float>(renderTextures[0]->GetParameter().Size[0]);
+			vp.Height = static_cast<float>(renderTextures[0]->GetParameter().Size[1]);
 			vp.MinDepth = 0.0f;
 			vp.MaxDepth = 1.0f;
 		}

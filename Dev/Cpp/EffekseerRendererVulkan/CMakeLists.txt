@@ -1,63 +1,68 @@
-cmake_minimum_required (VERSION 3.0.0)
+cmake_minimum_required(VERSION 3.15)
 project(EffekseerRendererVulkan)
 
 find_package(Vulkan REQUIRED)
 
-#--------------------
-# Files
-
-file(GLOB_RECURSE LOCAL_SOURCES_Common ../EffekseerRendererCommon/*.h ../EffekseerRendererCommon/*.cpp)
-
-list(APPEND LOCAL_SOURCES_Common 
-    ../EffekseerRendererCommon/TextureLoader.h
-    ../EffekseerRendererCommon/TextureLoader.cpp)
-
-source_group("EffekseerRendererCommon" FILES ${LOCAL_SOURCES_Common})
-
 file(GLOB_RECURSE LOCAL_HEADERS_Vulkan *.h)
 file(GLOB_RECURSE LOCAL_SOURCES_Vulkan *.cpp)
-FilterFolder("${LOCAL_HEADERS_Vulkan}")
-FilterFolder("${LOCAL_SOURCES_Vulkan}")
+list(APPEND LOCAL_SOURCES_Vulkan
+     ../EffekseerMaterialCompiler/GLSLGenerator/ShaderGenerator.h)
+list(APPEND LOCAL_SOURCES_Vulkan
+     ../EffekseerMaterialCompiler/GLSLGenerator/ShaderGenerator.cpp)
+list(APPEND LOCAL_SOURCES_Vulkan
+     ../EffekseerMaterialCompiler/Common/ShaderGeneratorCommon.h)
+list(APPEND LOCAL_SOURCES_Vulkan
+     ../EffekseerMaterialCompiler/Common/ShaderGeneratorCommon.cpp)
 
-file(GLOB_RECURSE LOCAL_SOURCES_LLGI
-    ../EffekseerRendererLLGI/*.h
-    ../EffekseerRendererLLGI/*.cpp)
+filterfolder("${LOCAL_HEADERS_Vulkan}")
+filterfolder("${LOCAL_SOURCES_Vulkan}")
 
-source_group("EffekseerRendererLLGI" FILES ${LOCAL_SOURCES_LLGI})
+set(LOCAL_SOURCES ${LOCAL_HEADERS_Vulkan} ${LOCAL_SOURCES_Vulkan})
 
-set(LOCAL_SOURCES
-    ${LOCAL_SOURCES_Common}
-    ${LOCAL_HEADERS_Vulkan}
-    ${LOCAL_SOURCES_Vulkan}
-    ${LOCAL_SOURCES_LLGI})
+set(PublicHeaders
+    EffekseerRendererVulkan.h
+    EffekseerRendererVulkan/EffekseerRendererVulkan.Base.Pre.h
+    EffekseerRendererVulkan/EffekseerRendererVulkan.Renderer.h)
 
-#--------------------
+# --------------------
 # Projects
 
 add_library(${PROJECT_NAME} STATIC ${LOCAL_SOURCES})
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../Effekseer ${CMAKE_CURRENT_LIST_DIR}/../3rdparty/LLGI/src ${EFK_THIRDPARTY_INCLUDES})
+target_include_directories(
+  ${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../3rdParty/LLGI/src
+                          ${EFK_THIRDPARTY_INCLUDES})
 target_include_directories(${PROJECT_NAME} PRIVATE ${Vulkan_INCLUDE_DIRS})
+set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER
+                                                 "${PublicHeaders}")
+target_link_libraries(${PROJECT_NAME} PUBLIC Effekseer EffekseerRendererCommon
+                                             EffekseerRendererLLGI LLGI)
 
-set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER "${LOCAL_HEADERS_Vulkan}")
-target_link_libraries(${PROJECT_NAME} PUBLIC Effekseer LLGI)
+target_include_directories(
+  ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+                         $<INSTALL_INTERFACE:include>)
 
-if(USE_LIBPNG_LOADER AND USE_INTERNAL_LOADER)
-    add_dependencies(${PROJECT_NAME} ExternalProject_zlib ExternalProject_libpng) 
+if(CLANG_FORMAT_ENABLED)
+  clang_format(${PROJECT_NAME})
 endif()
 
-#--------------------
+# WarnError(${PROJECT_NAME})
+
+# --------------------
 # Install
 
-install(
-    TARGETS ${PROJECT_NAME}
-    EXPORT ${PROJECT_NAME}-export
-    INCLUDES DESTINATION include/EffekseerRendererVulkan
-    PUBLIC_HEADER DESTINATION include/EffekseerRendererVulkan
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib)
+foreach(file ${PublicHeaders})
+  get_filename_component(dir ${file} DIRECTORY)
+  install(FILES ${file} DESTINATION include/${dir})
+endforeach()
 
 install(
-    EXPORT ${PROJECT_NAME}-export
-    FILE ${PROJECT_NAME}-config.cmake
-    DESTINATION lib/cmake
-    EXPORT_LINK_INTERFACE_LIBRARIES)
+  TARGETS ${PROJECT_NAME}
+  EXPORT ${PROJECT_NAME}-export
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib)
+
+install(
+  EXPORT ${PROJECT_NAME}-export
+  FILE ${PROJECT_NAME}-config.cmake
+  DESTINATION lib/cmake
+  EXPORT_LINK_INTERFACE_LIBRARIES)

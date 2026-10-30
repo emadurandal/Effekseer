@@ -4,6 +4,7 @@
 //
 //----------------------------------------------------------------------------------
 #include "Effekseer.InstanceGlobal.h"
+#include "Model/Effekseer.Model.h"
 #include "Utils/Effekseer.CustomAllocator.h"
 #include <assert.h>
 
@@ -28,11 +29,12 @@ void InstanceGlobal::operator delete(void* p)
 }
 
 InstanceGlobal::InstanceGlobal()
-	: m_instanceCount(0)
-	, m_updatedFrame(0)
-	, m_rootContainer(nullptr)
+	: instanceCount_(0)
+	, updatedFrame_(0)
+	, rootContainer_(nullptr)
 {
-	dynamicInputParameters.fill(0);
+	dynamicInputParameters_.fill(0);
+	inputTriggerCounts_.fill(0);
 }
 
 //----------------------------------------------------------------------------------
@@ -54,8 +56,11 @@ void InstanceGlobal::BeginDeltaFrame(float frame)
 
 void InstanceGlobal::EndDeltaFrame()
 {
-	m_updatedFrame += nextDeltaFrame_;
+	updatedFrame_ += nextDeltaFrame_;
 	nextDeltaFrame_ = 0.0f;
+
+	// Reset the all trigger's count
+	inputTriggerCounts_.fill(0);
 }
 
 std::array<float, 4> InstanceGlobal::GetDynamicEquationResult(int32_t index)
@@ -64,12 +69,31 @@ std::array<float, 4> InstanceGlobal::GetDynamicEquationResult(int32_t index)
 	return dynamicEqResults[index];
 }
 
+uint32_t InstanceGlobal::GetInputTriggerCount(uint32_t index) const
+{
+	if (index < inputTriggerCounts_.size())
+	{
+		return inputTriggerCounts_[index];
+	}
+	return 0;
+}
+
+void InstanceGlobal::AddInputTriggerCount(uint32_t index)
+{
+	if (index < inputTriggerCounts_.size())
+	{
+		inputTriggerCounts_[index] = (uint8_t)Min(
+			(uint32_t)inputTriggerCounts_[index] + 1,
+			(uint32_t)std::numeric_limits<uint8_t>::max());
+	}
+}
+
 //----------------------------------------------------------------------------------
 //
 //----------------------------------------------------------------------------------
 void InstanceGlobal::IncInstanceCount()
 {
-	m_instanceCount++;
+	instanceCount_++;
 }
 
 //----------------------------------------------------------------------------------
@@ -77,7 +101,7 @@ void InstanceGlobal::IncInstanceCount()
 //----------------------------------------------------------------------------------
 void InstanceGlobal::DecInstanceCount()
 {
-	m_instanceCount--;
+	instanceCount_--;
 }
 
 //----------------------------------------------------------------------------------
@@ -85,20 +109,20 @@ void InstanceGlobal::DecInstanceCount()
 //----------------------------------------------------------------------------------
 int InstanceGlobal::GetInstanceCount()
 {
-	return m_instanceCount;
+	return instanceCount_;
 }
 
 //----------------------------------------------------------------------------------
 //
 //----------------------------------------------------------------------------------
-float InstanceGlobal::GetUpdatedFrame()
+float InstanceGlobal::GetUpdatedFrame() const
 {
-	return m_updatedFrame;
+	return updatedFrame_;
 }
 
 void InstanceGlobal::ResetUpdatedFrame()
 {
-	m_updatedFrame = 0.0f;
+	updatedFrame_ = 0.0f;
 }
 
 //----------------------------------------------------------------------------------
@@ -106,7 +130,7 @@ void InstanceGlobal::ResetUpdatedFrame()
 //----------------------------------------------------------------------------------
 InstanceContainer* InstanceGlobal::GetRootContainer() const
 {
-	return m_rootContainer;
+	return rootContainer_;
 }
 
 //----------------------------------------------------------------------------------
@@ -114,7 +138,7 @@ InstanceContainer* InstanceGlobal::GetRootContainer() const
 //----------------------------------------------------------------------------------
 void InstanceGlobal::SetRootContainer(InstanceContainer* container)
 {
-	m_rootContainer = container;
+	rootContainer_ = container;
 }
 
 //----------------------------------------------------------------------------------
@@ -122,12 +146,12 @@ void InstanceGlobal::SetRootContainer(InstanceContainer* container)
 //----------------------------------------------------------------------------------
 const SIMD::Vec3f& InstanceGlobal::GetTargetLocation() const
 {
-	return m_targetLocation;
+	return targetLocation_;
 }
 
 void InstanceGlobal::SetTargetLocation(const Vector3D& location)
 {
-	m_targetLocation = location;
+	targetLocation_ = location;
 }
 
 //----------------------------------------------------------------------------------

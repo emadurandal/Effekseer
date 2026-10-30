@@ -1,8 +1,7 @@
 FROM ubuntu:18.04
 RUN apt update
 RUN apt install -y git wget g++ make  git-lfs curl
-RUN apt -y install libx11-dev libgl1-mesa-dev libxrandr-dev libxi-dev x11proto-xf86vidmode-dev xorg-dev libglu1-mesa-dev libpulse-dev libgtk-3-dev libopenal-dev
-
+RUN apt -y install libx11-dev libgl1-mesa-dev libxrandr-dev libxi-dev x11proto-xf86vidmode-dev xorg-dev libglu1-mesa-dev libpulse-dev libgtk-3-dev libopenal-dev zenity
 RUN wget https://packages.microsoft.com/config/ubuntu/18.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
 RUN dpkg -i packages-microsoft-prod.deb
 
@@ -11,7 +10,7 @@ RUN add-apt-repository universe
 RUN apt update
 RUN apt -y install apt-transport-https
 RUN apt update
-RUN apt -y install dotnet-sdk-3.1
+RUN apt -y install dotnet-sdk-5.0
 
 RUN \
     git clone --depth 1 https://github.com/effekseer/Effekseer.git \

@@ -8,29 +8,28 @@ namespace Effekseer.GUI.Dock
 {
 	class SoundValues : DockPanel
 	{
-		Component.CopyAndPaste candp = null;
-		Component.ParameterList paramerterList = null;
+		BindableComponent.ParameterList paramerterList = null;
 
 		bool isFiestUpdate = true;
 
 		public SoundValues()
 		{
-			Label = Icons.PanelSound + Resources.GetString("Sound") + "###Sound";
+			Label = Icons.PanelSound + MultiLanguageTextProvider.GetText("Sound") + "###Sound";
+			DocPage = "sound.html";
 
-			paramerterList = new Component.ParameterList();
+			paramerterList = new BindableComponent.ParameterList();
 			paramerterList.SetType(typeof(Data.SoundValues));
-			candp = new Component.CopyAndPaste("Sound", GetTargetObject, Read);
+			CopyAndPaste = new BindableComponent.CopyAndPaste("Sound", GetTargetObject, Read);
 
 			Core.OnAfterLoad += OnAfterLoad;
 			Core.OnAfterNew += OnAfterLoad;
 			Core.OnAfterSelectNode += OnAfterSelectNode;
 
-			Controls.Add(candp);
 			Controls.Add(paramerterList);
-			
+
 			Read();
 
-			TabToolTip = Resources.GetString("Sound");
+			TabToolTip = MultiLanguageTextProvider.GetText("Sound");
 		}
 
 		public void FixValues()
@@ -83,4 +82,3 @@ namespace Effekseer.GUI.Dock
 		}
 	}
 }
-

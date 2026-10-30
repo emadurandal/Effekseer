@@ -8,7 +8,7 @@ cbuffer PS_ConstantBuffer : register(b0)
 	float4 directionalLightDirection;
 	float4 directionalLightColor;
 	float4 ambientLightColor;
-}
+};
 
 struct PS_Input
 {

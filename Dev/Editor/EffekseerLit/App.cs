@@ -12,11 +12,13 @@ namespace Effekseer
 
 	public class App : Application
 	{
+		swig.DeviceType deviceType;
+
 		protected override void OnInitialize()
 		{
 			var dockTypes = new Type[]
 			{
-				typeof(Dock.FileViewer),
+				typeof(Dock.FileBrowser),
 				typeof(Dock.PrefabListDock),
 				typeof(Dock.TimelineDock),
 				typeof(Dock.NodePropertiesDock),
@@ -24,7 +26,7 @@ namespace Effekseer
 			};
 
 			System.OperatingSystem os = System.Environment.OSVersion;
-			swig.DeviceType deviceType = swig.DeviceType.DirectX11;
+			deviceType = swig.DeviceType.DirectX11;
 
 			if (!(os.Platform == PlatformID.Win32NT ||
 			os.Platform == PlatformID.Win32S ||
@@ -57,7 +59,7 @@ namespace Effekseer
 		protected override void OnCreateEffectViwer()
 		{
 			Debug.Assert(Manager.effectViewer == null);
-			Manager.effectViewer = new Dock.EffectViwerDock();
+			Manager.effectViewer = new Dock.EffectViwerDock(deviceType);
 			Manager.dockManager.Controls.Add(Manager.effectViewer);
 		}
 
@@ -68,7 +70,7 @@ namespace Effekseer
 				OnCreateEffectViwer();
 			}
 
-			var fileViewer = Manager.SelectOrShowWindow(typeof(Dock.FileViewer), null);
+			var fileViewer = Manager.SelectOrShowWindow(typeof(Dock.FileBrowser), null);
 			var prefabListDock = Manager.SelectOrShowWindow(typeof(Dock.PrefabListDock), null);
 			var timelineDock = Manager.SelectOrShowWindow(typeof(Dock.TimelineDock), null);
 			var nodePropertiesDock = Manager.SelectOrShowWindow(typeof(Dock.NodePropertiesDock), null);

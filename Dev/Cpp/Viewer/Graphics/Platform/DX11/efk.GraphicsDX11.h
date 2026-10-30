@@ -2,67 +2,14 @@
 #pragma once
 
 #include <Effekseer.h>
-#include <EffekseerRendererDX11/EffekseerRenderer/EffekseerRendererDX11.Renderer.h>
-#include <EffekseerRendererDX11/EffekseerRenderer/EffekseerRendererDX11.RendererImplemented.h>
-#include <EffekseerRendererDX11/EffekseerRenderer/GraphicsDevice.h>
+#include <EffekseerRendererDX11/EffekseerRendererDX11.Renderer.h>
+#include <EffekseerRendererDX11/EffekseerRendererDX11.RendererImplemented.h>
+#include <EffekseerRendererDX11/GraphicsDevice.h>
 
 #include "../../efk.Graphics.h"
 
 namespace efk
 {
-class RenderTextureDX11 : public RenderTexture
-{
-private:
-	Graphics* graphics = nullptr;
-	EffekseerRendererDX11::Backend::TextureRef texture_;
-
-public:
-	RenderTextureDX11(Graphics* graphics);
-	virtual ~RenderTextureDX11();
-	bool Initialize(Effekseer::Tool::Vector2DI size, Effekseer::Backend::TextureFormatType format, uint32_t multisample = 1);
-
-	Effekseer::Backend::TextureRef GetAsBackend() override
-	{
-		return texture_;
-	}
-
-	ID3D11Texture2D* GetTexture() const
-	{
-		return texture_->GetTexture();
-	}
-
-	uint64_t GetViewID() override
-	{
-		return (uint64_t)texture_->GetSRV();
-	}
-
-	DXGI_FORMAT GetDXGIFormat() const
-	{
-		return EffekseerRendererDX11::Backend::GetTextureFormatType(texture_->GetFormat());
-	}
-};
-
-class DepthTextureDX11 : public DepthTexture
-{
-private:
-	Graphics* graphics = nullptr;
-	EffekseerRendererDX11::Backend::TextureRef texture_;
-
-public:
-	DepthTextureDX11(Graphics* graphics);
-	virtual ~DepthTextureDX11();
-	bool Initialize(int32_t width, int32_t height, uint32_t multisample = 1);
-
-	Effekseer::Backend::TextureRef GetAsBackend() override
-	{
-		return texture_;
-	}
-
-	ID3D11Texture2D* GetTexture() const
-	{
-		return texture_->GetTexture();
-	}
-};
 
 class GraphicsDX11 : public Graphics
 {
@@ -89,11 +36,6 @@ private:
 	std::array<ID3D11RenderTargetView*, 4> currentRenderTargetViews;
 	ID3D11DepthStencilView* currentDepthStencilView = nullptr;
 
-	RenderTexture* backupRenderTarget = nullptr;
-	DepthTexture* backupDepthStencil = nullptr;
-
-	ID3D11RasterizerState* rasterizerState = nullptr;
-	ID3D11RasterizerState* savedRasterizerState = nullptr;
 	Effekseer::RefPtr<Effekseer::Backend::GraphicsDevice> graphicsDevice_;
 	D3D_FEATURE_LEVEL flevel_{};
 
@@ -108,10 +50,6 @@ public:
 	void Resize(int32_t width, int32_t height) override;
 
 	bool Present() override;
-
-	void BeginScene() override;
-
-	void EndScene() override;
 
 	void SetRenderTarget(std::vector<Effekseer::Backend::TextureRef> renderTextures, Effekseer::Backend::TextureRef depthTexture) override;
 
@@ -131,9 +69,9 @@ public:
 
 	ID3D11DeviceContext* GetContext() const;
 
-	DeviceType GetDeviceType() const override
+	Effekseer::Tool::DeviceType GetDeviceType() const override
 	{
-		return DeviceType::DirectX11;
+		return Effekseer::Tool::DeviceType::DirectX11;
 	}
 
 	Effekseer::RefPtr<Effekseer::Backend::GraphicsDevice> GetGraphicsDevice() override

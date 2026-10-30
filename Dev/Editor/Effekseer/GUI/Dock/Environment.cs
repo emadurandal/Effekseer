@@ -8,23 +8,23 @@ namespace Effekseer.GUI.Dock
 {
 	class Environement : DockPanel
 	{
-		Component.CopyAndPaste candp = null;
-		Component.ParameterList paramerterList = null;
+		BindableComponent.ParameterList paramerterList = null;
 
 		bool isFiestUpdate = true;
 
 		public Environement()
 		{
-			Label = Icons.PanelEnvironment + Resources.GetString("Environment_Name") + "###Environment";
+			Label = Icons.PanelEnvironment + MultiLanguageTextProvider.GetText("Environment_Name") + "###Environment";
+			DocPage = "environment.html";
 
-			paramerterList = new Component.ParameterList();
+			paramerterList = new BindableComponent.ParameterList();
 
-			candp = new Component.CopyAndPaste("Environment", GetTargetObject, null);
+			CopyAndPaste = new BindableComponent.CopyAndPaste("Environment", GetTargetObject, null);
 
 			Core.OnAfterLoad += OnAfter;
 			Core.OnAfterNew += OnAfter;
 
-			TabToolTip = Resources.GetString("Environment_Name");
+			TabToolTip = MultiLanguageTextProvider.GetText("Environment_Name");
 		}
 
 		public void FixValues()
@@ -42,13 +42,11 @@ namespace Effekseer.GUI.Dock
 
 		protected override void UpdateInternal()
 		{
-			if(isFiestUpdate)
+			if (isFiestUpdate)
 			{
 				paramerterList.SetValue(Core.Environment);
 				isFiestUpdate = false;
 			}
-
-			candp.Update();
 
 			paramerterList.Update();
 		}

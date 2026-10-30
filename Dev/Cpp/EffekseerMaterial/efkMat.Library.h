@@ -25,14 +25,19 @@ public:
 
 	bool IsShown = true;
 
-	virtual std::shared_ptr<NodeParameter> Create() { return nullptr; }
+	virtual std::shared_ptr<NodeParameter> Create()
+	{
+		return nullptr;
+	}
 };
 
-template <class NT> class LibraryContent : public LibraryContentBase
+template <class NT>
+class LibraryContent : public LibraryContentBase
 {
 	std::string tolower(std::string s)
 	{
-		std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
+		std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c)
+					   { return std::tolower(c); });
 		return s;
 	}
 
@@ -66,7 +71,10 @@ public:
 		}
 	}
 
-	std::shared_ptr<NodeParameter> Create() override { return std::make_shared<NT>(); }
+	std::shared_ptr<NodeParameter> Create() override
+	{
+		return std::make_shared<NT>();
+	}
 };
 
 class LibraryContentGroup

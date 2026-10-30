@@ -2,12 +2,23 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Effekseer.Data;
+using Effekseer.Data.Value;
+using Effekseer.swig;
+using Color = Effekseer.swig.Color;
 
 namespace Effekseer.GUI
 {
-	public class Viewer
+	public class Viewer : EffectRendererCallback
 	{
-		public swig.Native native = null;
+		HardwareDevice hardwareDevice;
+		swig.EffectSetting effectSetting;
+		public swig.MainScreenEffectRenderer EffectRenderer { get; private set; }
+
+		public swig.Effect CurrentEffect { get; private set; }
+		swig.EffectFactory effectFactory;
+
+		public swig.ViewPointController ViewPointController = null;
 		string backgroundImagePath = string.Empty;
 		bool isViewerShown = false;
 
@@ -51,65 +62,76 @@ namespace Effekseer.GUI
 			}
 		}
 
-		public Viewer(swig.Native native)
+		public float LODDistanceBias
 		{
-			this.native = native;
+			get;
+			set;
 		}
 
-		public bool ResizeWindow(int width, int height)
+		public Viewer(HardwareDevice hardwareDevice)
 		{
-			// Hack for old GUI
-			if (!isViewerShown) return true;
-
-			return native.ResizeWindow(width, height);
+			this.hardwareDevice = hardwareDevice;
 		}
 
-		public bool LoadEffect(IntPtr data, int size, string path)
+		protected override void Dispose(bool disposing)
 		{
-			return native.LoadEffect(data, size, path);
+			base.Dispose(disposing);
+
+			if (CurrentEffect != null)
+			{
+				CurrentEffect.Dispose();
+				CurrentEffect = null;
+			}
+
+			if (effectFactory != null)
+			{
+				effectFactory.Dispose();
+				effectFactory = null;
+			}
+
+			if (effectSetting != null)
+			{
+				effectSetting.Dispose();
+				effectSetting = null;
+			}
+
+			if (EffectRenderer != null)
+			{
+				EffectRenderer.Callback = null;
+
+				EffectRenderer.Dispose();
+				EffectRenderer = null;
+			}
 		}
 
-		public bool RemoveEffect()
-		{
-			return native.RemoveEffect();
-		}
 
-		public bool PlayEffect()
+		public void StepEffectFrame(int frame)
 		{
-			return native.PlayEffect();
-		}
-
-		public bool StepEffectFrame(int frame)
-		{
-			return native.StepEffect(frame);
+			EffectRenderer.Update(frame);
 		}
 
 		public bool Rotate(float x, float y)
 		{
-			return native.Rotate(x, y);
+			return ViewPointController.Rotate(x, y);
 		}
 
 		public bool Slide(float x, float y)
 		{
-			return native.Slide(x, y);
+			return ViewPointController.Slide(x, y);
 		}
 
 		public bool Zoom(float zoom)
 		{
 			if (!isViewerShown) return false;
-			return native.Zoom(zoom);
-		}
-
-		public bool SetRandomSeed(int seed)
-		{
-			return native.SetRandomSeed(seed);
+			return ViewPointController.Zoom(zoom);
 		}
 
 		public bool LoadEffectFunc()
 		{
 			StopViewer();
 
-			RemoveEffect();
+			EffectRenderer.SetEffect(null);
+			EffectRenderer.ResetEffect();
 
 			Export();
 
@@ -118,19 +140,45 @@ namespace Effekseer.GUI
 			return true;
 		}
 
-		public bool RecordSprite(string path, swig.RecordingParameter recordingParameter)
+		swig.EffectRecorder CreateRecorder(swig.RecordingParameter recordingParameter)
+		{
+			var screenSize = EffectRenderer.GetScreenSize();
+
+			var recorder = new swig.EffectRecorder();
+			if (recorder.Begin(
+					EffectRenderer.GetSquareMaxCount(),
+					EffectRenderer.GetParameter(),
+					screenSize,
+					hardwareDevice.GraphicsDevice,
+					effectSetting,
+					recordingParameter,
+					new swig.Vector2I(EffectRenderer.GuideWidth, EffectRenderer.GuideHeight),
+					EffectRenderer.GetIsSRGBMode(),
+					EffectRenderer.GetBehavior(),
+					EffectRenderer.GetExternalModels(),
+					EffectRenderer.GetPostEffectParameter(),
+					EffectRenderer.GetEffect()))
+			{
+				return recorder;
+			}
+
+			recorder.Dispose();
+			return null;
+		}
+
+		public swig.EffectRecorder RecordSprite(string path, swig.RecordingParameter recordingParameter)
 		{
 			var dir = System.IO.Path.GetDirectoryName(path);
 			var fileWExt = System.IO.Path.GetFileNameWithoutExtension(path);
 			var ext = System.IO.Path.GetExtension(path);
 
-            recordingParameter.SetPath(dir + "/" + fileWExt);
-            recordingParameter.SetExt(ext);
-            recordingParameter.RecordingMode = swig.RecordingModeType.Sprite;
-            return native.BeginRecord(recordingParameter);
+			recordingParameter.SetPath(dir + "/" + fileWExt);
+			recordingParameter.SetExt(ext);
+			recordingParameter.RecordingMode = swig.RecordingModeType.Sprite;
+			return CreateRecorder(recordingParameter);
 		}
 
-		public bool RecordSpriteSheet(string path, swig.RecordingParameter recordingParameter)
+		public swig.EffectRecorder RecordSpriteSheet(string path, swig.RecordingParameter recordingParameter)
 		{
 			var dir = System.IO.Path.GetDirectoryName(path);
 			var fileWExt = System.IO.Path.GetFileNameWithoutExtension(path);
@@ -139,11 +187,11 @@ namespace Effekseer.GUI
 			recordingParameter.SetPath(dir + "/" + fileWExt);
 			recordingParameter.SetExt(ext);
 			recordingParameter.RecordingMode = swig.RecordingModeType.SpriteSheet;
-            return native.BeginRecord(recordingParameter);
+			return CreateRecorder(recordingParameter);
 		}
 
-		public bool RecordAsGifAnimation(string path, swig.RecordingParameter recordingParameter)
-        {
+		public swig.EffectRecorder RecordAsGifAnimation(string path, swig.RecordingParameter recordingParameter)
+		{
 			var dir = System.IO.Path.GetDirectoryName(path);
 			var fileWExt = System.IO.Path.GetFileNameWithoutExtension(path);
 			var ext = System.IO.Path.GetExtension(path);
@@ -151,11 +199,11 @@ namespace Effekseer.GUI
 			recordingParameter.SetPath(dir + "/" + fileWExt);
 			recordingParameter.SetExt(ext);
 			recordingParameter.RecordingMode = swig.RecordingModeType.Gif;
-            return native.BeginRecord(recordingParameter);
-        }
+			return CreateRecorder(recordingParameter);
+		}
 
-		public bool RecordAsAVI(string path, swig.RecordingParameter recordingParameter)
-        {
+		public swig.EffectRecorder RecordAsAVI(string path, swig.RecordingParameter recordingParameter)
+		{
 			var dir = System.IO.Path.GetDirectoryName(path);
 			var fileWExt = System.IO.Path.GetFileNameWithoutExtension(path);
 			var ext = System.IO.Path.GetExtension(path);
@@ -163,284 +211,71 @@ namespace Effekseer.GUI
 			recordingParameter.SetPath(dir + "/" + fileWExt);
 			recordingParameter.SetExt(ext);
 			recordingParameter.RecordingMode = swig.RecordingModeType.Avi;
-            return native.BeginRecord(recordingParameter);
-        }
-
-		public bool EndRecord()
-		{
-			return native.EndRecord();
+			return CreateRecorder(recordingParameter);
 		}
 
-		public bool StepRecord(int frames = 1)
+		public swig.EffectRecorder RecordAsH264(string path, swig.RecordingParameter recordingParameter)
 		{
-			return native.StepRecord(frames);
+			var dir = System.IO.Path.GetDirectoryName(path);
+			var fileWExt = System.IO.Path.GetFileNameWithoutExtension(path);
+			var ext = System.IO.Path.GetExtension(path);
+
+			recordingParameter.SetPath(dir + "/" + fileWExt);
+			recordingParameter.SetExt(ext);
+			recordingParameter.RecordingMode = swig.RecordingModeType.H264;
+			return CreateRecorder(recordingParameter);
 		}
 
-		public bool IsRecordCompleted()
+		public void SendTrigger(int index)
 		{
-			return native.IsRecordCompleted();
-		}
-	
-		public float GetRecordingProgress()
-		{
-			return native.GetRecordingProgress();
-		}
-
-		public swig.ViewerParamater GetViewerParamater()
-		{
-			return native.GetViewerParamater();
-		}
-
-		public void SetViewerParamater(swig.ViewerParamater paramater)
-		{
-			native.SetViewerParamater(paramater);
-		}
-
-		public void SetSoundMute(bool mute)
-		{
-			native.SetSoundMute(mute);
-		}
-
-		public void SetSoundVolume(float volume)
-		{
-			native.SetSoundVolume(volume);
-		}
-
-		public void InvalidateTextureCache()
-		{
-			native.InvalidateTextureCache();
-		}
-
-		public void SetLotation(float x, float y, float z)
-		{
-			var behavior = native.GetEffectBehavior();
-			behavior.PositionX = x;
-			behavior.PositionY = y;
-			behavior.PositionZ = z;
-			native.SetViewerEffectBehavior(behavior);
-		}
-
-		public void SetRotation(float x, float y, float z)
-		{
-			var behavior = native.GetEffectBehavior();
-			behavior.RotationX = x;
-			behavior.RotationY = y;
-			behavior.RotationZ = z;
-			native.SetViewerEffectBehavior(behavior);
-		}
-
-		public void SetScale(float x, float y, float z)
-		{
-			var behavior = native.GetEffectBehavior();
-			behavior.ScaleX = x;
-			behavior.ScaleY = y;
-			behavior.ScaleZ = z;
-			native.SetViewerEffectBehavior(behavior);
-		}
-
-		public void SetLotationVelocity(float x, float y, float z)
-		{
-			var behavior = native.GetEffectBehavior();
-			behavior.PositionVelocityX = x;
-			behavior.PositionVelocityY = y;
-			behavior.PositionVelocityZ = z;
-			native.SetViewerEffectBehavior(behavior);
-		}
-
-		public void SetRotationVelocity(float x, float y, float z)
-		{
-			var behavior = native.GetEffectBehavior();
-			behavior.RotationVelocityX = x;
-			behavior.RotationVelocityY = y;
-			behavior.RotationVelocityZ = z;
-			native.SetViewerEffectBehavior(behavior);
-		}
-
-		public void SetScaleVelocity(float x, float y, float z)
-		{
-			var behavior = native.GetEffectBehavior();
-			behavior.ScaleVelocityX = x;
-			behavior.ScaleVelocityY = y;
-			behavior.ScaleVelocityZ = z;
-			native.SetViewerEffectBehavior(behavior);
-		}
-
-		public void SetTargetLocation(float x, float y, float z)
-		{
-			var behavior = native.GetEffectBehavior();
-			behavior.TargetPositionX = x;
-			behavior.TargetPositionY = y;
-			behavior.TargetPositionZ = z;
-			native.SetViewerEffectBehavior(behavior);
-		}
-
-		public void SetRemovedTime(int time)
-		{
-			var behavior = native.GetEffectBehavior();
-			behavior.RemovedTime = time;
-			native.SetViewerEffectBehavior(behavior);
-		}
-
-		public void SetAllColor(byte r, byte g, byte b, byte a)
-		{
-			var behavior = native.GetEffectBehavior();
-			behavior.AllColorR = r;
-			behavior.AllColorG = g;
-			behavior.AllColorB = b;
-			behavior.AllColorA = a;
-			native.SetViewerEffectBehavior(behavior);
-		}
-
-		public void SetEffectTimeSpan(int timeSpan)
-		{
-			var behavior = native.GetEffectBehavior();
-			behavior.TimeSpan = timeSpan;
-			native.SetViewerEffectBehavior(behavior);
-		}
-
-		public void SetEffectCount(int x, int y, int z)
-		{
-			var behavior = native.GetEffectBehavior();
-			behavior.CountX = x;
-			behavior.CountY = y;
-			behavior.CountZ = z;
-			native.SetViewerEffectBehavior(behavior);
-		}
-
-		public void SetEffectDistance(float distance)
-		{
-			var behavior = native.GetEffectBehavior();
-			behavior.Distance = distance;
-			native.SetViewerEffectBehavior(behavior);
-		}
-
-		public void SetIsGridShown(bool value, bool xy, bool xz, bool yz)
-		{
-			native.SetIsGridShown(value, xy, xz, yz);
-		}
-
-		public void SetGridLength(float length)
-		{
-			native.SetGridLength(length);
-		}
-
-		public void SetBackgroundColor(byte r, byte g, byte b)
-		{
-			native.SetBackgroundColor(r, g, b);
-		}
-
-		public void SetBackgroundImage(string path)
-		{
-			if (backgroundImagePath == path) return;
-
-			native.SetBackgroundImage(path);
-			backgroundImagePath = path;
-		}
-
-		public void SetGridColor(byte r, byte g, byte b, byte a)
-		{
-			native.SetGridColor(r, g, b, a);
-		}
-
-		public void SetStep(int step)
-		{
-			native.SetStep(step);
-		}
-
-		public void SetCullingParameter(bool isCullingShown, float cullingRadius, float cullingX, float cullingY, float cullingZ)
-		{
-			native.SetCullingParameter(isCullingShown, cullingRadius, cullingX, cullingY, cullingZ);
-		}
-
-		public void SetLightDirection(float x, float y, float z)
-		{
-			native.SetLightDirection(x, y, z);
-		}
-
-		public void SetLightColor(byte r, byte g, byte b, byte a)
-		{
-			native.SetLightColor(r, g, b, a);
-		}
-
-		public void SetLightAmbientColor(byte r, byte g, byte b, byte a)
-		{
-			native.SetLightAmbientColor(r, g, b, a);
-		}
-
-		public void SetDistortionType(int type)
-		{
-			var param = native.GetViewerParamater();
-
-			param.Distortion = (swig.DistortionType)type;
-
-			native.SetViewerParamater(param);
-		}
-		
-		public void SetRenderMode(int renderMode)
-		{
-			var param = native.GetViewerParamater();
-
-			param.RenderingMode = (swig.RenderingMethodType)renderMode;
-
-			native.SetViewerParamater(param);
-		}
-
-		public void SetViewMode(int viewMode)
-		{
-			var param = native.GetViewerParamater();
-
-			param.ViewerMode = (swig.ViewMode)viewMode;
-
-			native.SetViewerParamater(param);
-		}
-
-		public void SetIsRightHand(bool value)
-		{
-			native.SetIsRightHand(value);
-		}
-
-		public void SetMouseInverseFlag(bool rotX, bool rotY, bool slideX, bool slideY)
-		{
-			native.SetMouseInverseFlag(rotX, rotY, slideX, slideY);
+			var behavior = EffectRenderer.GetBehavior();
+			switch (index)
+			{
+				case 0: behavior.TriggerInput0 = true; break;
+				case 1: behavior.TriggerInput1 = true; break;
+				case 2: behavior.TriggerInput2 = true; break;
+				case 3: behavior.TriggerInput3 = true; break;
+			}
+			EffectRenderer.SetBehavior(behavior);
 		}
 
 		public void SetDynamicInput(float v1, float v2, float v3, float v4)
 		{
-			var behavior = native.GetEffectBehavior();
+			var behavior = EffectRenderer.GetBehavior();
 			behavior.DynamicInput1 = v1;
 			behavior.DynamicInput2 = v2;
 			behavior.DynamicInput3 = v3;
 			behavior.DynamicInput4 = v4;
-			native.SetViewerEffectBehavior(behavior);
+			EffectRenderer.SetBehavior(behavior);
 		}
 
-		public bool ShowViewer(IntPtr handle, int width, int height, swig.DeviceType deviceType)
+		public bool Initialize(swig.DeviceType deviceType)
 		{
 			if (isViewerShown) return false;
 
-			if (native == null)
-			{
-				throw new Exception("native is null.");
-			}
+			// because internal buffer is 16bit
+			var spriteCount = 65000 / 4;
 
-			if (native.CreateWindow_Effekseer(
-				handle, 
-				width <= 0 ? 1 : width,
-				height <= 0 ? 1 : height,
-				Core.Option.ColorSpace.Value == Data.OptionValues.ColorSpaceType.LinearSpace,
-				deviceType))
+			effectSetting = swig.EffectSetting.Create(hardwareDevice.GraphicsDevice, hardwareDevice.SoundDevice);
+
+			EffectRenderer = new swig.MainScreenEffectRenderer();
+			if (!EffectRenderer.Initialize(hardwareDevice.GraphicsDevice, hardwareDevice.SoundDevice, effectSetting, spriteCount, hardwareDevice.GraphicsDevice.GetIsSRGBMode()))
 			{
-				isViewerShown = true;
-			}
-			else
-			{
-				var message = MultiLanguageTextProvider.GetText("System_FailedToInitialize");
-				Core.OnOutputMessage(message);
+				EffectRenderer.Dispose();
+				EffectRenderer = null;
 				return false;
 			}
+			EffectRenderer.Callback = this;
+
+			ViewPointController = new swig.ViewPointController();
+
+			ViewPointController.ProjectionStyle = deviceType == swig.DeviceType.OpenGL ? swig.ProjectionMatrixStyle.OpenGLStyle : swig.ProjectionMatrixStyle.DirectXStyle;
 
 			ViewMode_OnChanged(null, null);
 			Core.Option.ViewerMode.OnChanged += ViewMode_OnChanged;
+
+			CoordinateSystem_OnChanged(null, null);
+			Core.Option.Coordinate.OnChanged += CoordinateSystem_OnChanged;
 
 			Core.Option.RenderingMode.OnChanged += RenderingMode_OnChanged;
 			RenderingMode_OnChanged(null, null);
@@ -450,35 +285,283 @@ namespace Effekseer.GUI
 			Core.Environment.PostEffect.Bloom.Intensity.OnChanged += Bloom_OnChanged;
 			Core.Environment.PostEffect.Bloom.Threshold.OnChanged += Bloom_OnChanged;
 			Core.Environment.PostEffect.Bloom.SoftKnee.OnChanged += Bloom_OnChanged;
-			
+
 			Tonemap_OnChanged(null, null);
 			Core.Environment.PostEffect.TonemapSelector.OnChanged += Tonemap_OnChanged;
 			Core.Environment.PostEffect.TonemapReinhard.Exposure.OnChanged += Tonemap_OnChanged;
-			
+
+			effectFactory = new swig.EffectFactory(effectSetting);
+
+			isViewerShown = true;
+
 			return true;
+		}
+
+		private void CoordinateSystem_OnChanged(object sender, ChangedValueEventArgs e)
+		{
+			ViewPointController.SetCoordinateSystem(
+				Core.Option.Coordinate.Value == Data.OptionValues.CoordinateType.Right ? swig.CoordinateSystemType.RH : swig.CoordinateSystemType.LH);
+			effectSetting.SetCoordinateSyatem(
+				Core.Option.Coordinate.Value == Data.OptionValues.CoordinateType.Right ? swig.CoordinateSystemType.RH : swig.CoordinateSystemType.LH);
 		}
 
 		private void RenderingMode_OnChanged(object sender, ChangedValueEventArgs e)
 		{
-			SetRenderMode((int)Core.Option.RenderingMode.Value);
+			var renderParam = EffectRenderer.GetParameter();
+			renderParam.RenderingMethod = (swig.RenderingMethodType)(int)Core.Option.RenderingMode.Value;
+			EffectRenderer.SetParameter(renderParam);
 		}
 
 		public void HideViewer()
 		{
 			if (!isViewerShown) return;
 			isViewerShown = false;
-			
+
 			Core.Environment.PostEffect.BloomSwitch.OnChanged -= Bloom_OnChanged;
 			Core.Environment.PostEffect.Bloom.Intensity.OnChanged -= Bloom_OnChanged;
 			Core.Environment.PostEffect.Bloom.Threshold.OnChanged -= Bloom_OnChanged;
 			Core.Environment.PostEffect.Bloom.SoftKnee.OnChanged -= Bloom_OnChanged;
-			
+
 			Core.Environment.PostEffect.TonemapSelector.OnChanged -= Tonemap_OnChanged;
 			Core.Environment.PostEffect.TonemapReinhard.Exposure.OnChanged -= Tonemap_OnChanged;
 
 			Core.Option.ViewerMode.OnChanged -= ViewMode_OnChanged;
 
-			native.DestroyWindow();
+			Core.Option.Coordinate.OnChanged -= CoordinateSystem_OnChanged;
+		}
+
+		public override void OnAfterClear()
+		{
+			base.OnAfterClear();
+
+			Matrix44F cameraMatrix = Manager.Viewer.ViewPointController.GetCameraMatrix();
+			Matrix44F projectionMatrix = Manager.Viewer.ViewPointController.GetProjectionMatrix();
+
+			if (Core.Option.RenderingMode != OptionValues.RenderMode.Overdraw)
+			{
+				RenderGrid(cameraMatrix, projectionMatrix);
+				RenderKillRulesPreview(cameraMatrix, projectionMatrix);
+				RenderCullingPreview(cameraMatrix, projectionMatrix);
+			}
+		}
+
+		private void RenderSphere(Matrix44F cameraMatrix, Matrix44F projectionMatrix,
+			float sphereX, float sphereY, float sphereZ, float sphereRadius, Color color)
+		{
+			EffectRenderer.StartRenderingLines();
+
+			for (int y = -3; y <= 3; y++)
+			{
+				float ylen = sphereRadius * (y / 4.0f);
+				float radius = (float)Math.Sqrt(sphereRadius * sphereRadius - ylen * ylen);
+
+				for (int r = 0; r < 9; r++)
+				{
+					float a0 = 3.1415f * 2.0f / 9.0f * r;
+					float a1 = 3.1415f * 2.0f / 9.0f * (r + 1.0f);
+
+					EffectRenderer.AddLine(
+						(float)(sphereX + Math.Sin(a0) * radius), sphereY + ylen, (float)(sphereZ + Math.Cos(a0) * radius),
+						(float)(sphereX + Math.Sin(a1) * radius), sphereY + ylen, (float)(sphereZ + Math.Cos(a1) * radius),
+						color
+					);
+				}
+			}
+
+			EffectRenderer.EndRenderingLines(cameraMatrix, projectionMatrix);
+		}
+
+		private void RenderGrid(Matrix44F cameraMatrix, Matrix44F projectionMatrix)
+		{
+			if (!Core.Option.IsGridShown) return;
+
+			Color gridColor = new Color
+			{
+				R = (byte)Core.Option.GridColor.R,
+				G = (byte)Core.Option.GridColor.G,
+				B = (byte)Core.Option.GridColor.B,
+				A = (byte)Core.Option.GridColor.A
+			};
+			float gridLength = Core.Option.GridLength;
+
+			EffectRenderer.StartRenderingLines();
+
+			if (Core.Option.IsXZGridShown)
+			{
+				for (int i = -5; i <= 5; i++)
+				{
+					EffectRenderer.AddLine(i * gridLength, 0, gridLength * 5.0F,
+						i * gridLength, 0, -gridLength * 5.0F,
+						gridColor);
+					EffectRenderer.AddLine(gridLength * 5.0F, 0, i * gridLength,
+						-gridLength * 5.0F, 0, i * gridLength,
+						gridColor);
+				}
+			}
+
+			if (Core.Option.IsXYGridShown)
+			{
+				for (int i = -5; i <= 5; i++)
+				{
+					EffectRenderer.AddLine(i * gridLength, gridLength * 5.0F, 0,
+						i * gridLength, -gridLength * 5.0F, 0,
+						gridColor);
+					EffectRenderer.AddLine(gridLength * 5.0F, i * gridLength, 0,
+						-gridLength * 5.0F, i * gridLength, 0,
+						gridColor);
+				}
+			}
+
+			if (Core.Option.IsYZGridShown)
+			{
+				for (int i = -5; i <= 5; i++)
+				{
+					EffectRenderer.AddLine(0, i * gridLength, gridLength * 5.0F,
+						0, i * gridLength, -gridLength * 5.0F,
+						gridColor);
+					EffectRenderer.AddLine(0, gridLength * 5.0F, i * gridLength,
+						0, -gridLength * 5.0F, i * gridLength,
+						gridColor);
+				}
+			}
+
+			EffectRenderer.AddLine(0, 0.001F, 0, gridLength, 0.001F, 0,
+				new Color(255, 0, 0, 255));
+			EffectRenderer.AddLine(0, 0, 0, 0, gridLength, 0,
+				new Color(0, 255, 0, 255));
+			EffectRenderer.AddLine(0, 0.001F, 0, 0, 0.001F, gridLength,
+				new Color(0, 0, 255, 255));
+
+			EffectRenderer.EndRenderingLines(cameraMatrix, projectionMatrix);
+		}
+
+		private void RenderCullingPreview(Matrix44F cameraMatrix, Matrix44F projectionMatrix)
+		{
+			if (Core.Culling.Type.Value != Data.EffectCullingValues.ParamaterType.Sphere) return;
+
+			RenderSphere(cameraMatrix, projectionMatrix,
+				Core.Culling.Sphere.Location.X, Core.Culling.Sphere.Location.Y, Core.Culling.Sphere.Location.Z,
+				Core.Culling.Sphere.Radius, new Color(255, 255, 255, 255));
+		}
+
+		private void RenderKillRulesPreview(Matrix44F cameraMatrix, Matrix44F projectionMatrix)
+		{
+			if (Core.SelectedNode == null || !(Core.SelectedNode is Data.Node)) return;
+
+			Data.Node node = (Data.Node)Core.SelectedNode;
+
+			if (node.KillRulesValues.Type == KillRulesValues.KillType.Height)
+			{
+				EffectRenderer.StartRenderingLines();
+
+				Color planeColor = new Color(0xFF, 0x23, 0x23, 0xff);
+				PlaneAxisType axisType = node.KillRulesValues.PlaneAxis;
+				KillRulesValues.PlaneAxisSpace space = KillRulesValues.PlaneAxisNormal[axisType];
+				Vector3D normal = space.Normal;
+				Vector3D tangent = space.Tangent;
+				Vector3D bitangent = space.Bitangent;
+				float offset = node.KillRulesValues.PlaneOffset;
+
+				float offsetX = normal.X * offset;
+				float offsetY = normal.Y * offset;
+				float offsetZ = normal.Z * offset;
+
+				float v1X = offsetX - tangent.X * 5F - bitangent.X * 5F;
+				float v1Y = offsetY - tangent.Y * 5F - bitangent.Y * 5F;
+				float v1Z = offsetZ - tangent.Z * 5F - bitangent.Z * 5F;
+
+				float v2X = offsetX + tangent.X * 5F - bitangent.X * 5F;
+				float v2Y = offsetY + tangent.Y * 5F - bitangent.Y * 5F;
+				float v2Z = offsetZ + tangent.Z * 5F - bitangent.Z * 5F;
+
+				float v3X = offsetX + tangent.X * 5F + bitangent.X * 5F;
+				float v3Y = offsetY + tangent.Y * 5F + bitangent.Y * 5F;
+				float v3Z = offsetZ + tangent.Z * 5F + bitangent.Z * 5F;
+
+				float v4X = offsetX - tangent.X * 5F + bitangent.X * 5F;
+				float v4Y = offsetY - tangent.Y * 5F + bitangent.Y * 5F;
+				float v4Z = offsetZ - tangent.Z * 5F + bitangent.Z * 5F;
+
+				EffectRenderer.AddLine(v1X, v1Y, v1Z, v2X, v2Y, v2Z, planeColor);
+				EffectRenderer.AddLine(v2X, v2Y, v2Z, v3X, v3Y, v3Z, planeColor);
+				EffectRenderer.AddLine(v3X, v3Y, v3Z, v4X, v4Y, v4Z, planeColor);
+				EffectRenderer.AddLine(v4X, v4Y, v4Z, v1X, v1Y, v1Z, planeColor);
+
+				void AddPointer(float x, float y, float z, float nx, float ny, float nz, Color color)
+				{
+					EffectRenderer.AddLine(x, y, z, x + nx, y + ny, z + nz, color);
+				}
+
+				AddPointer((v1X + v2X) * 0.5F, (v1Y + v2Y) * 0.5F, (v1Z + v2Z) * 0.5F,
+					normal.X, normal.Y, normal.Z, planeColor);
+				AddPointer((v2X + v3X) * 0.5F, (v2Y + v3Y) * 0.5F, (v2Z + v3Z) * 0.5F,
+					normal.X, normal.Y, normal.Z, planeColor);
+				AddPointer((v3X + v4X) * 0.5F, (v3Y + v4Y) * 0.5F, (v3Z + v4Z) * 0.5F,
+					normal.X, normal.Y, normal.Z, planeColor);
+				AddPointer((v4X + v1X) * 0.5F, (v4Y + v1Y) * 0.5F, (v4Z + v1Z) * 0.5F,
+					normal.X, normal.Y, normal.Z, planeColor);
+
+				EffectRenderer.EndRenderingLines(cameraMatrix, projectionMatrix);
+			}
+			if (node.KillRulesValues.Type == KillRulesValues.KillType.Box)
+			{
+				Vector3D center = node.KillRulesValues.BoxCenter;
+				Vector3D size = node.KillRulesValues.BoxSize;
+				float minX = center.X - size.X;
+				float minY = center.Y - size.Y;
+				float minZ = center.Z - size.Z;
+				float maxX = center.X + size.X;
+				float maxY = center.Y + size.Y;
+				float maxZ = center.Z + size.Z;
+
+				Color boxColor = node.KillRulesValues.BoxIsKillInside ?
+					new Color(0xFF, 0x23, 0x23, 0xFF) : new Color(0x23, 0xFF, 0x23, 0xFF);
+
+				EffectRenderer.StartRenderingLines();
+
+				// bottom rectangle
+				EffectRenderer.AddLine(minX, minY, minZ,
+					maxX, minY, minZ, boxColor);
+				EffectRenderer.AddLine(maxX, minY, minZ,
+					maxX, minY, maxZ, boxColor);
+				EffectRenderer.AddLine(maxX, minY, maxZ,
+					minX, minY, maxZ, boxColor);
+				EffectRenderer.AddLine(minX, minY, maxZ,
+					minX, minY, minZ, boxColor);
+
+				// top rectangle
+				EffectRenderer.AddLine(minX, maxY, minZ,
+					maxX, maxY, minZ, boxColor);
+				EffectRenderer.AddLine(maxX, maxY, minZ,
+					maxX, maxY, maxZ, boxColor);
+				EffectRenderer.AddLine(maxX, maxY, maxZ,
+					minX, maxY, maxZ, boxColor);
+				EffectRenderer.AddLine(minX, maxY, maxZ,
+					minX, maxY, minZ, boxColor);
+
+				// sides
+				EffectRenderer.AddLine(minX, minY, minZ,
+					minX, maxY, minZ, boxColor);
+				EffectRenderer.AddLine(maxX, minY, minZ,
+					maxX, maxY, minZ, boxColor);
+				EffectRenderer.AddLine(minX, minY, maxZ,
+					minX, maxY, maxZ, boxColor);
+				EffectRenderer.AddLine(maxX, minY, maxZ,
+					maxX, maxY, maxZ, boxColor);
+				EffectRenderer.EndRenderingLines(cameraMatrix, projectionMatrix);
+			}
+
+			if (node.KillRulesValues.Type == KillRulesValues.KillType.Sphere)
+			{
+				Vector3D sphereCenter = node.KillRulesValues.SphereCenter;
+				float radius = node.KillRulesValues.SphereRadius;
+				Color sphereColor = node.KillRulesValues.SphereIsKillInside ?
+					new Color(0xFF, 0x23, 0x23, 0xFF) : new Color(0x23, 0xFF, 0x23, 0xFF);
+
+				RenderSphere(cameraMatrix, projectionMatrix,
+					sphereCenter.X, sphereCenter.Y, sphereCenter.Z,
+					radius, sphereColor);
+			}
 		}
 
 		public void UpdateViewer()
@@ -487,7 +570,7 @@ namespace Effekseer.GUI
 			{
 				if ((IsChanged && (IsPlaying || IsPaused)) || IsRequiredToReload)
 				{
-					if(IsRequiredToReload)
+					if (IsRequiredToReload)
 					{
 						Reload(true);
 					}
@@ -515,78 +598,74 @@ namespace Effekseer.GUI
 
 					StepViewer(stepFrame, true);
 				}
+				else if (IsPlaying && IsPaused)
+				{
+					// need to update LOD which could have changed because of changed camera position
+					// even if effect is paused
+					EffectRenderer.UpdatePaused();
+				}
+				else
+				{
+					UpdateFrame();
+				}
 
 				// update environment
-				native.SetGroundParameters(
-					Core.Environment.Ground.IsShown.Value,
-					Core.Environment.Ground.Height.Value,
-					Core.Environment.Ground.Extent.Value);
+				var renderParam = EffectRenderer.GetParameter();
+				renderParam.IsGroundShown = Core.Environment.Ground.IsShown.Value;
+				renderParam.GroundHeight = Core.Environment.Ground.Height.Value;
+				renderParam.GroundExtent = Core.Environment.Ground.Extent.Value;
+				renderParam.IsGroundCollisionEnabled = Core.Environment.Ground.IsCollisionEnabled.Value;
 
-				native.SetBackgroundColor(
-				(byte)Core.Environment.Background.BackgroundColor.R,
-				(byte)Core.Environment.Background.BackgroundColor.G,
-				(byte)Core.Environment.Background.BackgroundColor.B);
+				renderParam.BackgroundColor = new swig.Color
+				{
+					R = (byte)Core.Environment.Background.BackgroundColor.R,
+					G = (byte)Core.Environment.Background.BackgroundColor.G,
+					B = (byte)Core.Environment.Background.BackgroundColor.B,
+					A = 255,
+				};
 
-				native.SetBackgroundImage(Core.Environment.Background.BackgroundImage.AbsolutePath);
+				renderParam.LightDirection = new swig.Vector3F
+				{
+					X = Core.Environment.Lighting.LightDirection.X,
+					Y = Core.Environment.Lighting.LightDirection.Y,
+					Z = Core.Environment.Lighting.LightDirection.Z,
+				};
 
-				native.SetGridColor(
-				(byte)Core.Option.GridColor.R,
-				(byte)Core.Option.GridColor.G,
-				(byte)Core.Option.GridColor.B,
-				(byte)Core.Option.GridColor.A);
+				renderParam.LightColor = new swig.Color
+				{
+					R = (byte)Core.Environment.Lighting.LightColor.R,
+					G = (byte)Core.Environment.Lighting.LightColor.G,
+					B = (byte)Core.Environment.Lighting.LightColor.B,
+					A = (byte)Core.Environment.Lighting.LightColor.A
+				};
 
-				native.SetGridLength(
-					Core.Option.GridLength);
+				renderParam.LightAmbientColor = new swig.Color
+				{
+					R = (byte)Core.Environment.Lighting.LightAmbientColor.R,
+					G = (byte)Core.Environment.Lighting.LightAmbientColor.G,
+					B = (byte)Core.Environment.Lighting.LightAmbientColor.B,
+					A = (byte)Core.Environment.Lighting.LightAmbientColor.A
+				};
 
-				native.SetIsGridShown(
-					Core.Option.IsGridShown,
-					Core.Option.IsXYGridShown,
-					Core.Option.IsXZGridShown,
-					Core.Option.IsYZGridShown);
+				renderParam.Distortion = (swig.DistortionType)(int)Core.Option.DistortionType.Value;
 
-				native.SetLightDirection(
-					Core.Environment.Lighting.LightDirection.X,
-					Core.Environment.Lighting.LightDirection.Y,
-					Core.Environment.Lighting.LightDirection.Z);
+				renderParam.RenderingMethod = (swig.RenderingMethodType)(int)Core.Option.RenderingMode.Value;
 
-				native.SetLightColor(
-					(byte)Core.Environment.Lighting.LightColor.R,
-					(byte)Core.Environment.Lighting.LightColor.G,
-					(byte)Core.Environment.Lighting.LightColor.B,
-					(byte)Core.Environment.Lighting.LightColor.A);
+				EffectRenderer.SetParameter(renderParam);
 
-				native.SetLightAmbientColor(
-					(byte)Core.Environment.Lighting.LightAmbientColor.R,
-					(byte)Core.Environment.Lighting.LightAmbientColor.G,
-					(byte)Core.Environment.Lighting.LightAmbientColor.B,
-					(byte)Core.Environment.Lighting.LightAmbientColor.A);
+				EffectRenderer.LoadBackgroundImage(Core.Environment.Background.BackgroundImage.AbsolutePath);
 
-				native.SetMouseInverseFlag(
+				ViewPointController.SetMouseInverseFlag(
 					Core.Option.MouseRotInvX,
 					Core.Option.MouseRotInvY,
 					Core.Option.MouseSlideInvX,
 					Core.Option.MouseSlideInvY);
 
-				if (Core.Culling.Type.Value == Data.EffectCullingValues.ParamaterType.Sphere)
-				{
-					native.SetCullingParameter(Core.Culling.IsShown, Core.Culling.Sphere.Radius.Value, Core.Culling.Sphere.Location.X, Core.Culling.Sphere.Location.Y, Core.Culling.Sphere.Location.Z);
-				}
-				else if (Core.Culling.Type.Value == Data.EffectCullingValues.ParamaterType.None)
-				{
-					native.SetCullingParameter(false, 0.0f, 0.0f, 0.0f, 0.0f);
-				}
+				EffectRenderer.SetLODDistanceBias(LODDistanceBias);
 			}
 			else
 			{
 				System.Threading.Thread.Sleep(1);
-			}
-		}
-
-		public void PresentWindow()
-		{
-			if (isViewerShown)
-			{
-				native.Present();
 			}
 		}
 
@@ -603,7 +682,7 @@ namespace Effekseer.GUI
 		{
 			if (isViewerShown)
 			{
-				native.StopEffect();
+				EffectRenderer.ResetEffect();
 
 				IsPlaying = false;
 				IsPaused = false;
@@ -622,13 +701,18 @@ namespace Effekseer.GUI
 		public void StepViewer(float frame, bool isLooping)
 		{
 			var next = Current + frame;
+			var isLooped = false;
 
 			if (isLooping)
 			{
-				if (next > Core.EndFrame) next = 0;
+				if (next > Core.EndFrame)
+				{
+					next = 0;
+					isLooped = true;
+				}
 			}
 
-			MoveFrame(next);
+			MoveFrame(next, isLooped);
 		}
 
 		public void BackStepViewer()
@@ -638,124 +722,130 @@ namespace Effekseer.GUI
 
 		unsafe void Export()
 		{
-			Manager.Viewer.SetDynamicInput(
-				Core.Dynamic.Inputs.Values[0].Input.Value,
-				Core.Dynamic.Inputs.Values[1].Input.Value,
-				Core.Dynamic.Inputs.Values[2].Input.Value,
-				Core.Dynamic.Inputs.Values[3].Input.Value);
+			var behavior = EffectRenderer.GetBehavior();
+			behavior.DynamicInput1 = Core.Dynamic.Inputs.Values[0].Input.Value;
+			behavior.DynamicInput2 = Core.Dynamic.Inputs.Values[1].Input.Value;
+			behavior.DynamicInput3 = Core.Dynamic.Inputs.Values[2].Input.Value;
+			behavior.DynamicInput4 = Core.Dynamic.Inputs.Values[3].Input.Value;
 
-			SetLotationVelocity(
-				Core.EffectBehavior.LocationVelocity.X,
-				Core.EffectBehavior.LocationVelocity.Y,
-				Core.EffectBehavior.LocationVelocity.Z);
+			behavior.PositionVelocityX = Core.EffectBehavior.LocationVelocity.X;
+			behavior.PositionVelocityY = Core.EffectBehavior.LocationVelocity.Y;
+			behavior.PositionVelocityZ = Core.EffectBehavior.LocationVelocity.Z;
 
-			SetRotationVelocity(
-				Core.EffectBehavior.RotationVelocity.X / 180.0f * 3.141592f,
-				Core.EffectBehavior.RotationVelocity.Y / 180.0f * 3.141592f,
-				Core.EffectBehavior.RotationVelocity.Z / 180.0f * 3.141592f);
+			behavior.RotationVelocityX = Core.EffectBehavior.RotationVelocity.X / 180.0f * 3.141592f;
+			behavior.RotationVelocityY = Core.EffectBehavior.RotationVelocity.Y / 180.0f * 3.141592f;
+			behavior.RotationVelocityZ = Core.EffectBehavior.RotationVelocity.Z / 180.0f * 3.141592f;
 
-			SetScaleVelocity(
-				Core.EffectBehavior.ScaleVelocity.X,
-				Core.EffectBehavior.ScaleVelocity.Y,
-				Core.EffectBehavior.ScaleVelocity.Z);
+			behavior.ScaleVelocityX = Core.EffectBehavior.ScaleVelocity.X;
+			behavior.ScaleVelocityY = Core.EffectBehavior.ScaleVelocity.Y;
+			behavior.ScaleVelocityZ = Core.EffectBehavior.ScaleVelocity.Z;
 
 			if (Core.EffectBehavior.RemovedTime.Infinite.Value)
 			{
-				SetRemovedTime(int.MaxValue);
+				behavior.RemovedTime = int.MaxValue;
 			}
 			else
 			{
-				SetRemovedTime(Core.EffectBehavior.RemovedTime.Value);
+				behavior.RemovedTime = Core.EffectBehavior.RemovedTime.Value;
 			}
 
-			SetLotation(
-				Core.EffectBehavior.Location.X,
-				Core.EffectBehavior.Location.Y,
-				Core.EffectBehavior.Location.Z);
+			behavior.PositionX = Core.EffectBehavior.Location.X;
+			behavior.PositionY = Core.EffectBehavior.Location.Y;
+			behavior.PositionZ = Core.EffectBehavior.Location.Z;
 
-			SetRotation(
-				Core.EffectBehavior.Rotation.X / 180.0f * 3.141592f,
-				Core.EffectBehavior.Rotation.Y / 180.0f * 3.141592f,
-				Core.EffectBehavior.Rotation.Z / 180.0f * 3.141592f);
+			behavior.RotationX = Core.EffectBehavior.Rotation.X / 180.0f * 3.141592f;
+			behavior.RotationY = Core.EffectBehavior.Rotation.Y / 180.0f * 3.141592f;
+			behavior.RotationZ = Core.EffectBehavior.Rotation.Z / 180.0f * 3.141592f;
 
-			SetScale(
-				Core.EffectBehavior.Scale.X,
-				Core.EffectBehavior.Scale.Y,
-				Core.EffectBehavior.Scale.Z);
+			behavior.ScaleX = Core.EffectBehavior.Scale.X;
+			behavior.ScaleY = Core.EffectBehavior.Scale.Y;
+			behavior.ScaleZ = Core.EffectBehavior.Scale.Z;
 
-			SetTargetLocation(
-				Core.EffectBehavior.TargetLocation.X,
-				Core.EffectBehavior.TargetLocation.Y,
-				Core.EffectBehavior.TargetLocation.Z);
+			behavior.TargetPositionX = Core.EffectBehavior.TargetLocation.X;
+			behavior.TargetPositionY = Core.EffectBehavior.TargetLocation.Y;
+			behavior.TargetPositionZ = Core.EffectBehavior.TargetLocation.Z;
 
-			SetEffectCount(
-				Core.EffectBehavior.CountX,
-				Core.EffectBehavior.CountY,
-				Core.EffectBehavior.CountZ);
+			behavior.CountX = Core.EffectBehavior.CountX;
+			behavior.CountY = Core.EffectBehavior.CountY;
+			behavior.CountZ = Core.EffectBehavior.CountZ;
 
-			SetAllColor(
-				(byte)Core.EffectBehavior.ColorAll.R,
-				(byte)Core.EffectBehavior.ColorAll.G,
-				(byte)Core.EffectBehavior.ColorAll.B,
-				(byte)Core.EffectBehavior.ColorAll.A);
+			behavior.AllColorR = (byte)Core.EffectBehavior.ColorAll.R;
+			behavior.AllColorG = (byte)Core.EffectBehavior.ColorAll.G;
+			behavior.AllColorB = (byte)Core.EffectBehavior.ColorAll.B;
+			behavior.AllColorA = (byte)Core.EffectBehavior.ColorAll.A;
 
-			var behavior = native.GetEffectBehavior();
 			behavior.PlaybackSpeed = Core.EffectBehavior.PlaybackSpeed.Value;
-			native.SetViewerEffectBehavior(behavior);
 
-			SetEffectTimeSpan(Core.EffectBehavior.TimeSpan);
+			behavior.TimeSpan = Core.EffectBehavior.TimeSpan;
+			behavior.Distance = Core.EffectBehavior.Distance;
 
-			SetEffectDistance(Core.EffectBehavior.Distance);
-
-			SetBackgroundColor(
-				(byte)Core.Environment.Background.BackgroundColor.R,
-				(byte)Core.Environment.Background.BackgroundColor.G,
-				(byte)Core.Environment.Background.BackgroundColor.B);
-
-			SetGridLength(
-				Core.Option.GridLength);
-
-			SetStep((int)Core.Option.FPS.Value);
-			SetIsRightHand(Core.Option.Coordinate.Value == Data.OptionValues.CoordinateType.Right);
-
-			SetDistortionType((int)Core.Option.DistortionType.Value);
-			SetRenderMode((int)Core.Option.RenderingMode.Value);
-			SetViewMode((int)Core.Option.ViewerMode.Value);
-
-			if (Core.Culling.Type.Value == Data.EffectCullingValues.ParamaterType.Sphere)
+			var externalModels = new ViewerExternalModelVector();
+			foreach (var model in Core.EffectBehavior.ExternalModels.GetModels())
 			{
-				SetCullingParameter(Core.Culling.IsShown, Core.Culling.Sphere.Radius.Value, Core.Culling.Sphere.Location.X, Core.Culling.Sphere.Location.Y, Core.Culling.Sphere.Location.Z);
+				if (string.IsNullOrEmpty(model.Model.AbsolutePath))
+				{
+					continue;
+				}
+
+				var externalModel = new ViewerExternalModel();
+				externalModel.Path = model.Model.AbsolutePath;
+				externalModel.PositionX = model.Translation.X;
+				externalModel.PositionY = model.Translation.Y;
+				externalModel.PositionZ = model.Translation.Z;
+				externalModel.RotationX = model.Rotation.X / 180.0f * 3.141592f;
+				externalModel.RotationY = model.Rotation.Y / 180.0f * 3.141592f;
+				externalModel.RotationZ = model.Rotation.Z / 180.0f * 3.141592f;
+				externalModel.ScaleX = model.Scale.X;
+				externalModel.ScaleY = model.Scale.Y;
+				externalModel.ScaleZ = model.Scale.Z;
+				externalModels.Add(externalModel);
 			}
-			else if (Core.Culling.Type.Value == Data.EffectCullingValues.ParamaterType.None)
-			{
-				SetCullingParameter(false, 0.0f, 0.0f, 0.0f, 0.0f);
-			}
+
+			behavior.ExternalModels = externalModels;
+
+			EffectRenderer.SetBehavior(behavior);
+
+			EffectRenderer.SetStep((int)Core.Option.FPS.Value);
+
+			ViewPointController.SetCoordinateSystem(
+				Core.Option.Coordinate.Value == Data.OptionValues.CoordinateType.Right ? swig.CoordinateSystemType.RH : swig.CoordinateSystemType.LH);
+			effectSetting.SetCoordinateSyatem(
+				Core.Option.Coordinate.Value == Data.OptionValues.CoordinateType.Right ? swig.CoordinateSystemType.RH : swig.CoordinateSystemType.LH);
 
 			var binaryExporter = new Binary.Exporter();
 			var data = binaryExporter.Export(Core.Root, Core.Option.Magnification);
+			var path = Utils.Misc.BackSlashToSlash(Core.Root.GetFullPath());
 			fixed (byte* p = &data[0])
 			{
-				// TODO refactor replace
-				LoadEffect(new IntPtr(p), data.Length, Core.Root.GetFullPath().Replace('\\', '/'));
+				var newEffect = effectFactory.LoadEffect(new IntPtr(p), data.Length, path);
+
+				EffectRenderer.SetEffect(newEffect);
+
+				if (CurrentEffect != null)
+				{
+					CurrentEffect.Dispose();
+				}
+
+				CurrentEffect = newEffect;
 			}
 		}
 
 		unsafe void PlayNew()
 		{
-			native.StopEffect();
+			EffectRenderer.ResetEffect();
 
 			if (IsChanged)
 			{
-				RemoveEffect();
+				EffectRenderer.SetEffect(null);
+				EffectRenderer.ResetEffect();
 
 				Export();
 
 				IsChanged = false;
 			}
 
-			random_seed = rand.Next(0, 0xffff);
-			SetRandomSeed(random_seed);
-			PlayEffect();
+			RenewRandomSeed();
+			EffectRenderer.PlayEffect();
 			IsPlaying = true;
 
 			if (Core.StartFrame > 0)
@@ -765,6 +855,12 @@ namespace Effekseer.GUI
 			current = Core.StartFrame;
 		}
 
+		private unsafe void RenewRandomSeed()
+		{
+			random_seed = rand.Next(0, 0xffff);
+			EffectRenderer.RandomSeed = random_seed;
+		}
+
 		/// <summary>
 		/// reload an effect including resources
 		/// </summary>
@@ -772,21 +868,25 @@ namespace Effekseer.GUI
 		{
 			if (isResourceReloaded)
 			{
-				native.InvalidateTextureCache();
+				effectFactory.ReloadAllResources();
 			}
 
-			native.StopEffect();
-
-			RemoveEffect();
+			EffectRenderer.SetEffect(null);
+			EffectRenderer.ResetEffect();
 
 			Export();
 
-			SetRandomSeed(random_seed);
-			PlayEffect();
+			EffectRenderer.RandomSeed = random_seed;
+			EffectRenderer.PlayEffect();
 			StepEffectFrame((int)Current);
 		}
 
 		unsafe void MoveFrame(float new_frame)
+		{
+			MoveFrame(new_frame, false);
+		}
+
+		unsafe void MoveFrame(float new_frame, bool renewRandomSeedOnRewind)
 		{
 			// Same frame
 			if (current == new_frame) return;
@@ -806,12 +906,13 @@ namespace Effekseer.GUI
 				{
 					if ((int)current == (int)new_frame)
 					{
+						StepEffectFrame((int)new_frame);
 					}
 					else if ((int)current > (int)new_frame)
 					{
-						native.StopEffect();
-						SetRandomSeed(random_seed);
-						PlayEffect();
+						EffectRenderer.ResetEffect();
+						EffectRenderer.RandomSeed = random_seed;
+						EffectRenderer.PlayEffect();
 						StepEffectFrame((int)new_frame);
 					}
 					else
@@ -826,9 +927,16 @@ namespace Effekseer.GUI
 					}
 					else if ((int)current > (int)new_frame)
 					{
-						native.StopEffect();
-
-						PlayEffect();
+						EffectRenderer.ResetEffect();
+						if (renewRandomSeedOnRewind)
+						{
+							RenewRandomSeed();
+						}
+						else
+						{
+							EffectRenderer.RandomSeed = random_seed;
+						}
+						EffectRenderer.PlayEffect();
 						StepEffectFrame((int)new_frame);
 					}
 					else
@@ -840,6 +948,10 @@ namespace Effekseer.GUI
 			}
 		}
 
+		unsafe void UpdateFrame()
+		{
+			EffectRenderer.Update(0);
+		}
 
 		private void ViewMode_OnChanged(object sender, ChangedValueEventArgs e)
 		{
@@ -847,54 +959,48 @@ namespace Effekseer.GUI
 
 			if (viewerMode == Data.OptionValues.ViewMode._3D)
 			{
-				var param = Manager.Viewer.GetViewerParamater();
-				param.ViewerMode = (swig.ViewMode)viewerMode;
-				param.IsPerspective = true;
-				param.IsOrthographic = false;
-				param.FocusX = 0.0f;
-				param.FocusY = 0.0f;
-				param.FocusZ = 0.0f;
-				param.AngleX = 30.0f;
-				param.AngleY = -30.0f;
-				Manager.Viewer.SetViewerParamater(param);
+				ViewPointController.SetFocusPosition(new swig.Vector3F(0, 0, 0));
+				ViewPointController.SetProjectionType(swig.ProjectionType.Perspective);
+				ViewPointController.SetAngleX(30.0f);
+				ViewPointController.SetAngleY(-30.0f);
 				Core.Option.IsXYGridShown.SetValueDirectly(false);
 				Core.Option.IsXZGridShown.SetValueDirectly(true);
 				Core.Option.IsYZGridShown.SetValueDirectly(false);
 			}
 			else if (viewerMode == Data.OptionValues.ViewMode._2D)
 			{
-				var param = Manager.Viewer.GetViewerParamater();
-				param.ViewerMode = (swig.ViewMode)viewerMode;
-				param.IsPerspective = false;
-				param.IsOrthographic = true;
-				param.FocusX = 0.0f;
-				param.FocusY = 0.0f;
-				param.FocusZ = 0.0f;
-				param.AngleX = 0.0f;
-				param.AngleY = 0.0f;
-				Manager.Viewer.SetViewerParamater(param);
+				ViewPointController.SetFocusPosition(new swig.Vector3F(0, 0, 0));
+				ViewPointController.SetProjectionType(swig.ProjectionType.Orthographic);
+				ViewPointController.SetAngleX(0.0f);
+				ViewPointController.SetAngleY(0.0f);
 				Core.Option.IsXYGridShown.SetValueDirectly(true);
 				Core.Option.IsXZGridShown.SetValueDirectly(false);
 				Core.Option.IsYZGridShown.SetValueDirectly(false);
 			}
 		}
 
+		void PostEffectChanged()
+		{
+			var postEffectParam = new swig.PostEffectParameter();
+			postEffectParam.BloomEnabled = Core.Environment.PostEffect.BloomSwitch.Value == Data.EnvironmentPostEffectValues.EffectSwitch.On;
+			postEffectParam.BoomIntensity = Core.Environment.PostEffect.Bloom.Intensity.Value;
+			postEffectParam.BloomThreshold = Core.Environment.PostEffect.Bloom.Threshold.Value;
+			postEffectParam.BloomSoftKnee = Core.Environment.PostEffect.Bloom.SoftKnee.Value;
+
+			postEffectParam.ToneMapAlgorithm = (int)Core.Environment.PostEffect.TonemapSelector.Value;
+			postEffectParam.ToneMapExposure = Core.Environment.PostEffect.TonemapReinhard.Exposure.Value;
+
+			EffectRenderer.SetPostEffectParameter(postEffectParam);
+		}
+
 		private void Bloom_OnChanged(object sender, ChangedValueEventArgs e)
 		{
-			bool enabled = Core.Environment.PostEffect.BloomSwitch.Value == Data.EnvironmentPostEffectValues.EffectSwitch.On;
-
-			native.SetBloomParameters(enabled, 
-				Core.Environment.PostEffect.Bloom.Intensity.Value,
-				Core.Environment.PostEffect.Bloom.Threshold.Value,
-				Core.Environment.PostEffect.Bloom.SoftKnee.Value);
+			PostEffectChanged();
 		}
-		
+
 		private void Tonemap_OnChanged(object sender, ChangedValueEventArgs e)
 		{
-			int algorithm = (int)Core.Environment.PostEffect.TonemapSelector.Value;
-
-			native.SetTonemapParameters(algorithm, 
-				Core.Environment.PostEffect.TonemapReinhard.Exposure.Value);
+			PostEffectChanged();
 		}
 	}
 }

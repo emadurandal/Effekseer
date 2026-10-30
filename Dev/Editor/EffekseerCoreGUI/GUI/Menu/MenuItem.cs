@@ -16,42 +16,43 @@ namespace Effekseer.GUI.Menu
 	}
 
 	public class MenuItem : IControl
-    {
-        string id = "";
+	{
+		string id = "";
 
-        public object Label { get; set; }
+		public object Label { get; set; }
+
+		public bool Checked { get; set; } = false;
 
 		public string Shortcut { get; set; } = null;
 
-        public bool ShouldBeRemoved { get; private set; } = false;
+		public bool ShouldBeRemoved { get; private set; } = false;
 
-        public Action Clicked;
+		public Action Clicked;
 
-		public Func<string> GetLabel;
+		public Action OnUpdate;
 
 		public string Icon = Icons.Empty;
 
-        public MenuItem()
-        {
-            var rand = new Random();
+		public MenuItem()
+		{
+			var rand = new Random();
 			id = "###" + Manager.GetUniqueID().ToString();
 		}
 
-        public void Update()
-        {
-			var label = Label;
-			if (GetLabel != null)
+		public void Update()
+		{
+			if (OnUpdate != null)
 			{
-				label = GetLabel();
+				OnUpdate();
 			}
 
-			if (Manager.NativeManager.MenuItem(Icon + " " +  label + id, Shortcut, false, true))
-            {
-                if(Clicked != null)
-                {
-                    Clicked();
-                }
-            }
-        }
-    }
+			if (Manager.NativeManager.MenuItem(Icon + " " + Label.ToString() + id, Shortcut, Checked, true))
+			{
+				if (Clicked != null)
+				{
+					Clicked();
+				}
+			}
+		}
+	}
 }

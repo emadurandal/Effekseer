@@ -1,6 +1,7 @@
 #include "efk.Window.h"
-#include "../Effekseer/Effekseer/Effekseer.DefaultFile.h"
-#include "../EffekseerRendererCommon/EffekseerRenderer.PngTextureLoader.h"
+#include <Common/StringHelper.h>
+#include <Effekseer/Effekseer.DefaultFile.h>
+#include <EffekseerRendererCommon/EffekseerRenderer.PngTextureLoader.h>
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <memory>
@@ -12,20 +13,89 @@
 
 namespace efk
 {
-// http://hasenpfote36.blogspot.jp/2016/09/stdcodecvt.html
-static constexpr std::codecvt_mode mode = std::codecvt_mode::little_endian;
 
-static std::string utf16_to_utf8(const std::u16string& s)
+#ifdef _WIN32
+namespace
 {
-#if defined(_WIN32)
-	std::wstring_convert<std::codecvt_utf8_utf16<std::uint16_t, 0x10ffff, mode>, std::uint16_t> conv;
-	auto p = reinterpret_cast<const std::uint16_t*>(s.c_str());
-	return conv.to_bytes(p, p + s.length());
-#else
-	std::wstring_convert<std::codecvt_utf8_utf16<char16_t, 0x10ffff, mode>, char16_t> conv;
-	return conv.to_bytes(s);
-#endif
+
+bool GetWindowMonitorInfo(HWND hwnd, MONITORINFO& monitorInfo)
+{
+	monitorInfo = {};
+	monitorInfo.cbSize = sizeof(MONITORINFO);
+
+	HMONITOR monitor = ::MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+	return monitor != nullptr && ::GetMonitorInfo(monitor, &monitorInfo) != FALSE;
 }
+
+RECT GetAdjustedWorkArea(const MONITORINFO& monitorInfo)
+{
+	constexpr LONG offset = 2;
+	const RECT& monitorRect = monitorInfo.rcMonitor;
+	RECT workRect = monitorInfo.rcWork;
+
+	if (monitorRect.left < workRect.left)
+	{
+		workRect.left += offset;
+	}
+	if (workRect.right < monitorRect.right)
+	{
+		workRect.right -= offset;
+	}
+	if (monitorRect.top < workRect.top)
+	{
+		workRect.top += offset;
+	}
+	if (workRect.bottom < monitorRect.bottom)
+	{
+		workRect.bottom -= offset;
+	}
+
+	return workRect;
+}
+
+void ApplyWorkAreaToMaxInfo(HWND hwnd, MINMAXINFO* maxInfo)
+{
+	MONITORINFO monitorInfo;
+	if (!GetWindowMonitorInfo(hwnd, monitorInfo))
+	{
+		return;
+	}
+
+	const RECT& monitorRect = monitorInfo.rcMonitor;
+	const RECT workRect = GetAdjustedWorkArea(monitorInfo);
+	maxInfo->ptMaxPosition.x = workRect.left - monitorRect.left;
+	maxInfo->ptMaxPosition.y = workRect.top - monitorRect.top;
+	maxInfo->ptMaxSize.x = workRect.right - workRect.left;
+	maxInfo->ptMaxSize.y = workRect.bottom - workRect.top;
+}
+
+void FitMaximizedWindowToWorkArea(HWND hwnd)
+{
+	WINDOWPLACEMENT placement = {};
+	placement.length = sizeof(WINDOWPLACEMENT);
+	if (!::GetWindowPlacement(hwnd, &placement) || placement.showCmd != SW_MAXIMIZE)
+	{
+		return;
+	}
+
+	MONITORINFO monitorInfo;
+	if (!GetWindowMonitorInfo(hwnd, monitorInfo))
+	{
+		return;
+	}
+
+	const RECT workRect = GetAdjustedWorkArea(monitorInfo);
+	::SetWindowPos(hwnd,
+				   nullptr,
+				   workRect.left,
+				   workRect.top,
+				   workRect.right - workRect.left,
+				   workRect.bottom - workRect.top,
+				   SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+}
+
+} // namespace
+#endif
 
 void GLFW_ResizeCallback(GLFWwindow* w, int x, int y)
 {
@@ -118,7 +188,7 @@ Window::~Window()
 {
 }
 
-bool Window::Initialize(std::shared_ptr<Effekseer::MainWindow> mainWindow, DeviceType deviceType)
+bool Window::Initialize(std::shared_ptr<Effekseer::MainWindow> mainWindow, Effekseer::Tool::DeviceType deviceType)
 {
 	this->deviceType = deviceType;
 
@@ -139,7 +209,8 @@ bool Window::Initialize(std::shared_ptr<Effekseer::MainWindow> mainWindow, Devic
 
 	maximized = glfwGetWindowAttrib(window, GLFW_MAXIMIZED) > 0;
 
-	mainWindow_->DpiChanged = [this](float scale) -> void { GLFW_ContentScaleCallback(window, scale, 1.0f); };
+	mainWindow_->DpiChanged = [this](float scale) -> void
+	{ GLFW_ContentScaleCallback(window, scale, 1.0f); };
 
 #ifdef _WIN32
 	if (mainWindow->IsFrameless())
@@ -154,6 +225,7 @@ bool Window::Initialize(std::shared_ptr<Effekseer::MainWindow> mainWindow, Devic
 		DWORD wndStyle = ::GetWindowLong(hwnd, GWL_STYLE);
 		wndStyle |= WS_SIZEBOX | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
 		::SetWindowLong(hwnd, GWL_STYLE, wndStyle);
+		FitMaximizedWindowToWorkArea(hwnd);
 	}
 #endif
 
@@ -194,14 +266,14 @@ bool Window::DoEvents()
 
 void Window::SetTitle(const char16_t* title)
 {
-	glfwSetWindowTitle(window, utf16_to_utf8(title).c_str());
+	glfwSetWindowTitle(window, Effekseer::Tool::StringHelper::ConvertUtf16ToUtf8(title).c_str());
 }
 
 void Window::SetWindowIcon(const char16_t* iconPath)
 {
-	Effekseer::DefaultFileInterface file;
-	std::unique_ptr<Effekseer::FileReader> reader(file.OpenRead(iconPath));
-	if (reader.get() != nullptr)
+	auto file = Effekseer::MakeRefPtr<Effekseer::DefaultFileInterface>();
+	auto reader = file->OpenRead(iconPath);
+	if (reader != nullptr)
 	{
 		size_t size = reader->GetLength();
 		std::vector<uint8_t> data(size);
@@ -240,7 +312,7 @@ void Window::Present()
 
 void Window::Close()
 {
-	//lfwSetWindowShouldClose(window, 1);
+	// lfwSetWindowShouldClose(window, 1);
 	GLFW_CloseCallback(window);
 }
 
@@ -337,6 +409,9 @@ LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpar
 
 	switch (msg)
 	{
+	case WM_GETMINMAXINFO:
+		ApplyWorkAreaToMaxInfo(hwnd, (MINMAXINFO*)lparam);
+		return 0;
 	case WM_NCCALCSIZE:
 	{
 		WINDOWPLACEMENT placement;
@@ -363,13 +438,22 @@ LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpar
 		GetClientRect(hwnd, &rect);
 		if (point.x >= rect.left && point.x < rect.right)
 		{
-
-			if (point.y >= rect.top && point.y < rect.top + 6 && !window->maximized)
+			const float dpiScale = window->mainWindow_->GetDPIScale();
+			const float resizeBorderHeight = 6.0f * dpiScale;
+			float titleBarHeight = 32.0f * dpiScale;
+			if (GImGui != nullptr)
 			{
-				glfwSetCursor(window->window, window->vertResize);
+				if (ImGuiWindow* mainMenu = ImGui::FindWindowByName("##MainMenuBar"))
+				{
+					titleBarHeight = mainMenu->Size.y;
+				}
+			}
+
+			if (point.y >= rect.top && point.y < rect.top + resizeBorderHeight && !window->maximized)
+			{
 				return HTTOP;
 			}
-			else if (point.y >= rect.top && point.y < rect.top + 32 * window->mainWindow_->GetDPIScale() && ImGui::GetHoveredID() == 0 && GImGui->HoveredWindow == ImGui::FindWindowByName("##MainMenuBar"))
+			else if (GImGui != nullptr && point.y >= rect.top && point.y < rect.top + titleBarHeight && ImGui::GetHoveredID() == 0 && GImGui->HoveredWindow == ImGui::FindWindowByName("##MainMenuBar"))
 			{
 				return HTCAPTION;
 			}

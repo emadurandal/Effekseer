@@ -9,6 +9,7 @@ RS_RenderingOrder_FirstCreatedInstanceIsFirst_Name,Orden de aparición
 RS_RenderingOrder_FirstCreatedInstanceIsLast_Name,Revertido
 BillboardType_Billboard_Name,Panel
 BillboardType_RotatedBillboard_Name,Rotar Panel
+BillboardType_DirectionalBillboard_Name,移動方向ビルボード
 BillboardType_YAxisFixed_Name,Eje-Y fijado
 BillboardType_Fixed_Name,Fijado
 StandardColorType_Fixed_Name,Fijado
@@ -19,11 +20,13 @@ TextureUVTypeParameter_Type_Name,Tipo UV
 TextureUVTypeParameter_Type_Desc,"Tipo de UV
 Estirar: Estirará la imagen
 Tile: Colocará tiles"
+TextureUVTypeParameter_TileLength_Name,Tile Length
 TextureUVTypeParameter_TileEdgeHead_Name,El número del tile en la cabecera
 TextureUVTypeParameter_TileEdgeTail_Name,El número del tile en la cola
 TextureUVTypeParameter_TileLoopingArea_Name,Area de Bucle
 TextureUVTypeParameter_Type_Strech_Name,Estirar
 TextureUVTypeParameter_Type_Tile_Name,Tile
+TextureUVTypeParameter_Type_TilePerParticle_Name,Tile(Per particle)
 ,
 CullingType_Front_Name,Mostrar cara frontal
 CullingType_Back_Name,Mostrar cara trasera
@@ -66,9 +69,10 @@ FixedRandomEasingType_Fixed_Name,Fijado
 FixedRandomEasingType_Random_Name,Aleatorio
 FixedRandomEasingType_Easing_Name,Desplazar
 ,
+RS_ColorAll_Name,Configurar color
+,
 RS_Sprite_RenderingOrder_Name,Orden de renderizado
 RS_Sprite_Billboard_Name,Configuración
-RS_Sprite_ColorAll_Name,Configurar color
 RS_Sprite_Color_Name,Color de Vertice
 RS_Sprite_Color_Fixed_LL_Name,Inferior-Color izquierda
 RS_Sprite_Color_Fixed_LR_Name,Inferior-Color derecha
@@ -117,6 +121,8 @@ Eje-Y fijado: El nodo estará mirando a la cámara con el eje Y fijado
 Fijado: El nodo se mantendrá fijado"
 RS_Model_Culling_Name,Mostrar
 RS_Model_Color_Name,Color
+RS_Model_ExternalIndex_Name,Índice de modelo externo
+RS_Model_ExternalIndex_Desc,Índice del modelo externo.
 ,
 RS_Ring_RingShape_Name,Forma
 RS_Ring_RenderingOrder_Name,Orden renderizado
@@ -145,3 +151,9 @@ RS_Ring_PVALocation_Velocity_Name,Velocidad
 RS_Ring_PVALocation_Velocity_Desc,Velocidad inicial del borde
 RS_Ring_PVALocation_Acceleration_Name,Aceleración
 RS_Ring_PVALocation_Acceleration_Desc,Aceleración del borde
+,
+StandardColorType_Gradient_Name,Gradiente
+RS_TrailSmoothing_Name,Suavizado
+RS_TrailTimeSource_Name,Fuente del tiempo de color
+RS_TrailTimeSource_FirstParticle_Name,Primera partícula
+RS_TrailTimeSource_ParticleGroup_Name,Grupo

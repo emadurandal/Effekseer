@@ -8,27 +8,27 @@ namespace Effekseer.GUI.Dock
 {
 	class GenerationLocationValues : DockPanel
 	{
-		Component.CopyAndPaste candp = null;
-		Component.ParameterList paramerterList = null;
+		BindableComponent.ParameterList paramerterList = null;
 
 		bool isFiestUpdate = true;
 
 		public GenerationLocationValues()
 		{
-			Label = Icons.PanelGeneration + Resources.GetString("SpawningMethod") + "###SpawningMethod";
+			Label = Icons.PanelGeneration + MultiLanguageTextProvider.GetText("SpawningMethod") + "###SpawningMethod";
+			DocPage = "locationGene.html";
 
-			paramerterList = new Component.ParameterList();
+			paramerterList = new BindableComponent.ParameterList();
 			paramerterList.SetType(typeof(Data.GenerationLocationValues));
 
-			candp = new Component.CopyAndPaste("SpawningMethod", GetTargetObject, Read);
+			CopyAndPaste = new BindableComponent.CopyAndPaste("SpawningMethod", GetTargetObject, Read);
 
 			Core.OnAfterLoad += OnAfterLoad;
 			Core.OnAfterNew += OnAfterLoad;
 			Core.OnAfterSelectNode += OnAfterSelectNode;
-			
+
 			Read();
 
-			TabToolTip = Resources.GetString("SpawningMethod");
+			TabToolTip = MultiLanguageTextProvider.GetText("SpawningMethod");
 		}
 
 		public void FixValues()
@@ -50,8 +50,6 @@ namespace Effekseer.GUI.Dock
 			if (isFiestUpdate)
 			{
 			}
-
-			candp.Update();
 
 			paramerterList.Update();
 		}

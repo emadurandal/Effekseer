@@ -5,9 +5,11 @@
 //----------------------------------------------------------------------------------
 // Include
 //----------------------------------------------------------------------------------
-#include "../Effekseer.Base.h"
+#include "../Effekseer.Base.Pre.h"
 #include "../Effekseer.Color.h"
 #include "../Effekseer.Matrix43.h"
+#include "../Effekseer.RectF.h"
+#include "../Effekseer.RenderingTransform.h"
 #include "../Effekseer.Vector2D.h"
 #include "../Effekseer.Vector3D.h"
 #include "../SIMD/Mat43f.h"
@@ -22,15 +24,12 @@ namespace Effekseer
 
 struct NodeRendererTextureUVTypeParameter;
 
-//----------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------
-
 class TrackRenderer : public ReferenceObject
 {
 public:
 	struct NodeParameter
 	{
+		float LocalTime;
 		Effect* EffectPointer;
 		bool ZTest;
 		bool ZWrite;
@@ -38,6 +37,7 @@ public:
 		int32_t SplineDivision;
 
 		bool IsRightHand;
+		float GlobalScale = 1.0f;
 		float Maginification = 1.0f;
 
 		NodeRendererDepthParameter* DepthParameterPtr = nullptr;
@@ -49,7 +49,11 @@ public:
 
 		bool EnableViewOffset = false;
 
+		TrailSmoothingType SmoothingType = TrailSmoothingType::Off;
+
 		RefPtr<RenderingUserData> UserData;
+		EffectRenderingTransformParameter RenderingCoordinateTransform;
+		EffectRenderingTransformParameter RenderingTransform;
 	};
 
 	struct InstanceGroupParameter
@@ -91,6 +95,8 @@ public:
 		float AlphaThreshold;
 
 		float ViewOffsetDistance;
+
+		float ParticleTimes[2];
 
 		std::array<float, 4> CustomData1;
 		std::array<float, 4> CustomData2;

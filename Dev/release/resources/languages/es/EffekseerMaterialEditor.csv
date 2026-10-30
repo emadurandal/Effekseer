@@ -10,6 +10,7 @@ ConfirmSaveChanged,[{0}] ha tenido cambios. ¿Quieres guardar los cambios?
 Cancel,Cancelar
 TextureCount,Imagen
 UniformCount,Parametros
+GradientCount,Cantidad de gradientes
 Delete_Name,Borrar
 ,
 Description_Name,Descripción
@@ -39,7 +40,7 @@ Priority_Desc,"Cuanto más baja sea la prioridad, más alto se mostrará la pant
 Sampler_Name,Muestra
 Sampler_Desc,"Especificar el tratamiento de una imagen.
 Repetir - repite desde el lado opuesto
-Pinza - mantiene el color del borde
+Pinza - mantiene el color del borde"
 UVIndex_Name,Índice UV
 ,
 ShadingModel_Name,Modelo sombreado
@@ -67,6 +68,10 @@ Si la entrada no está conectada, utiliza el valor de la propiedad."
 ,
 Step_Node_Name,Paso
 Step_Node_Desc,"Da salida a 1 si el valor introducido en V es mayor que el Borde, y da salida a 0 si es menor."
+SmoothStep_Node_Name,Paso Suave
+SmoothStep_Node_Desc,"Emite una interpolación Hermite suave entre 0 y 1 cuando el valor de V está entre Edge1 y Edge2.
+Si es menor que Edge1, emite 0.
+Si es mayor que Edge2, emite 1."
 ,
 Abs_Node_Name,Absoluto
 Abs_Node_Desc,Da salida al valor absoluto de V.
@@ -115,6 +120,25 @@ Si alpha es 1, V1 es salida.
 Si alpha es 0, salida V2.
 Si alpha es 0.7, V1 x 0.3 + V2 x 0.7 es salida."
 ,
+Logical_Name,Lógica
+Branch_Node_Name,Rama
+Branch_Node_Desc,"La salida cambia según el valor introducido en Condition.
+Si Condition es True, emite el valor conectado a True.
+Si Condition es False, emite el valor conectado a False."
+Compare_Node_Name,Comparar
+Compare_Node_Desc,"Compara A y B según la condición configurada en Condition.
+Si la condición se cumple, emite True.
+Si no se cumple, emite False."
+BoolAnd_Node_Name,Y lógico (AND)
+BoolAnd_Node_Desc,La salida es True cuando V1 y V2 son True.
+BoolOr_Node_Name,O lógico (OR)
+BoolOr_Node_Desc,La salida es True cuando V1 o V2 es True.
+BoolNot_Node_Name,NO lógico (NOT)
+BoolNot_Node_Desc,Invierte y emite V.
+IsFrontFace_Node_Name,Cara frontal
+IsFrontFace_Node_Desc,"Emite True al renderizar la cara frontal.
+Emite False al renderizar la cara trasera."
+,
 Model_Name,Modelo
 WorldPosition_Node_Name,PosiciónVertice
 WorldPosition_Node_Desc,Muestra las posiciones de los vértices de las partículas.
@@ -152,11 +176,17 @@ TextureObject_Node_Desc,"Muestra la imagen especificada.
 No se puede mostrar directamente porque es una imagen."
 ,
 Output_Node_Name,Salida
+Normalized_Name,Normalizado
+Seconds_Name,Segundos
 Comment_Node_Name,Comentario
 ,
 Constant_Name,Constante
 Time_Node_Name,Tiempo
 Time_Node_Desc,Muestra la hora actual en segundos.
+LocalTime_Node_Name,Tiempo local
+LocalTime_Node_Desc,Muestra el tiempo en segundos desde que se generó el efecto.
+ParticleTime_Node_Name,Tiempo partícula
+ParticleTime_Node_Desc,Muestra el progreso de vida normalizado y los segundos transcurridos para cada partícula.
 EffectScale_Node_Name,Escala Effecto
 EffectScale_Node_Desc,Obtiene la escala especificada cuando se carga el archivo de efectos.
 CameraPositionWS_Node_Name,Posición cámara
@@ -211,9 +241,36 @@ Puede especificar cuántas imágenes se disponen en una ronda y el ángulo de ro
 ,
 Depth_Name,Profundidad
 ,
-DepthFade_Name,Desvanecimiento de la profundidad
-DepthFade_Desc,"Emite un valor menor a medida que se acerca al objeto de fondo.
-Salida 1 si la distancia es mayor que la distancia de desvanecimiento, 0 si la distancia es 0".
+DepthFade_Node_Name,Desvanecimiento de la profundidad
+DepthFade_Node_Desc,"Emite un valor menor a medida que se acerca al objeto de fondo.
+Salida 1 si la distancia es mayor que la distancia de desvanecimiento, 0 si la distancia es 0."
+,
+Gradient_Name,Gradiente
+SampleGradient_Node_Name,Muestrear gradiente
+SampleGradient_Node_Desc,"Emite una referencia de color del gradiente al color en la posición especificada.
+Si no hay entrada para el gradiente, se usa el gradiente de este nodo."
+Gradient_Node_Name,Gradiente
+Gradient_Node_Desc,Este nodo emite un gradiente.
+GradientParameter_Node_Name,Parámetro de gradiente
+GradientParameter_Node_Desc,Emite un gradiente configurado externamente.
+,
+Noise_Name,Ruido
+SimpleNoise_Node_Name,Ruido simple
+SimpleNoise_Node_Desc,Emite ruido.
+WhiteNoise_Node_Name,Ruido blanco
+WhiteNoise_Node_Desc,Emite ruido.
+CellularNoise_Node_Name,Ruido celular
+CellularNoise_Node_Desc,Emite ruido.
+,
+Color_Name,Color
+RgbToHsv_Node_Name,RGB a HSV
+RgbToHsv_Node_Desc,Convierte el espacio de color RGB a HSV.
+HsvToRgb_Node_Name,HSV a RGB
+HsvToRgb_Node_Desc,Convierte el espacio de color HSV a RGB.
+,
+Environment_Name,Entorno
+Light_Node_Name,Luz
+Light_Node_Desc,Emite información sobre las luces configuradas externamente.
 ,
 ConvertParam_Name,Convertir a parametros
 ,
@@ -224,7 +281,7 @@ Error_SamePin,Error_MismoPin
 Error_SameDirection,Error_MismaDirección
 Error_Loop,Error_Bucle
 Error_Type,Error_Tipo
-Error_NewVersion,El archivo es demasiado nuevo para abrirlo. Por favor, actualice Effekseer
+Error_NewVersion,"El archivo es demasiado nuevo para abrirlo. Por favor, actualice Effekseer"
 Create_Link,Crear_enlace
 Create_Node,Crear_Nodo
 ,
